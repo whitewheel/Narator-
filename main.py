@@ -1,28 +1,34 @@
-
-import discord
-import openai
 import os
+import discord
+from openai import OpenAI
+from discord.ext import commands
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# Setup
 intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+intents.message_content = True
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+bot = commands.Bot(command_prefix='!', intents=intents)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f'Logged in as {client.user}')
+    print(f"🤖 Bot aktif sebagai {bot.user}")
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-
-    if message.content.startswith("!tanya "):
-        prompt = message.content[7:]
-        response = openai.ChatCompletion.create(
+@bot.command()
+async def tanya(ctx, *, prompt):
+    try:
+        response = client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
         )
-        await message.channel.send(response['choices'][0]['message']['content'])
+        reply = response.choices[0].message.content
+        await ctx.send(reply)
+    except Exception as e:
+        await ctx.send(f"❌ Terjadi error:\n{str(e)}")
 
-client.run(os.getenv("DISCORD_TOKEN"))
+bot.run(os.getenv("DISCORD_TOKEN"))
