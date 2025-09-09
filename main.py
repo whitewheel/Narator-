@@ -16,7 +16,7 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 
 # Load credential JSON dari ENV variable (Railway friendly)
 creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
-creds_dict = json.loads(creds_json)
+creds_dict = json.loads(creds_json.replace('\\n', '\n'))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gs_client = gspread.authorize(creds)
 
