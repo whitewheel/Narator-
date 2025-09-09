@@ -40,7 +40,7 @@ async def on_message(message: discord.Message):
             await message.channel.send("⚠️ Tolong kasih pertanyaan setelah `!ask`")
             return
 
-        await message.channel.send("⏳ Lagi mikir...")
+        await message.channel.send("mohon tunggu...")
 
         try:
             response = client_gpt.chat.completions.create(
