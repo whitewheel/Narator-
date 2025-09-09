@@ -73,10 +73,10 @@ async def on_message(message: discord.Message):
     if message.content.startswith("!ask"):
         prompt = message.content[len("!ask"):].strip()
         if not prompt:
-            await message.channel.send("⚠️ Tolong kasih pertanyaan setelah `!ask`")
+            await send_long(message, "⚠️ Tolong kasih pertanyaan setelah `!ask`")
             return
 
-        await message.channel.send("🤖...")
+        await send_long(message, "⏳ Mohon tunggu...")
 
         try:
             response = client_gpt.chat.completions.create(
@@ -94,7 +94,8 @@ async def on_message(message: discord.Message):
 
         except Exception as e:
             logger.error(f"❌ Error GPT: {e}")
-            await message.channel.send(f"❌ Error: {e}")
+            # gunakan send_long supaya tidak melebihi 2000
+            await send_long(message, f"❌ Error: {str(e)}")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
