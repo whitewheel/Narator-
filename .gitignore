@@ -1,1 +1,4 @@
+git add .gitignore
+git commit -m "allow credentials.json to be included"
+git push
 
