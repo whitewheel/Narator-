@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 import logging
 import discord
 import gspread
@@ -11,23 +12,49 @@ logger = logging.getLogger("bot")
 # ============ ENV ============
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 SHEET_URL = os.getenv("SHEET_URL")
-# Simpan JSON service account ke ENV dengan nama GS_CREDS_JSON
-GS_CREDS_JSON = os.getenv("GS_CREDS_JSON")
+GS_CREDS_JSON = os.getenv("GS_CREDS_JSON")  # isi ENV dengan JSON / BASE64 dari credentials.json
 
 if not DISCORD_TOKEN:
     raise RuntimeError("ENV DISCORD_TOKEN kosong.")
 if not GS_CREDS_JSON:
-    raise RuntimeError("ENV GS_CREDS_JSON kosong (isi dengan string JSON credential).")
+    raise RuntimeError("ENV GS_CREDS_JSON kosong (isi dengan JSON/BASE64 credential).")
 if not SHEET_URL:
     logger.warning("ENV SHEET_URL kosong. Bot tetap jalan, tapi fitur sheet tidak aktif.")
 
-# ============ GOOGLE SHEETS AUTH ============
-# Railway tidak punya file lokal credentials.json by default.
-# Jadi kita parse dari ENV yang berisi JSON string.
+# ============ GOOGLE SHEETS AUTH (kebal Invalid \escape) ============
+def load_service_account_from_env(var_name="GS_CREDS_JSON"):
+    raw = os.getenv(var_name)
+    if not raw:
+        raise RuntimeError(f"ENV {var_name} kosong.")
+
+    # 1) Coba langsung JSON
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # 2) Coba BASE64 -> JSON
+        try:
+            decoded = base64.b64decode(raw).decode("utf-8")
+            data = json.loads(decoded)
+        except Exception:
+            # 3) Jika ENV terbungkus kutip tunggal/ganda, coba kupas
+            t = raw.strip()
+            if (t.startswith("'") and t.endswith("'")) or (t.startswith('"') and t.endswith('"')):
+                data = json.loads(t[1:-1])
+            else:
+                raise RuntimeError(
+                    f"{var_name} bukan JSON/BASE64 valid. "
+                    "Pastikan kamu paste seluruh isi credentials.json atau paste versi base64."
+                )
+
+    # Normalisasi private_key jika masih berisi literal '\\n'
+    if isinstance(data.get("private_key"), str) and "\\n" in data["private_key"]:
+        data["private_key"] = data["private_key"].replace("\\n", "\n")
+    return data
+
 try:
-    creds_dict = json.loads(GS_CREDS_JSON)
-except json.JSONDecodeError as e:
-    raise RuntimeError(f"GS_CREDS_JSON bukan JSON valid: {e}")
+    creds_dict = load_service_account_from_env("GS_CREDS_JSON")
+except Exception as e:
+    raise RuntimeError(f"Gagal memuat kredensial Google: {e}")
 
 scope = [
     "https://spreadsheets.google.com/feeds",
@@ -35,6 +62,7 @@ scope = [
 ]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gs_client = gspread.authorize(creds)
+logger.info(f"Google SA email: {creds_dict.get('client_email')}")
 
 # Opsional: tes koneksi ke sheet saat startup
 def test_sheet():
