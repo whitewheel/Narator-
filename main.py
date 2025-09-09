@@ -8,7 +8,6 @@ import math  # NEW
 # (impor lain tetap)
 
 # ============ LOAD ENV & API KEY ============
-load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_KEY
