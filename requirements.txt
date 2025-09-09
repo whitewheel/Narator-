@@ -1,2 +1,4 @@
+discord.py
+gspread
+oauth2client
 openai==0.28
-discord.py==2.3.2
