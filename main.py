@@ -2,7 +2,6 @@ import discord
 import openai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from dotenv import load_dotenv
 import os
 import json  # NEW
 import math  # NEW
