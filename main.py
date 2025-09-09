@@ -3,9 +3,8 @@ import openai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
-import json  # NEW
-import math  # NEW
-# (impor lain tetap)
+import json
+import math
 
 # ============ LOAD ENV & API KEY ============
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -14,7 +13,11 @@ openai.api_key = OPENAI_KEY
 
 # ============ GOOGLE SHEETS SETUP ============
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+
+# Load credential JSON dari ENV variable (Railway friendly)
+creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+creds_dict = json.loads(creds_json)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gs_client = gspread.authorize(creds)
 
 sheet_url = "https://docs.google.com/spreadsheets/d/1oWjMfSLm-L_3bgpop7YtUVTCgnTrdKYcmIivq-uXMzg/edit#gid=0"
@@ -26,11 +29,10 @@ intents = discord.Intents.default()
 intents.message_content = True  # 🔥 WAJIB agar bisa baca pesan dari user
 client = discord.Client(intents=intents)
 
-# ============ HELPERS (NEW) ============
+# ============ HELPERS ============
 DISCORD_LIMIT = 2000
 
 def split_for_discord(text: str, limit: int = DISCORD_LIMIT):
-    """Bagi teks panjang agar tidak melebihi limit Discord."""
     if len(text) <= limit:
         return [text]
     parts = []
@@ -40,7 +42,6 @@ def split_for_discord(text: str, limit: int = DISCORD_LIMIT):
     return parts
 
 def get_worksheet_by_name_or_default(name: str = None):
-    """Ambil worksheet berdasarkan nama; fallback ke sheet1."""
     try:
         if name:
             return spreadsheet.worksheet(name)
@@ -49,10 +50,6 @@ def get_worksheet_by_name_or_default(name: str = None):
         return spreadsheet.sheet1
 
 def read_rows_as_json(ws, max_rows: int = 300):
-    """
-    Baca data dari worksheet sebagai JSON list[dict].
-    Batasi jumlah baris agar hemat token.
-    """
     try:
         rows = ws.get_all_records()
         if max_rows and len(rows) > max_rows:
@@ -62,22 +59,16 @@ def read_rows_as_json(ws, max_rows: int = 300):
         return {"error": str(e)}
 
 def build_grounded_messages(question: str, rows_json):
-    """
-    Siapkan pesan ke GPT: instruksi untuk menjawab hanya berdasarkan data sheet.
-    """
     system_msg = (
         "Kamu adalah asisten yang menjawab BERDASARKAN DATA SHEET yang diberikan.\n"
         "- Jika jawaban tidak dapat ditemukan di data, katakan persis: 'Maaf, datanya tidak ada di sheet.'\n"
         "- Jika ada beberapa kemungkinan, sebutkan temuan yang relevan dan alasan singkat.\n"
         "- Jangan mengada-ada; jangan gunakan pengetahuan umum di luar data."
     )
-
-    # Agar hemat token, kita kirim JSON yang sudah dipotong
     user_msg = (
         f"Pertanyaan: {question}\n\n"
         f"DataSheet(JSON):\n{json.dumps(rows_json, ensure_ascii=False)}"
     )
-
     return [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": user_msg}
@@ -99,29 +90,18 @@ async def on_message(message):
 
     print(f"📨 Pesan diterima: {message.content}")
 
-    # ==== !tanya <prompt> ====
     if message.content.startswith("!tanya "):
         prompt = message.content[7:].strip()
         try:
-            await message.channel.send("🔄 Sedang diproses...")  # RESPON AWAL
+            await message.channel.send("Check...")
             response = openai.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}]
-            )
-            await message.channel.send(response['choices'][0]['message']['content'][:2000])
-        except Exception as e:
-            await message.channel.send(f"⚠️ Error OpenAI: {str(e)}")
-            response = openai.ChatCompletion.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
             )
             await reply_long(message, response['choices'][0]['message']['content'])
         except Exception as e:
             await message.channel.send(f"⚠️ Error OpenAI: {str(e)}")
 
-    # ==== !tanya data <pertanyaan> ====
-    # Format opsional: !tanya data <nama_sheet> | <pertanyaan>
     elif message.content.startswith("!tanya data "):
         raw = message.content[len("!tanya data "):].strip()
         if "|" in raw:
@@ -136,22 +116,19 @@ async def on_message(message):
                 await message.channel.send(f"⚠️ Gagal baca sheet: {rows_json['error']}")
                 return
 
+            await message.channel.send("🔄 Sedang memproses data sheet...")
             messages = build_grounded_messages(question, rows_json)
             response = openai.ChatCompletion.create(
                 model="gpt-4o",
                 messages=messages,
-                temperature=0,  # deterministik untuk konsistensi saat cek data
+                temperature=0
             )
             answer = response['choices'][0]['message']['content']
-
-            # Tambahkan metadata ringkas agar jelas dari sheet mana
             header = f"**🧾 Jawaban berbasis data** (sheet: `{ws.title}`):\n"
             await reply_long(message, header + answer)
-
         except Exception as e:
-            await message.channel.send(f"⚠️ Gagal memproses pertanyaan berbasis data: {str(e)}")
+            await message.channel.send(f"⚠️ Gagal proses pertanyaan data: {str(e)}")
 
-    # ==== !sheet lihat ====
     elif message.content.startswith("!sheet lihat"):
         try:
             rows = sheet.get_all_records()
@@ -165,7 +142,6 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"⚠️ Gagal lihat sheet: {str(e)}")
 
-    # ==== !sheet tambah <nama> ====
     elif message.content.startswith("!sheet tambah "):
         nama_sheet = message.content[len("!sheet tambah "):].strip()
         try:
