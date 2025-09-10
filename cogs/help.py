@@ -9,6 +9,7 @@ COLOR_STATUS    = discord.Color.red()
 COLOR_DICE      = discord.Color.gold()
 COLOR_POLL      = discord.Color.blue()
 COLOR_GPT       = discord.Color.purple()
+COLOR_QUICK     = discord.Color.orange() 
 
 # ===== Embed Builders =====
 def embed_overview(prefix: str) -> discord.Embed:
