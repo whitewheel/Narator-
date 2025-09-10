@@ -79,7 +79,6 @@ class InitiativeMemory(commands.Cog):
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
         await ctx.send(f"✅ Ditambahkan/diupdate: **{name}** = {score}")
 
-    @init_group.command(name="addmany")
 @init_group.command(name="addmany")
 async def init_addmany(self, ctx, *, entries: str):
     """
