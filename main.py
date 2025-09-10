@@ -1,14 +1,20 @@
 import os
 import io
 import logging
+from dotenv import load_dotenv
 import discord
+from discord.ext import commands
 from openai import OpenAI
 
 # ====== LOGGING ======
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger("bot")
 
-# ====== ENV ======
+# ====== LOAD ENV ======
+load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -22,80 +28,90 @@ client_gpt = OpenAI(api_key=OPENAI_API_KEY)
 
 # ====== DISCORD BOT ======
 intents = discord.Intents.default()
-intents.message_content = True  # wajib aktif di Developer Portal
-bot = discord.Client(intents=intents)
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 DISCORD_LIMIT = 2000
-FALLBACK_FILE_LIMIT = 10000  # kalau jawaban > 10k char, kirim file txt
+FALLBACK_FILE_LIMIT = 10000
 
 def split_message(text, limit=DISCORD_LIMIT):
-    """
-    Pecah text panjang jadi potongan <= limit karakter.
-    """
+    """Pecah text panjang jadi potongan <= limit karakter."""
     if len(text) <= limit:
         return [text]
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
-async def send_long(message, content: str):
+async def send_long(ctx, content: str):
     """
     Kirim jawaban panjang:
     - <=2000 → kirim biasa
     - <=10k → pecah jadi beberapa pesan
-    - >10k → kirim sebagai file .txt
+    - >10k → kirim file txt
     """
     if len(content) <= DISCORD_LIMIT:
-        await message.channel.send(content)
+        await ctx.send(f"```{content}```")
         return
 
     if len(content) <= FALLBACK_FILE_LIMIT:
         parts = split_message(content, DISCORD_LIMIT)
         for idx, part in enumerate(parts, start=1):
-            await message.channel.send(f"**Bagian {idx}/{len(parts)}**\n{part}")
+            await ctx.send(f"**Bagian {idx}/{len(parts)}**\n```{part}```")
         return
 
-    # kalau sangat panjang → file txt
     data = io.StringIO(content)
-    await message.channel.send(
+    await ctx.send(
         "📄 Jawaban panjang banget, aku kirim dalam file ya 👇",
         file=discord.File(fp=data, filename="jawaban.txt"),
     )
 
+# ====== EVENTS ======
 @bot.event
 async def on_ready():
-    logger.info(f"🤖 Logged in as {bot.user} (ID: {bot.user.id})")
+    logger.info(f"🤖 Bot login sebagai {bot.user}")
 
 @bot.event
-async def on_message(message: discord.Message):
-    if message.author.bot:
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("❌ Command tidak dikenal. Coba `!help`.")
+    else:
+        await ctx.send("⚠️ Terjadi error, coba lagi nanti.")
+        logger.error(f"Error di command {ctx.command}: {error}")
+
+# ====== COMMANDS ======
+@bot.command(name="ask")
+async def ask(ctx, *, prompt: str = None):
+    """Tanya GPT dengan !ask <pertanyaan>"""
+    if not prompt:
+        await send_long(ctx, "⚠️ Tolong kasih pertanyaan setelah `!ask`")
         return
 
-    # Trigger dengan prefix "!ask"
-    if message.content.startswith("!ask"):
-        prompt = message.content[len("!ask"):].strip()
-        if not prompt:
-            await send_long(message, "⚠️ Tolong kasih pertanyaan setelah `!ask`")
-            return
+    msg = await ctx.send("🤖...")
+    try:
+        response = client_gpt.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Kamu adalah asisten yang ramah."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1500,
+        )
+        answer = response.choices[0].message.content
+        await send_long(ctx, answer)
+    except Exception as e:
+        logger.error(f"❌ Error GPT: {e}")
+        await send_long(ctx, f"❌ Error: {str(e)}")
+    finally:
+        await msg.delete()
 
-        await send_long(message, "⏳ Mohon tunggu...")
+# ====== LOAD COGS ======
+initial_cogs = ["cogs.roll", "cogs.poll"]  # tambah cogs.gpt kalau nanti dipisah
 
-        try:
-            response = client_gpt.chat.completions.create(
-                model="gpt-4o",  # ✅ pakai GPT-4o
-                messages=[
-                    {"role": "system", "content": "Kamu adalah asisten yang ramah."},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=2000,
-            )
-            answer = response.choices[0].message.content
+for cog in initial_cogs:
+    try:
+        bot.load_extension(cog)
+        logger.info(f"✅ Loaded {cog}")
+    except Exception as e:
+        logger.error(f"❌ Gagal load {cog}: {e}")
 
-            # gunakan helper untuk kirim jawaban
-            await send_long(message, answer)
-
-        except Exception as e:
-            logger.error(f"❌ Error GPT: {e}")
-            # gunakan send_long supaya tidak melebihi 2000
-            await send_long(message, f"❌ Error: {str(e)}")
-
+# ====== RUN ======
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
