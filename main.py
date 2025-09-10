@@ -38,7 +38,8 @@ class MyBot(commands.Bot):
             "cogs.gpt",
             "cogs.initmem",
             "cogs.karakter_status",
-            "cogs.help"   # ⬅️ harus ada ini
+            "cogs.status_alias",   # ✅ QoL alias: !dmg, !heal, !ene±, !stam±
+            "cogs.help"            # ✅ custom help
         ]
         for ext in exts:
             try:
