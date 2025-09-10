@@ -267,6 +267,42 @@ def embed_gpt(prefix: str) -> discord.Embed:
     )
     return e
 
+def embed_quick(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="⚡ Quick Commands",
+        description="Alias singkat untuk mempercepat command yang sering dipakai.",
+        color=COLOR_QUICK,
+        timestamp=datetime.datetime.utcnow()
+    )
+    e.add_field(
+        name="🔹 Status",
+        value=(
+            f"- `{prefix}dmg <Nama> <jumlah>` = `{prefix}status dmg`\n"
+            f"- `{prefix}heal <Nama> <jumlah>` = `{prefix}status heal`\n"
+            f"- `{prefix}stat <Nama>` = `{prefix}status show <Nama>`\n"
+            f"- `{prefix}party` = `{prefix}status show` (semua karakter)"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Initiative",
+        value=(
+            f"- `{prefix}next` atau `{prefix}n` = `{prefix}init next`\n"
+            f"- `{prefix}order` = `{prefix}init show`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Dice",
+        value=(
+            f"- `{prefix}r` = `{prefix}roll`\n"
+            f"Contoh: `{prefix}r 1d20 +str`"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Quick Commands hanya alias → hasil sama seperti command panjangnya.")
+    return e
+
 # ===== View dengan tombol =====
 class HelpView(discord.ui.View):
     def __init__(self, prefix: str, timeout: float = 120):
@@ -297,6 +333,10 @@ class HelpView(discord.ui.View):
     async def btn_gpt(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=embed_gpt(self.prefix), view=self)
 
+    @discord.ui.button(label="Quick", style=discord.ButtonStyle.secondary, emoji="⚡")
+    async def btn_quick(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=embed_quick(self.prefix), view=self)
+
 class CustomHelp(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -323,9 +363,11 @@ class CustomHelp(commands.Cog):
             await ctx.send(embed=embed_poll(prefix))
         elif t in ("gpt", "ask", "define", "summarize", "story"):
             await ctx.send(embed=embed_gpt(prefix))
+        elif t in ("quick", "alias", "shortcut"):
+            await ctx.send(embed=embed_quick(prefix))
         else:
             await ctx.send(
-                "❓ Topik tidak dikenali. Coba `!help`, `!help init`, `!help status`, `!help roll`, `!help poll`, atau `!help gpt`."
+                "❓ Topik tidak dikenali. Coba `!help`, `!help init`, `!help status`, `!help roll`, `!help poll`, `!help gpt`, atau `!help quick`."
             )
 
 async def setup(bot):
