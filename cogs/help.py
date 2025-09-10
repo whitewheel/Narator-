@@ -77,6 +77,42 @@ def embed_init(prefix: str) -> discord.Embed:
     e.set_footer(text="Data disortir: skor desc, nama asc. Panah 👉 menandai giliran.")
     return e
 
+def embed_status(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="🧍 Karakter Status",
+        description="Tracker in-memory untuk HP / Energy / Stamina (hilang saat bot restart).",
+        color=discord.Color.red()
+    )
+    e.add_field(
+        name="Perintah",
+        value=(
+            f"• `{prefix}status set <Nama> <HP> <Energy> <Stamina>` → buat karakter\n"
+            f"• `{prefix}status setmax <Nama> <HPmax> <EnergyMax> <StaminaMax>` → atur batas max\n"
+            f"• `{prefix}status dmg <Nama> <jumlah>` → kurangi HP\n"
+            f"• `{prefix}status heal <Nama> <jumlah>` → tambah HP\n"
+            f"• `{prefix}status useenergy <Nama> <jumlah>` / `{prefix}status regenenergy <Nama> <jumlah>`\n"
+            f"• `{prefix}status usestam <Nama> <jumlah>` / `{prefix}status regenstam <Nama> <jumlah>`\n"
+            f"• `{prefix}status show` → tampilkan semua\n"
+            f"• `{prefix}status remove <Nama>` → hapus karakter\n"
+            f"• `{prefix}status clear` → reset channel"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Contoh",
+        value=(
+            "```txt\n"
+            "!status set Alice 40 20 15\n"
+            "!status dmg Alice 5\n"
+            "!status usestam Alice 3\n"
+            "!status show\n"
+            "```"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Visual bar: ❤️ HP | 🔋 Energy | ⚡ Stamina")
+    return e
+
 def embed_dice(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🎲 Dice Roller",
