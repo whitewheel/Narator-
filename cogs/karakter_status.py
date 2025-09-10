@@ -11,10 +11,15 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     filled = int(round(width * (cur / mx)))
     return "█" * filled + "░" * (width - filled)
 
+def _mod(score: int) -> int:
+    return (score - 10) // 2
+
 class CharacterStatus(commands.Cog):
     """
-    In-memory tracker untuk Karakter: HP / Energy / Stamina (+ max).
-    Per channel → { nama: {hp, hp_max, energy, energy_max, stamina, stamina_max} }
+    In-memory tracker:
+    - HP / Energy / Stamina (+ max)
+    - Core stats: STR, DEX, CON, INT, WIS, CHA
+    - Buffs & Debuffs
     """
     def __init__(self, bot):
         self.bot = bot
@@ -33,151 +38,129 @@ class CharacterStatus(commands.Cog):
             s[name] = {
                 "hp": 0, "hp_max": 0,
                 "energy": 0, "energy_max": 0,
-                "stamina": 0, "stamina_max": 0
+                "stamina": 0, "stamina_max": 0,
+                "core": {"str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10},
+                "buffs": [],
+                "debuffs": []
             }
         return s[name]
 
     def _clamp(self, v: dict):
-        # batasi current ke [0, max] jika max > 0
         for cur, mx in (("hp","hp_max"), ("energy","energy_max"), ("stamina","stamina_max")):
             if v[mx] > 0:
                 v[cur] = max(0, min(v[cur], v[mx]))
             else:
                 v[cur] = max(0, v[cur])
 
-    def _make_embed(self, title: str, name: str, v: dict, color=discord.Color.blurple()):
-        """Bikin embed status untuk 1 karakter"""
-        embed = discord.Embed(title=title, color=color)
-        embed.add_field(
-            name=name,
-            value=(
-                f"❤️ HP: {v['hp']}/{v['hp_max']} [{_bar(v['hp'], v['hp_max'])}]\n"
-                f"🔋 Energy: {v['energy']}/{v['energy_max']} [{_bar(v['energy'], v['energy_max'])}]\n"
-                f"⚡ Stamina: {v['stamina']}/{v['stamina_max']} [{_bar(v['stamina'], v['stamina_max'])}]"
-            ),
-            inline=False
+    def _make_embed(self, ctx, data: dict, title="🧍 Karakter Status"):
+        embed = discord.Embed(
+            title=title,
+            description=f"Channel: **{ctx.channel.name}**",
+            color=discord.Color.blurple()
         )
+        if not data:
+            embed.add_field(name="(kosong)", value="Gunakan `!status set` untuk menambah karakter.", inline=False)
+            return embed
+
+        for name, v in data.items():
+            hp_text = f"{v['hp']}/{v['hp_max']}" if v['hp_max'] else str(v['hp'])
+            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max'] else str(v['energy'])
+            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max'] else str(v['stamina'])
+
+            core = v["core"]
+            stats_line = (
+                f"STR {core['str']} ({_mod(core['str']):+d}) | "
+                f"DEX {core['dex']} ({_mod(core['dex']):+d}) | "
+                f"CON {core['con']} ({_mod(core['con']):+d})\n"
+                f"INT {core['int']} ({_mod(core['int']):+d}) | "
+                f"WIS {core['wis']} ({_mod(core['wis']):+d}) | "
+                f"CHA {core['cha']} ({_mod(core['cha']):+d})"
+            )
+
+            buffs = "\n".join([f"✅ {b}" for b in v["buffs"]]) if v["buffs"] else "-"
+            debuffs = "\n".join([f"❌ {d}" for d in v["debuffs"]]) if v["debuffs"] else "-"
+
+            value = (
+                f"❤️ HP: {hp_text} [{_bar(v['hp'], v['hp_max'])}]\n"
+                f"🔋 Energy: {en_text} [{_bar(v['energy'], v['energy_max'])}]\n"
+                f"⚡ Stamina: {st_text} [{_bar(v['stamina'], v['stamina_max'])}]\n\n"
+                f"📊 Stats:\n{stats_line}\n\n"
+                f"✨ Buffs:\n{buffs}\n\n"
+                f"☠️ Debuffs:\n{debuffs}"
+            )
+            embed.add_field(name=name, value=value, inline=False)
         return embed
 
     # ---------- commands ----------
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
-        """Karakter Status: HP / Energy / Stamina"""
         await ctx.send(
-            "```Gunakan:\n"
-            "!status set <Nama> <HP> <Energy> <Stamina>     (set current & max)\n"
-            "!status setmax <Nama> <HPmax> <EnergyMax> <StaminaMax>\n"
-            "!status dmg <Nama> <jumlah>\n"
-            "!status heal <Nama> <jumlah>\n"
-            "!status useenergy <Nama> <jumlah>\n"
-            "!status regenenergy <Nama> <jumlah>\n"
-            "!status usestam <Nama> <jumlah>\n"
-            "!status regenstam <Nama> <jumlah>\n"
-            "!status show\n"
+            "```txt\n"
+            "Status Commands:\n"
+            "!status set <Nama> <HP> <Energy> <Stamina>\n"
+            "!status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>\n"
+            "!status buff <Nama> <teks>\n"
+            "!status debuff <Nama> <teks>\n"
+            "!status clearbuff <Nama>\n"
+            "!status cleardebuff <Nama>\n"
+            "!status show [Nama]\n"
             "!status remove <Nama>\n"
-            "!status clear\n```"
+            "!status clear\n"
+            "```"
         )
 
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        s = self._ensure(ctx)
-        s[name] = {
+        entry = self._ensure_entry(ctx, name)
+        entry.update({
             "hp": hp, "hp_max": hp,
             "energy": energy, "energy_max": energy,
             "stamina": stamina, "stamina_max": stamina
-        }
-        await ctx.send(embed=self._make_embed(f"✅ {name} ditambahkan.", name, s[name], discord.Color.green()))
+        })
+        await ctx.send(f"✅ {name} dibuat/diupdate.")
 
-    @status_group.command(name="setmax")
-    async def status_setmax(self, ctx, name: str, hp_max: int, energy_max: int, stamina_max: int):
-        v = self._ensure_entry(ctx, name)
-        v["hp_max"] = max(0, hp_max)
-        v["energy_max"] = max(0, energy_max)
-        v["stamina_max"] = max(0, stamina_max)
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"✅ Max status {name} diupdate.", name, v, discord.Color.blue()))
+    @status_group.command(name="setcore")
+    async def status_setcore(self, ctx, name: str, str_: int, dex: int, con: int, int_: int, wis: int, cha: int):
+        entry = self._ensure_entry(ctx, name)
+        entry["core"] = {"str": str_, "dex": dex, "con": con, "int": int_, "wis": wis, "cha": cha}
+        await ctx.send(f"✅ Core stats {name} diupdate.")
 
-    @status_group.command(name="dmg")
-    async def status_dmg(self, ctx, name: str, amount: int):
+    @status_group.command(name="buff")
+    async def status_buff(self, ctx, name: str, *, text: str):
         v = self._ensure_entry(ctx, name)
-        v["hp"] = max(0, v["hp"] - amount)
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"💥 {name} kena {amount} dmg!", name, v, discord.Color.red()))
+        v["buffs"].append(text)
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
 
-    @status_group.command(name="heal")
-    async def status_heal(self, ctx, name: str, amount: int):
+    @status_group.command(name="debuff")
+    async def status_debuff(self, ctx, name: str, *, text: str):
         v = self._ensure_entry(ctx, name)
-        v["hp"] += amount
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"✨ {name} heal {amount} HP!", name, v, discord.Color.green()))
+        v["debuffs"].append(text)
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
 
-    @status_group.command(name="useenergy")
-    async def status_useenergy(self, ctx, name: str, amount: int):
+    @status_group.command(name="clearbuff")
+    async def status_clearbuff(self, ctx, name: str):
         v = self._ensure_entry(ctx, name)
-        v["energy"] = max(0, v["energy"] - amount)
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"🔋 {name} pakai {amount} energy!", name, v, discord.Color.gold()))
+        v["buffs"] = []
+        await ctx.send(f"✨ Semua buff dihapus dari {name}.")
 
-    @status_group.command(name="regenenergy")
-    async def status_regenenergy(self, ctx, name: str, amount: int):
+    @status_group.command(name="cleardebuff")
+    async def status_cleardebuff(self, ctx, name: str):
         v = self._ensure_entry(ctx, name)
-        v["energy"] += amount
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"🔋 {name} regen {amount} energy!", name, v, discord.Color.gold()))
-
-    @status_group.command(name="usestam")
-    async def status_usestam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["stamina"] = max(0, v["stamina"] - amount)
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"⚡ {name} pakai {amount} stamina!", name, v, discord.Color.orange()))
-
-    @status_group.command(name="regenstam")
-    async def status_regenstam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["stamina"] += amount
-        self._clamp(v)
-        await ctx.send(embed=self._make_embed(f"⚡ {name} regen {amount} stamina!", name, v, discord.Color.orange()))
+        v["debuffs"] = []
+        await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
 
     @status_group.command(name="show")
-    async def status_show(self, ctx):
+    async def status_show(self, ctx, name: str = None):
         s = self._ensure(ctx)
         if not s:
-            return await ctx.send("⚠️ Belum ada data. Tambah dengan `!status set <Nama> <HP> <Energy> <Stamina>`")
-
-        # hitung rata-rata HP untuk warna embed
-        total_cur, total_max = 0, 0
-        for v in s.values():
-            total_cur += v["hp"]
-            total_max += v["hp_max"] if v["hp_max"] else v["hp"]
-
-        hp_ratio = total_cur / total_max if total_max > 0 else 1
-        if hp_ratio > 0.7:
-            color = discord.Color.green()
-        elif hp_ratio > 0.3:
-            color = discord.Color.gold()
+            return await ctx.send("⚠️ Belum ada data karakter.")
+        if name:
+            if name not in s:
+                return await ctx.send(f"⚠️ Karakter {name} tidak ditemukan.")
+            data = {name: s[name]}
         else:
-            color = discord.Color.red()
-
-        embed = discord.Embed(
-            title="🧍 Karakter Status",
-            description=f"Status party di channel **{ctx.channel.name}**",
-            color=color
-        )
-
-        for name, v in s.items():
-            hp_text = f"{v['hp']}/{v['hp_max']}" if v['hp_max'] else str(v['hp'])
-            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max'] else str(v['energy'])
-            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max'] else str(v['stamina'])
-
-            value = (
-                f"❤️ HP: {hp_text}  [{_bar(v['hp'], v['hp_max'])}]\n"
-                f"🔋 Energy: {en_text}  [{_bar(v['energy'], v['energy_max'])}]\n"
-                f"⚡ Stamina: {st_text}  [{_bar(v['stamina'], v['stamina_max'])}]"
-            )
-            embed.add_field(name=name, value=value, inline=False)
-
-        embed.set_footer(text="Visual bar: █ penuh | ░ kosong")
+            data = s
+        embed = self._make_embed(ctx, data)
         await ctx.send(embed=embed)
 
     @status_group.command(name="remove")
@@ -185,7 +168,7 @@ class CharacterStatus(commands.Cog):
         s = self._ensure(ctx)
         if name in s:
             del s[name]
-            await ctx.send(f"🗑️ **{name}** dihapus.")
+            await ctx.send(f"🗑️ {name} dihapus.")
         else:
             await ctx.send("⚠️ Nama tidak ditemukan.")
 
@@ -193,7 +176,18 @@ class CharacterStatus(commands.Cog):
     async def status_clear(self, ctx):
         k = _key(ctx)
         self.state.pop(k, None)
-        await ctx.send("🧹 Data Karakter Status channel ini direset.")
+        await ctx.send("🧹 Semua status di channel ini direset.")
+
+    # ---------- Quick Commands ----------
+    @commands.command(name="stat")
+    async def quick_stat(self, ctx, name: str):
+        """Alias cepat: !stat <Nama> → status 1 karakter"""
+        await self.status_show(ctx, name=name)
+
+    @commands.command(name="party")
+    async def quick_party(self, ctx):
+        """Alias cepat: !party → status semua karakter"""
+        await self.status_show(ctx)
 
 async def setup(bot):
     await bot.add_cog(CharacterStatus(bot))
