@@ -5,6 +5,7 @@ from discord.ext import commands
 # Palet warna
 COLOR_OVERVIEW  = discord.Color.blurple()
 COLOR_INIT      = discord.Color.green()
+COLOR_STATUS    = discord.Color.red()
 COLOR_DICE      = discord.Color.gold()
 COLOR_POLL      = discord.Color.blue()
 COLOR_GPT       = discord.Color.purple()
@@ -15,7 +16,7 @@ def embed_overview(prefix: str) -> discord.Embed:
         title="📖 Bantuan Bot",
         description=(
             f"Gunakan `{prefix}help <topik>` untuk detail cepat.\n"
-            f"Atau pakai tombol di bawah untuk pindah kategori."
+            f"Atau klik tombol di bawah untuk pindah kategori."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
@@ -23,6 +24,11 @@ def embed_overview(prefix: str) -> discord.Embed:
     e.add_field(
         name="⚔️ Initiative",
         value=f"`{prefix}init add/show/next/remove/clear/setptr`",
+        inline=False
+    )
+    e.add_field(
+        name="🧍 Karakter Status",
+        value=f"`{prefix}status set/show/dmg/heal/useenergy/usestam/...`",
         inline=False
     )
     e.add_field(
@@ -40,7 +46,7 @@ def embed_overview(prefix: str) -> discord.Embed:
         value=f"`{prefix}ask` · `{prefix}define` · `{prefix}summarize` · `{prefix}story`",
         inline=False
     )
-    e.set_footer(text="Tips: ketik !help init untuk detail inisiatif.")
+    e.set_footer(text="Tips: ketik !help init atau !help status untuk detail.")
     return e
 
 def embed_init(prefix: str) -> discord.Embed:
@@ -63,7 +69,7 @@ def embed_init(prefix: str) -> discord.Embed:
         inline=False
     )
     e.add_field(
-        name="Contoh Cepat",
+        name="Contoh",
         value=(
             "```txt\n"
             "!init add Alice 18\n"
@@ -80,8 +86,9 @@ def embed_init(prefix: str) -> discord.Embed:
 def embed_status(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🧍 Karakter Status",
-        description="Tracker in-memory untuk HP / Energy / Stamina (hilang saat bot restart).",
-        color=discord.Color.red()
+        description="Tracker in-memory untuk ❤️ HP / 🔋 Energy / ⚡ Stamina (hilang saat bot restart).",
+        color=COLOR_STATUS,
+        timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="Perintah",
@@ -92,7 +99,7 @@ def embed_status(prefix: str) -> discord.Embed:
             f"• `{prefix}status heal <Nama> <jumlah>` → tambah HP\n"
             f"• `{prefix}status useenergy <Nama> <jumlah>` / `{prefix}status regenenergy <Nama> <jumlah>`\n"
             f"• `{prefix}status usestam <Nama> <jumlah>` / `{prefix}status regenstam <Nama> <jumlah>`\n"
-            f"• `{prefix}status show` → tampilkan semua\n"
+            f"• `{prefix}status show` → tampilkan semua (embed)\n"
             f"• `{prefix}status remove <Nama>` → hapus karakter\n"
             f"• `{prefix}status clear` → reset channel"
         ),
@@ -110,7 +117,20 @@ def embed_status(prefix: str) -> discord.Embed:
         ),
         inline=False
     )
-    e.set_footer(text="Visual bar: ❤️ HP | 🔋 Energy | ⚡ Stamina")
+    e.add_field(
+        name="Contoh Output",
+        value=(
+            "```\n"
+            "🧍 Karakter Status\n"
+            "Alice:\n"
+            "  ❤️ HP: 35/40 [██████████░░]\n"
+            "  🔋 Energy: 20/20 [████████████]\n"
+            "  ⚡ Stamina: 12/15 [██████████░░]\n"
+            "```"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Visual bar: █ penuh | ░ kosong")
     return e
 
 def embed_dice(prefix: str) -> discord.Embed:
@@ -127,7 +147,12 @@ def embed_dice(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="Fitur",
-        value="• Embed hasil roll  • Deteksi CRIT/FAIL untuk 1d20",
+        value="• Embed hasil roll\n• Deteksi CRIT (20) / FAIL (1) untuk 1d20",
+        inline=False
+    )
+    e.add_field(
+        name="Contoh",
+        value="```txt\n!roll 2d6+3\nHasil: 🎲 5 + 2 + 3 = 10```",
         inline=False
     )
     return e
@@ -190,6 +215,10 @@ class HelpView(discord.ui.View):
     async def btn_init(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=embed_init(self.prefix), view=self)
 
+    @discord.ui.button(label="Status", style=discord.ButtonStyle.danger, emoji="🧍")
+    async def btn_status(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=embed_status(self.prefix), view=self)
+
     @discord.ui.button(label="Dice", style=discord.ButtonStyle.secondary, emoji="🎲")
     async def btn_dice(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=embed_dice(self.prefix), view=self)
@@ -205,8 +234,7 @@ class HelpView(discord.ui.View):
 class CustomHelp(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # ganti help default
-        bot.remove_command("help")
+        bot.remove_command("help")  # ganti help default
 
     @commands.command(name="help")
     async def help(self, ctx, *, topic: str = None):
@@ -217,18 +245,20 @@ class CustomHelp(commands.Cog):
             await ctx.send(embed=embed_overview(prefix), view=view)
             return
 
-        # help per topik (fallback text command)
+        # fallback help per topik
         t = topic.lower().strip()
         if t == "init":
             await ctx.send(embed=embed_init(prefix))
-        elif t == "roll" or t == "dice":
+        elif t == "status":
+            await ctx.send(embed=embed_status(prefix))
+        elif t in ("roll", "dice"):
             await ctx.send(embed=embed_dice(prefix))
         elif t == "poll":
             await ctx.send(embed=embed_poll(prefix))
         elif t in ("gpt", "ask", "define", "summarize", "story"):
             await ctx.send(embed=embed_gpt(prefix))
         else:
-            await ctx.send("❓ Topik tidak dikenali. Coba `!help`, `!help init`, `!help roll`, `!help poll`, atau `!help gpt`.")
+            await ctx.send("❓ Topik tidak dikenali. Coba `!help`, `!help init`, `!help status`, `!help roll`, `!help poll`, atau `!help gpt`.")
 
 async def setup(bot):
     await bot.add_cog(CustomHelp(bot))
