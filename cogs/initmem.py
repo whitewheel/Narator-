@@ -59,7 +59,7 @@ class InitiativeMemory(commands.Cog):
             "```txt\n"
             "Initiative Commands:\n"
             "!init add <Nama> <Skor>\n"
-            "!init addmany \"Alice 18, Goblin 12, Borin 14\"\n"
+            "!init addmany \"Alice 18, Goblin 12, Borin 14\"  (juga bisa multi-line)\n"
             "!init show            (atau: !order)\n"
             "!init next            (atau: !next / !n)\n"
             "!init setptr <index>  (mulai dari 1)\n"
@@ -79,50 +79,58 @@ class InitiativeMemory(commands.Cog):
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
         await ctx.send(f"✅ Ditambahkan/diupdate: **{name}** = {score}")
 
-@init_group.command(name="addmany")
-async def init_addmany(self, ctx, *, entries: str):
-    """
-    Tambah banyak peserta sekaligus.
-    Terima pemisah: koma (,), titik koma (;), pipe (|), atau baris baru.
-    Format tiap item: <Nama> <Skor>
-    Contoh:
-      !init addmany Alice 18, Goblin 12
-      !init addmany "Sir Alice" 18; Orc 12 | Mage 16
-      !init addmany
-      Alice 18
-      Bob 14
-    """
-    s = self._ensure(ctx)
-    existing = {n: sc for (n, sc) in s["order"]}
+    @init_group.command(name="addmany")
+    async def init_addmany(self, ctx, *, entries: str = None):
+        """
+        Tambah banyak peserta sekaligus.
+        Pemisah: koma (,), titik koma (;), pipe (|), atau baris baru.
+        Format tiap item: <Nama> <Skor>
+        Contoh:
+          !init addmany Alice 18, Goblin 12
+          !init addmany "Sir Alice" 18; Orc 12 | Mage 16
+          !init addmany
+          Alice 18
+          Bob 14
+        """
+        # Jika user kirim multi-line tanpa argumen setelah command, ambil dari raw message.
+        if entries is None:
+            raw = ctx.message.content
+            idx = raw.lower().find("addmany")
+            entries = raw[idx + len("addmany"):].strip() if idx != -1 else ""
 
-    # Pecah jadi item-item per peserta
-    chunks = [c.strip() for c in re.split(r'[,\n;|]+', entries) if c.strip()]
+        if not entries:
+            return await ctx.send("⚠️ Format: `!init addmany Alice 18, Goblin 12` atau tulis daftar di baris berikutnya.")
 
-    added = 0
-    skipped = []
+        s = self._ensure(ctx)
+        existing = {n: sc for (n, sc) in s["order"]}
 
-    for ch in chunks:
-        # match: <Nama...> <Skor>
-        m = re.match(r'^(?P<name>.+?)\s+(?P<score>-?\d+)\s*$', ch)
-        if not m:
-            skipped.append(ch)
-            continue
-        name = m.group('name').strip()
-        score = int(m.group('score'))
-        existing[name] = score
-        added += 1
+        # Pecah menjadi item per peserta
+        chunks = [c.strip() for c in re.split(r'[,\n;|]+', entries) if c.strip()]
 
-    s["order"] = self._sorted(list(existing.items()))
-    s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
+        added = 0
+        skipped = []
 
-    msg = f"✅ Ditambahkan/diupdate **{added}** peserta."
-    if skipped:
-        # tampilkan sebagian yang di-skip biar tau kenapa
-        preview = ", ".join(skipped[:5])
-        if len(skipped) > 5:
-            preview += ", ..."
-        msg += f" (di-skip: {preview})"
-    await ctx.send(msg)
+        for ch in chunks:
+            # Cocokkan: <Nama...> <Skor>
+            m = re.match(r'^(?P<name>.+?)\s+(?P<score>-?\d+)\s*$', ch)
+            if not m:
+                skipped.append(ch)
+                continue
+            name = m.group('name').strip()
+            score = int(m.group('score'))
+            existing[name] = score
+            added += 1
+
+        s["order"] = self._sorted(list(existing.items()))
+        s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
+
+        msg = f"✅ Ditambahkan/diupdate **{added}** peserta."
+        if skipped:
+            preview = ", ".join(skipped[:5])
+            if len(skipped) > 5:
+                preview += ", ..."
+            msg += f" (di-skip: {preview})"
+        await ctx.send(msg)
 
     @init_group.command(name="remove")
     async def init_remove(self, ctx, name: str):
