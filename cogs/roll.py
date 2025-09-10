@@ -12,7 +12,11 @@ MOD_NAME_RE = re.compile(r"(?P<sign>[+-])\s*(?P<name>[A-Za-z_][\w\-]*)")
 MAX_DICE = 100
 MAX_SIDES = 1000
 
-BUFF_DEBUFF_RE = re.compile(r"^(?P<sign>[+-])\s*(?P<val>\d+)\s*(?P<stat>STR|DEX|CON|INT|WIS|CHA)\b", re.IGNORECASE)
+# Buff/debuff parsing
+BUFF_DEBUFF_RE = re.compile(
+    r"^(?P<sign>[+-])\s*(?P<val>\d+)\s*(?P<stat>STR|DEX|CON|INT|WIS|CHA|ALL)\b",
+    re.IGNORECASE
+)
 
 def _parse_expression(expr: str):
     expr = re.sub(r"[dD]{2,}", "d", expr)  # toleransi dd20 → d20
@@ -70,7 +74,7 @@ def _crit_info(dice_details):
             fail = True
     return crit, fail
 
-def _fmt_mods(mods, stat_mods, buff_mods, named_mods):
+def _fmt_mods(mods, stat_mods, buff_mods, generic_mods, named_mods):
     parts = []
     if mods:
         parts.append(" ".join([f"{'+' if v>=0 else ''}{v}" for v in mods]))
@@ -78,6 +82,8 @@ def _fmt_mods(mods, stat_mods, buff_mods, named_mods):
         parts.append(f"{'+' if v>=0 else ''}{v} ({name.upper()})")
     for name, v, src in buff_mods:
         parts.append(f"{'+' if v>=0 else ''}{v} ({name.upper()} {src})")
+    for v, src in generic_mods:
+        parts.append(f"{'+' if v>=0 else ''}{v} ({src})")
     for name, v in named_mods:
         parts.append(f"{'+' if v>=0 else ''}{v} ({name})")
     return " + ".join(parts) if parts else "0"
@@ -97,7 +103,7 @@ class DiceCog(commands.Cog):
         !roll <expresi> [vs <target>] / [dc <target>]
         Bisa pakai core stat dengan "as <Nama>":
           !roll as Alice 1d20 +str +dex +2 dc 15
-        Buff/Debuff yang cocok (+2 STR, -1 DEX, dll) ikut dihitung otomatis.
+        Buff/Debuff yang cocok (+2 STR, -1 DEX, +1 ALL, dll) ikut dihitung otomatis.
         """
         if not query:
             return await ctx.send("Format: `!roll 2d20 +2` atau `!roll as Alice 1d20 +str +dex dc 16`")
@@ -127,6 +133,7 @@ class DiceCog(commands.Cog):
         # ambil data karakter dari CharacterStatus
         stat_mods = []
         buff_mods = []
+        generic_mods = []
         if actor:
             status_cog = self.bot.get_cog("CharacterStatus")
             if status_cog:
@@ -141,16 +148,23 @@ class DiceCog(commands.Cog):
                         # cek buff/debuff yang match
                         for b in buffs + debuffs:
                             m = BUFF_DEBUFF_RE.match(b.strip())
-                            if m and m.group("stat").lower() == stat:
-                                sign2 = -1 if m.group("sign") == "-" else 1
-                                val = int(m.group("val")) * sign2 * sign
-                                buff_mods.append((stat, val, b))
+                            if m:
+                                statname = m.group("stat").lower()
+                                val = int(m.group("val")) * (-1 if m.group("sign") == "-" else 1)
+                                if statname == stat:
+                                    buff_mods.append((stat, val * sign, b))
+                                elif statname == "all":
+                                    generic_mods.append((val, b))
                 else:
                     await ctx.send(f"⚠️ Karakter **{actor}** tidak ditemukan di status.")
             else:
                 await ctx.send("⚠️ Modul CharacterStatus tidak aktif.")
 
-        mod_total = sum(mods) + sum(v for _, v in stat_mods) + sum(v for _, v, _ in buff_mods)
+        mod_total = sum(mods) \
+                  + sum(v for _, v in stat_mods) \
+                  + sum(v for _, v, _ in buff_mods) \
+                  + sum(v for v, _ in generic_mods)
+
         total = dice_sum + mod_total
 
         crit, fail = _crit_info(details)
@@ -183,7 +197,11 @@ class DiceCog(commands.Cog):
             embed.add_field(name="Dice", value="\n".join(lines), inline=False)
 
         # modifiers breakdown
-        embed.add_field(name="Modifiers", value=_fmt_mods(mods, stat_mods, buff_mods, named), inline=False)
+        embed.add_field(
+            name="Modifiers",
+            value=_fmt_mods(mods, stat_mods, buff_mods, generic_mods, named),
+            inline=False
+        )
 
         # total vs DC
         if target is not None:
