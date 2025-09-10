@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import random
+import re
 
 def _key(ctx):
     """Key unik per-guild per-channel."""
@@ -79,29 +80,50 @@ class InitiativeMemory(commands.Cog):
         await ctx.send(f"✅ Ditambahkan/diupdate: **{name}** = {score}")
 
     @init_group.command(name="addmany")
-    async def init_addmany(self, ctx, *, entries: str):
-        """
-        Tambah banyak peserta sekaligus.
-        Format: "Alice 18, Goblin 12, Borin 15"
-        """
-        s = self._ensure(ctx)
-        existing = {n: sc for (n, sc) in s["order"]}
-        count = 0
+@init_group.command(name="addmany")
+async def init_addmany(self, ctx, *, entries: str):
+    """
+    Tambah banyak peserta sekaligus.
+    Terima pemisah: koma (,), titik koma (;), pipe (|), atau baris baru.
+    Format tiap item: <Nama> <Skor>
+    Contoh:
+      !init addmany Alice 18, Goblin 12
+      !init addmany "Sir Alice" 18; Orc 12 | Mage 16
+      !init addmany
+      Alice 18
+      Bob 14
+    """
+    s = self._ensure(ctx)
+    existing = {n: sc for (n, sc) in s["order"]}
 
-        for part in entries.split(","):
-            part = part.strip()
-            if not part:
-                continue
-            toks = part.rsplit(" ", 1)
-            if len(toks) != 2 or not toks[1].isdigit():
-                continue
-            name, score = toks[0], int(toks[1])
-            existing[name] = score
-            count += 1
+    # Pecah jadi item-item per peserta
+    chunks = [c.strip() for c in re.split(r'[,\n;|]+', entries) if c.strip()]
 
-        s["order"] = self._sorted(list(existing.items()))
-        s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-        await ctx.send(f"✅ Ditambahkan {count} peserta sekaligus.")
+    added = 0
+    skipped = []
+
+    for ch in chunks:
+        # match: <Nama...> <Skor>
+        m = re.match(r'^(?P<name>.+?)\s+(?P<score>-?\d+)\s*$', ch)
+        if not m:
+            skipped.append(ch)
+            continue
+        name = m.group('name').strip()
+        score = int(m.group('score'))
+        existing[name] = score
+        added += 1
+
+    s["order"] = self._sorted(list(existing.items()))
+    s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
+
+    msg = f"✅ Ditambahkan/diupdate **{added}** peserta."
+    if skipped:
+        # tampilkan sebagian yang di-skip biar tau kenapa
+        preview = ", ".join(skipped[:5])
+        if len(skipped) > 5:
+            preview += ", ..."
+        msg += f" (di-skip: {preview})"
+    await ctx.send(msg)
 
     @init_group.command(name="remove")
     async def init_remove(self, ctx, name: str):
