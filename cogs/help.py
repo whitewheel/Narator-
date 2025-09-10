@@ -136,25 +136,46 @@ def embed_status(prefix: str) -> discord.Embed:
 def embed_dice(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🎲 Dice Roller",
-        description="Lempar dadu fleksibel dengan modifier.",
+        description="Sistem lempar dadu fleksibel dengan banyak opsi: multi-dice, banyak modifier, modifier bernama, dan cek DC otomatis.",
         color=COLOR_DICE,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
-        name="Format",
-        value=f"`{prefix}roll XdY+Z`  • contoh: `{prefix}roll 3d8+2`, `{prefix}roll 1d20`",
+        name="🔹 Format Dasar",
+        value=(
+            f"`{prefix}roll XdY [XdY...] [+mod ...] [dc N]`\n"
+            f"- **XdY** → jumlah X dadu dengan sisi Y. Contoh `2d20`, `3d6`.\n"
+            f"- Bisa roll lebih dari 1 jenis dadu: `1d8+1d6`.\n"
+            f"- **+mod** → tambahkan modifier angka, bisa lebih dari satu: `+2 +2 -1`.\n"
+            f"- **+nama=angka** → modifier bernama biar jelas sumbernya: `+str=2 +int=2`.\n"
+            f"- **dc/ vs N** → cek hasil dengan Difficulty Class. Contoh: `dc 15` atau `vs 15`."
+        ),
         inline=False
     )
     e.add_field(
-        name="Fitur",
-        value="• Embed hasil roll\n• Deteksi CRIT (20) / FAIL (1) untuk 1d20",
+        name="🔹 Contoh Pemakaian",
+        value=(
+            "```txt\n"
+            "!roll 2d20 +2 +2             → Roll 2 d20, tambahkan total +4.\n"
+            "!roll 1d20 +str=2 +int=2 dc 15 → Roll d20, tambah STR+INT, cek DC 15.\n"
+            "!roll 1d8+1d6 +3             → Roll kombinasi dadu, tambah +3.\n"
+            "!roll 3d6 -1 +dex=3 vs 12    → Roll 3d6, mod -1 +DEX, cek lawan DC 12.\n"
+            "```"
+        ),
         inline=False
     )
     e.add_field(
-        name="Contoh",
-        value="```txt\n!roll 2d6+3\nHasil: 🎲 5 + 2 + 3 = 10```",
+        name="🔹 Fitur Tambahan",
+        value=(
+            "- Bisa pakai banyak modifier sekaligus.\n"
+            "- Modifier bernama ditampilkan di breakdown (mis. STR, INT, PROF).\n"
+            "- CRIT otomatis kalau ada `20` di roll d20.\n"
+            "- FAIL otomatis kalau semua hasil d20 adalah `1`.\n"
+            "- Hasil dibandingkan dengan DC kalau kamu kasih `dc`/`vs`."
+        ),
         inline=False
     )
+    e.set_footer(text="Tips: Gunakan modifier bernama (mis. +str=2) biar lebih mudah dibaca hasilnya.")
     return e
 
 def embed_poll(prefix: str) -> discord.Embed:
