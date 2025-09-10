@@ -15,38 +15,44 @@ def embed_overview(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="📖 Bantuan Bot",
         description=(
-            f"Gunakan `{prefix}help <topik>` untuk detail cepat.\n"
-            f"Atau klik tombol di bawah untuk pindah kategori."
+            f"Selamat datang di menu bantuan!\n\n"
+            f"Gunakan `{prefix}help <topik>` untuk detail cepat,\n"
+            f"atau klik tombol di bawah untuk pindah kategori."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="⚔️ Initiative",
-        value=f"`{prefix}init add/show/next/remove/clear/setptr`",
+        value="Kelola urutan giliran & round saat encounter berlangsung.",
         inline=False
     )
     e.add_field(
         name="🧍 Karakter Status",
-        value=f"`{prefix}status set/show/dmg/heal/useenergy/usestam/...`",
+        value="Pantau dan ubah HP, Energy, dan Stamina karakter party.",
         inline=False
     )
     e.add_field(
         name="🎲 Dice Roller",
-        value=f"`{prefix}roll <XdY+Z>`  • Contoh: `{prefix}roll 2d6+3`",
+        value="Lempar dadu fleksibel dengan modifier, advantage/disadvantage, dan cek DC.",
         inline=False
     )
     e.add_field(
         name="📊 Polling",
-        value=f"`{prefix}poll \"Judul\" opsi1 opsi2 ...`",
+        value="Buat voting cepat untuk keputusan party dengan reaction.",
         inline=False
     )
     e.add_field(
         name="🧠 GPT",
-        value=f"`{prefix}ask` · `{prefix}define` · `{prefix}summarize` · `{prefix}story`",
+        value="Tanya jawab, definisi, rangkuman, atau cerita interaktif dari GPT.",
         inline=False
     )
-    e.set_footer(text="Tips: ketik !help init atau !help status untuk detail.")
+    e.add_field(
+        name="⚡ Quick Commands",
+        value="Alias singkat untuk perintah yang sering dipakai (contoh: `!dmg`, `!heal`, `!next`).",
+        inline=False
+    )
+    e.set_footer(text=f"Contoh: {prefix}help init  •  {prefix}help status  •  {prefix}help roll")
     return e
 
 def embed_init(prefix: str) -> discord.Embed:
