@@ -32,8 +32,13 @@ intents.message_content = True
 
 class MyBot(commands.Bot):
     async def setup_hook(self):
-        # load semua cogs saat bot startup
-        exts = ["cogs.roll", "cogs.poll", "cogs.gpt", "cogs.initmem", "cogs.help", "cogs.karakter_status"]
+        exts = [
+            "cogs.roll",
+            "cogs.poll",
+            "cogs.gpt",
+            "cogs.initmem",
+            "cogs.karakter_status",  # ⬅️ pakai file baru ini
+        ]
         for ext in exts:
             try:
                 await self.load_extension(ext)
