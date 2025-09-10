@@ -49,40 +49,78 @@ def embed_overview(prefix: str) -> discord.Embed:
     e.set_footer(text="Tips: ketik !help init atau !help status untuk detail.")
     return e
 
+
 def embed_init(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="⚔️ Initiative Tracker",
-        description="In-memory tracker per channel (hilang saat restart).",
+        description="Sistem urutan giliran (initiative order) untuk combat. Data disimpan per channel & hilang saat bot restart.",
         color=COLOR_INIT,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
-        name="Perintah",
+        name="🔹 Format Dasar",
         value=(
-            f"• `{prefix}init add <Nama> <Skor>` — tambah/ubah peserta\n"
-            f"• `{prefix}init show` — tampilkan urutan & giliran\n"
-            f"• `{prefix}init next` — ganti ke giliran berikut\n"
-            f"• `{prefix}init setptr <nomor>` — set giliran manual (mulai 1)\n"
-            f"• `{prefix}init remove <Nama>` — hapus peserta\n"
-            f"• `{prefix}init clear` — reset tracker"
+            f"- `{prefix}init add <Nama> <Skor>` → tambah/ubah peserta.\n"
+            f"- `{prefix}init show` → tampilkan urutan & giliran aktif.\n"
+            f"- `{prefix}init next` → pindah ke giliran berikut (berputar).\n"
+            f"- `{prefix}init setptr <index>` → set giliran manual (mulai 1).\n"
+            f"- `{prefix}init remove <Nama>` → hapus peserta.\n"
+            f"- `{prefix}init clear` → reset tracker channel ini.\n"
+            f"- `{prefix}init round` / `{prefix}init round <angka>` → lihat/set round."
         ),
         inline=False
     )
     e.add_field(
-        name="Contoh",
+        name="🔹 Bulk & Shuffle",
+        value=(
+            f"- `{prefix}init addmany \"Alice 18, Goblin 12, Borin 15\"` → tambah banyak sekaligus.\n"
+            f"- `{prefix}init shuffle` → **acak pointer** (siapa mulai dulu). *Urutan skor tetap sama.*"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Engage (Mulai Encounter)",
+        value=(
+            f"- `{prefix}engage` (alias: `{prefix}start`, `{prefix}begin`) → mulai encounter dengan efek drumroll + embed rapi.\n"
+            f"- Footer embed mengingatkan pakai `{prefix}init next` untuk lanjut."
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Alias Cepat",
+        value=(
+            f"- `{prefix}next` (alias: `{prefix}n`) = `{prefix}init next`\n"
+            f"- `{prefix}order` = `{prefix}init show`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Mekanik Round",
+        value=(
+            "- Round dimulai di **1**.\n"
+            "- Setiap kali pointer kembali ke urutan pertama saat `next` → **Round naik +1** (bot mengumumkan).\n"
+            "- Kamu bisa set manual dengan `init round <angka>`."
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Contoh Pemakaian",
         value=(
             "```txt\n"
-            "!init add Alice 18\n"
-            "!init add Goblin 12\n"
-            "!init show\n"
-            "!init next\n"
+            "!init addmany \"Alice 18, Goblin 12, Borin 15\"\n"
+            "!engage\n"
+            "!next        # pindah giliran\n"
+            "!next        # lanjut lagi\n"
+            "!next        # balik ke awal → Round naik +1\n"
+            "!init setptr 2   # paksa ganti giliran ke urutan ke-2\n"
+            "!init round 3    # set round manual\n"
             "```"
         ),
         inline=False
     )
-    e.set_footer(text="Data disortir: skor desc, nama asc. Panah 👉 menandai giliran.")
+    e.set_footer(text="Tips: Gunakan bareng !status untuk pantau HP/Energy/Stamina saat combat.")
     return e
-
+    
 def embed_status(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🧍 Karakter Status",
