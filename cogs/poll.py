@@ -14,12 +14,17 @@ class Poll(commands.Cog):
             return await ctx.send("⚠️ Maksimal 10 opsi.")
 
         emojis = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
-        desc = "\n".join(f"{emojis[i]} {opt}" for i, opt in enumerate(options))
+        description = "\n".join(f"{emojis[i]} {opt}" for i, opt in enumerate(options))
 
-        embed = discord.Embed(title=f"📊 {question}", description=desc, color=discord.Color.blue())
-        msg = await ctx.send(embed=embed)
+        embed = discord.Embed(
+            title=f"📊 {question}",
+            description=description,
+            color=discord.Color.blue()
+        )
+        poll_message = await ctx.send(embed=embed)
+
         for i in range(len(options)):
-            await msg.add_reaction(emojis[i])
+            await poll_message.add_reaction(emojis[i])
 
-def setup(bot):
-    bot.add_cog(Poll(bot))
+async def setup(bot):
+    await bot.add_cog(Poll(bot))
