@@ -49,7 +49,6 @@ def embed_overview(prefix: str) -> discord.Embed:
     e.set_footer(text="Tips: ketik !help init atau !help status untuk detail.")
     return e
 
-
 def embed_init(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="⚔️ Initiative Tracker",
@@ -71,10 +70,25 @@ def embed_init(prefix: str) -> discord.Embed:
         inline=False
     )
     e.add_field(
-        name="🔹 Bulk & Shuffle",
+        name="🔹 Bulk & Multi-line",
         value=(
-            f"- `{prefix}init addmany \"Alice 18, Goblin 12, Borin 15\"` → tambah banyak sekaligus.\n"
-            f"- `{prefix}init shuffle` → **acak pointer** (siapa mulai dulu). *Urutan skor tetap sama.*"
+            f"- `{prefix}init addmany \"Alice 18, Goblin 12, Borin 15\"`\n"
+            f"- Bisa pakai pemisah: koma `,`, titik koma `;`, pipe `|`, atau **baris baru**.\n"
+            f"- Contoh multi-line:\n"
+            "```txt\n"
+            f"{prefix}init addmany\n"
+            "Alice 18\n"
+            "Borin 15\n"
+            "Goblin 12\n"
+            "```"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Shuffle Pointer",
+        value=(
+            f"- `{prefix}init shuffle` → **acak pointer** (siapa mulai dulu).\n"
+            f"- *Urutan berdasarkan skor tetap sama; hanya giliran awal yang digeser.*"
         ),
         inline=False
     )
@@ -104,16 +118,16 @@ def embed_init(prefix: str) -> discord.Embed:
         inline=False
     )
     e.add_field(
-        name="🔹 Contoh Pemakaian",
+        name="🔹 Contoh Cepat",
         value=(
             "```txt\n"
-            "!init addmany \"Alice 18, Goblin 12, Borin 15\"\n"
-            "!engage\n"
-            "!next        # pindah giliran\n"
-            "!next        # lanjut lagi\n"
-            "!next        # balik ke awal → Round naik +1\n"
-            "!init setptr 2   # paksa ganti giliran ke urutan ke-2\n"
-            "!init round 3    # set round manual\n"
+            f"{prefix}init addmany \"Alice 18, Goblin 12, Borin 15\"\n"
+            f"{prefix}engage\n"
+            f"{prefix}next        # pindah giliran\n"
+            f"{prefix}next        # lanjut lagi\n"
+            f"{prefix}next        # balik ke awal → Round naik +1\n"
+            f"{prefix}init setptr 2   # paksa ganti giliran ke urutan ke-2\n"
+            f"{prefix}init round 3    # set round manual\n"
             "```"
         ),
         inline=False
