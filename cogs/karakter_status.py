@@ -45,6 +45,20 @@ class CharacterStatus(commands.Cog):
             else:
                 v[cur] = max(0, v[cur])
 
+    def _make_embed(self, title: str, name: str, v: dict, color=discord.Color.blurple()):
+        """Bikin embed status untuk 1 karakter"""
+        embed = discord.Embed(title=title, color=color)
+        embed.add_field(
+            name=name,
+            value=(
+                f"❤️ HP: {v['hp']}/{v['hp_max']} [{_bar(v['hp'], v['hp_max'])}]\n"
+                f"🔋 Energy: {v['energy']}/{v['energy_max']} [{_bar(v['energy'], v['energy_max'])}]\n"
+                f"⚡ Stamina: {v['stamina']}/{v['stamina_max']} [{_bar(v['stamina'], v['stamina_max'])}]"
+            ),
+            inline=False
+        )
+        return embed
+
     # ---------- commands ----------
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
@@ -72,7 +86,7 @@ class CharacterStatus(commands.Cog):
             "energy": energy, "energy_max": energy,
             "stamina": stamina, "stamina_max": stamina
         }
-        await ctx.send(f"✅ **{name}** ditambahkan.")
+        await ctx.send(embed=self._make_embed(f"✅ {name} ditambahkan.", name, s[name], discord.Color.green()))
 
     @status_group.command(name="setmax")
     async def status_setmax(self, ctx, name: str, hp_max: int, energy_max: int, stamina_max: int):
@@ -81,49 +95,49 @@ class CharacterStatus(commands.Cog):
         v["energy_max"] = max(0, energy_max)
         v["stamina_max"] = max(0, stamina_max)
         self._clamp(v)
-        await ctx.send(f"✅ Max status **{name}** diupdate.")
+        await ctx.send(embed=self._make_embed(f"✅ Max status {name} diupdate.", name, v, discord.Color.blue()))
 
     @status_group.command(name="dmg")
     async def status_dmg(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["hp"] = max(0, v["hp"] - amount)
         self._clamp(v)
-        await ctx.send(f"💥 {name} kena {amount} dmg!")
+        await ctx.send(embed=self._make_embed(f"💥 {name} kena {amount} dmg!", name, v, discord.Color.red()))
 
     @status_group.command(name="heal")
     async def status_heal(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["hp"] += amount
         self._clamp(v)
-        await ctx.send(f"✨ {name} heal {amount} HP!")
+        await ctx.send(embed=self._make_embed(f"✨ {name} heal {amount} HP!", name, v, discord.Color.green()))
 
     @status_group.command(name="useenergy")
     async def status_useenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["energy"] = max(0, v["energy"] - amount)
         self._clamp(v)
-        await ctx.send(f"🔋 {name} pakai {amount} energy!")
+        await ctx.send(embed=self._make_embed(f"🔋 {name} pakai {amount} energy!", name, v, discord.Color.gold()))
 
     @status_group.command(name="regenenergy")
     async def status_regenenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["energy"] += amount
         self._clamp(v)
-        await ctx.send(f"🔋 {name} regen {amount} energy!")
+        await ctx.send(embed=self._make_embed(f"🔋 {name} regen {amount} energy!", name, v, discord.Color.gold()))
 
     @status_group.command(name="usestam")
     async def status_usestam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["stamina"] = max(0, v["stamina"] - amount)
         self._clamp(v)
-        await ctx.send(f"⚡ {name} pakai {amount} stamina!")
+        await ctx.send(embed=self._make_embed(f"⚡ {name} pakai {amount} stamina!", name, v, discord.Color.orange()))
 
     @status_group.command(name="regenstam")
     async def status_regenstam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         v["stamina"] += amount
         self._clamp(v)
-        await ctx.send(f"⚡ {name} regen {amount} stamina!")
+        await ctx.send(embed=self._make_embed(f"⚡ {name} regen {amount} stamina!", name, v, discord.Color.orange()))
 
     @status_group.command(name="show")
     async def status_show(self, ctx):
