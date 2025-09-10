@@ -29,7 +29,19 @@ client_gpt = OpenAI(api_key=OPENAI_API_KEY)
 # ====== DISCORD BOT ======
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+
+class MyBot(commands.Bot):
+    async def setup_hook(self):
+        # load semua cogs saat bot startup
+        exts = ["cogs.roll", "cogs.poll", "cogs.gpt"]
+        for ext in exts:
+            try:
+                await self.load_extension(ext)
+                logger.info(f"✅ Loaded {ext}")
+            except Exception as e:
+                logger.error(f"❌ Gagal load {ext}: {e}")
+
+bot = MyBot(command_prefix="!", intents=intents)
 
 DISCORD_LIMIT = 2000
 FALLBACK_FILE_LIMIT = 10000
@@ -41,12 +53,7 @@ def split_message(text, limit=DISCORD_LIMIT):
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
 async def send_long(ctx, content: str):
-    """
-    Kirim jawaban panjang:
-    - <=2000 → kirim biasa
-    - <=10k → pecah jadi beberapa pesan
-    - >10k → kirim file txt
-    """
+    """Kirim jawaban panjang dengan format blok kode."""
     if len(content) <= DISCORD_LIMIT:
         await ctx.send(f"```{content}```")
         return
@@ -66,7 +73,8 @@ async def send_long(ctx, content: str):
 # ====== EVENTS ======
 @bot.event
 async def on_ready():
-    logger.info(f"🤖 Bot login sebagai {bot.user}")
+    cmds = ", ".join(sorted(c.name for c in bot.commands))
+    logger.info(f"🤖 Bot login sebagai {bot.user} | Commands: [{cmds}]")
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -76,7 +84,7 @@ async def on_command_error(ctx, error):
         await ctx.send("⚠️ Terjadi error, coba lagi nanti.")
         logger.error(f"Error di command {ctx.command}: {error}")
 
-# ====== COMMANDS ======
+# ====== COMMAND GPT DASAR (opsional, selain cogs.gpt) ======
 @bot.command(name="ask")
 async def ask(ctx, *, prompt: str = None):
     """Tanya GPT dengan !ask <pertanyaan>"""
@@ -100,17 +108,10 @@ async def ask(ctx, *, prompt: str = None):
         logger.error(f"❌ Error GPT: {e}")
         await send_long(ctx, f"❌ Error: {str(e)}")
     finally:
-        await msg.delete()
-
-# ====== LOAD COGS ======
-initial_cogs = ["cogs.roll", "cogs.poll"]  # tambah cogs.gpt kalau nanti dipisah
-
-for cog in initial_cogs:
-    try:
-        bot.load_extension(cog)
-        logger.info(f"✅ Loaded {cog}")
-    except Exception as e:
-        logger.error(f"❌ Gagal load {cog}: {e}")
+        try:
+            await msg.delete()
+        except:
+            pass
 
 # ====== RUN ======
 if __name__ == "__main__":
