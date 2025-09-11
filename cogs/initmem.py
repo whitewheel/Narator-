@@ -213,11 +213,78 @@ class InitiativeMemory(commands.Cog):
 
         drum = await ctx.send("🥁 Mengocok urutan giliran...")
         await asyncio.sleep(2)
-        await drum.delete()
+        try:
+            await drum.delete()
+        except Exception:
+            pass
 
         embed = self._make_embed(ctx, "⚔️ Encounter Dimulai!", s)
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran Pertama", value=f"👉 **{current}**", inline=False)
+        await ctx.send(embed=embed)
+
+    # ===== Akhiri encounter / Victory =====
+    @commands.command(name="victory", aliases=["end", "finish", "win"])
+    async def victory(self, ctx, *flags):
+        """
+        Akhiri encounter.
+        Opsi:
+          keep  - akhiri tanpa hapus daftar musuh
+          clear - akhiri dan hapus daftar musuh (default)
+          force - paksa selesai walau masih ada musuh > 0 HP
+        """
+        flags = {f.lower() for f in flags}
+        keep_enemies = "keep" in flags
+        force_end = "force" in flags
+
+        # ambil state initiative
+        k = _key(ctx)
+        s = self._ensure(ctx)
+        order = s.get("order", [])
+        ptr = s.get("ptr", 0)
+        rnd = s.get("round", 1)
+        current_turn = order[ptr][0] if order else "-"
+
+        # ambil data musuh (kalau ada)
+        alive = defeated = total = 0
+        enemy_cog = self.bot.get_cog("EnemyStatus")
+        if enemy_cog:
+            enemies = enemy_cog.state.get(k, {})
+            total = len(enemies)
+            for v in enemies.values():
+                hp = 0
+                try:
+                    hp = int(str(v.get("hp", 0)).strip())
+                except Exception:
+                    hp = 0
+                if hp > 0:
+                    alive += 1
+                else:
+                    defeated += 1
+
+            if alive > 0 and not force_end:
+                return await ctx.send(
+                    f"⚠️ Masih ada **{alive}** musuh hidup. "
+                    "Gunakan `!victory force` untuk memaksa, atau `!victory keep` bila tidak ingin menghapus musuh."
+                )
+
+        # buat embed ringkasan
+        embed = discord.Embed(
+            title="🎉 Victory!",
+            description=f"Channel: **{ctx.channel.name}**",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Rangkuman Musuh", value=f"Total: {total} • Alive: {alive} • Defeated: {defeated}", inline=False)
+        embed.add_field(name="Round Terakhir", value=str(rnd), inline=True)
+        embed.add_field(name="Giliran Terakhir", value=current_turn, inline=True)
+
+        # reset initiative
+        self.state[k] = {"order": [], "ptr": 0, "round": 1}
+
+        # clear atau keep musuh
+        if enemy_cog and not keep_enemies:
+            enemy_cog.state.pop(k, None)
+
         await ctx.send(embed=embed)
 
     # ===== Aliases global =====
