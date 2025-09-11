@@ -1,6 +1,7 @@
 import math
 import discord
 from discord.ext import commands
+from .history import history   # ✅ import history
 
 def _key(ctx):
     return (ctx.guild.id if ctx.guild else 0, ctx.channel.id)
@@ -147,6 +148,7 @@ class CharacterStatus(commands.Cog):
             "Status Commands:\n"
             "!status set <Nama> <HP> <Energy> <Stamina>\n"
             "!status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>\n"
+            "!status dmg/heal <Nama> <jumlah>\n"
             "!status buff <Nama> <teks> [durasi|perm]\n"
             "!status debuff <Nama> <teks> [durasi|perm]\n"
             "!status clearbuff <Nama>\n"
@@ -175,6 +177,24 @@ class CharacterStatus(commands.Cog):
         entry = self._ensure_entry(ctx, name)
         entry["core"] = {"str": str_, "dex": dex, "con": con, "int": int_, "wis": wis, "cha": cha}
         await ctx.send(f"✅ Core stats {name} diupdate.")
+
+    @status_group.command(name="dmg")
+    async def status_dmg(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["hp"]
+        v["hp"] = max(0, v["hp"] - amount)
+        self._clamp(v)
+        history.push(ctx, name, "hp", old, v["hp"])
+        await ctx.send(f"💥 {name} menerima {amount} damage. Sekarang {v['hp']}/{v['hp_max']}.")
+
+    @status_group.command(name="heal")
+    async def status_heal(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["hp"]
+        v["hp"] = v["hp"] + amount if v["hp_max"] == 0 else min(v["hp_max"], v["hp"] + amount)
+        self._clamp(v)
+        history.push(ctx, name, "hp", old, v["hp"])
+        await ctx.send(f"❤️ {name} dipulihkan {amount} HP. Sekarang {v['hp']}/{v['hp_max']}.")
 
     @status_group.command(name="buff")
     async def status_buff(self, ctx, name: str, text: str, duration: str = "perm"):
@@ -251,29 +271,37 @@ class CharacterStatus(commands.Cog):
     @status_group.command(name="useenergy")
     async def status_useenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
+        old = v["energy"]
         v["energy"] -= amount
         self._clamp(v)
+        history.push(ctx, name, "energy", old, v["energy"])
         await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
 
     @status_group.command(name="regenenergy")
     async def status_regenenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
+        old = v["energy"]
         v["energy"] += amount
         self._clamp(v)
+        history.push(ctx, name, "energy", old, v["energy"])
         await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
 
     @status_group.command(name="usestam")
     async def status_usestam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
         v["stamina"] -= amount
         self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
         await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
     @status_group.command(name="regenstam")
     async def status_regenstam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
         v["stamina"] += amount
         self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
         await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
     @status_group.command(name="tick")
