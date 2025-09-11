@@ -23,6 +23,7 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     return "█" * filled + "░" * (width - filled)
 
 def _mod(score: int) -> int:
+    # biarkan skema mod sesuai desain kamu
     return math.floor(score / 5)
 
 def _format_effect(e):
@@ -169,7 +170,11 @@ class EnemyStatus(commands.Cog):
             "```txt\n"
             "Enemy Commands:\n"
             "!enemy set <Nama> <HP> <Energy> <Stamina>\n"
-            "!enemy addmany\n"
+            "!enemy addmany  (multiline / koma / ; / |)\n"
+            "  Format tiap baris: <Nama> <HP> <EN> <ST> [xJumlah]\n"
+            "  Contoh:\n"
+            "    Goblin 15 0 15 x2\n"
+            "    Archer 10 5 10 x1\n"
             "!enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>\n"
             "!enemy dmg/heal <Nama> <jumlah> [all]\n"
             "!enemy useenergy/regenenergy <Nama> <jumlah>\n"
@@ -193,6 +198,70 @@ class EnemyStatus(commands.Cog):
             "stamina": to_int(stamina), "stamina_max": to_int(stamina)
         })
         await ctx.send(f"👾 Musuh {name} dibuat/diupdate.")
+
+    @enemy_group.command(name="addmany")
+    async def enemy_addmany(self, ctx, *, entries: str = None):
+        """
+        Tambah banyak musuh sekaligus.
+        Format baris: <Nama> <HP> <EN> <ST> [xJumlah]
+        Bisa dipisah pakai koma ( , ), titik koma ( ; ), pipe ( | ), atau baris baru.
+        """
+        # Ambil teks setelah "addmany" jika user kirim multiline tanpa arg
+        if entries is None:
+            raw = ctx.message.content
+            idx = raw.lower().find("addmany")
+            entries = raw[idx + len("addmany"):].strip() if idx != -1 else ""
+
+        if not entries:
+            return await ctx.send("⚠️ Format: `!enemy addmany` lalu diikuti daftar di baris-baris berikutnya.")
+
+        chunks = [c.strip() for c in re.split(r'[,\n;|]+', entries) if c.strip()]
+
+        added = 0
+        skipped = []
+
+        # Pola: Nama boleh ada spasi; angka wajib; opsional xN di akhir
+        pat = re.compile(r'^(?P<name>.+?)\s+(?P<hp>-?\d+)\s+(?P<en>-?\d+)\s+(?P<st>-?\d+)(?:\s*x(?P<count>\d+))?$', re.IGNORECASE)
+
+        for ch in chunks:
+            m = pat.match(ch)
+            if not m:
+                skipped.append(ch)
+                continue
+
+            name = m.group('name').strip()
+            hp   = to_int(m.group('hp'))
+            en   = to_int(m.group('en'))
+            st   = to_int(m.group('st'))
+            cnt  = to_int(m.group('count'), 1)
+            cnt  = max(1, cnt)
+
+            if cnt == 1:
+                entry = self._ensure_entry(ctx, name)
+                entry.update({
+                    "hp": hp, "hp_max": hp,
+                    "energy": en, "energy_max": en,
+                    "stamina": st, "stamina_max": st
+                })
+                added += 1
+            else:
+                for i in range(cnt):
+                    entry_name = f"{name}_{i+1}"
+                    entry = self._ensure_entry(ctx, entry_name)
+                    entry.update({
+                        "hp": hp, "hp_max": hp,
+                        "energy": en, "energy_max": en,
+                        "stamina": st, "stamina_max": st
+                    })
+                    added += 1
+
+        msg = f"✅ Ditambahkan/diupdate **{added}** musuh."
+        if skipped:
+            preview = ", ".join(skipped[:5])
+            if len(skipped) > 5:
+                preview += ", ..."
+            msg += f" (gagal parse: {preview})"
+        await ctx.send(msg)
 
     @enemy_group.command(name="dmg")
     async def enemy_dmg(self, ctx, name: str, amount: int, target: str = None):
