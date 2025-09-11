@@ -12,7 +12,7 @@ MOD_NAME_RE = re.compile(r"(?P<sign>[+-])\s*(?P<name>[A-Za-z_][\w\-]*)")
 MAX_DICE = 100
 MAX_SIDES = 1000
 
-# Buff/debuff parsing
+# Buff/debuff parsing  (format: "+2 STR", "-1 DEX", "+1 ALL")
 BUFF_DEBUFF_RE = re.compile(
     r"^(?P<sign>[+-])\s*(?P<val>\d+)\s*(?P<stat>STR|DEX|CON|INT|WIS|CHA|ALL)\b",
     re.IGNORECASE
@@ -142,21 +142,34 @@ class DiceCog(commands.Cog):
                     core = state[actor]["core"]
                     buffs = state[actor].get("buffs", [])
                     debuffs = state[actor].get("debuffs", [])
+
+                    # core stat refs (e.g., +str)
                     for stat, sign in stat_refs:
                         base_val = _ability_mod(core.get(stat, 10)) * sign
                         stat_mods.append((stat, base_val))
-                        # cek buff/debuff yang match
-                        for b in buffs + debuffs:
-                            m = BUFF_DEBUFF_RE.match(b.strip())
-                            if m:
-                                statname = m.group("stat").lower()
-                                val = int(m.group("val")) * (-1 if m.group("sign") == "-" else 1)
-                                if statname == stat:
-                                    buff_mods.append((stat, val * sign, b))
-                                elif statname == "all":
-                                    generic_mods.append((val, b))
+
+                    # cek buff/debuff yang match (+2 STR, -1 DEX, +1 ALL)
+                    for bd in buffs + debuffs:
+                        txt = str(bd.get("text","")).strip()
+                        m = BUFF_DEBUFF_RE.match(txt)
+                        if not m:
+                            continue
+                        sign = -1 if m.group("sign") == "-" else 1
+                        val = int(m.group("val")) * sign
+                        statname = m.group("stat").lower()
+                        if statname == "all":
+                            generic_mods.append((val, txt))
+                        else:
+                            # jika pengguna minta stat tertentu, tambahkan sesuai referensi
+                            for stat, sgn in stat_refs:
+                                if stat == statname:
+                                    buff_mods.append((stat, val * sgn, txt))
                 else:
-                    await ctx.send(f"⚠️ Karakter **{actor}** tidak ditemukan di status.")
+                    # kasih saran nama mirip
+                    suggestions = [n for n in state if n.lower().startswith(actor.lower())]
+                    if suggestions:
+                        return await ctx.send(f"⚠️ Karakter **{actor}** tidak ditemukan. Mungkin maksud: {', '.join(suggestions)}")
+                    return await ctx.send(f"⚠️ Karakter **{actor}** tidak ditemukan di status.")
             else:
                 await ctx.send("⚠️ Modul CharacterStatus tidak aktif.")
 
