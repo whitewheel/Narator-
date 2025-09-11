@@ -332,6 +332,8 @@ class HelpCog(commands.Cog):
             embed = embed_poll(prefix)
         elif key in ("gpt", "ai"):
             embed = embed_gpt(prefix)
+        elif key in ("overview", "detail", "menu", "home"):  # alias resmi untuk Overview
+            embed = embed_overview(prefix)
         else:
             embed = embed_overview(prefix)
 
