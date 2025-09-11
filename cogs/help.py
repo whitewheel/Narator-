@@ -20,7 +20,7 @@ def embed_overview(prefix: str) -> discord.Embed:
             "Selamat datang! Pilih topik bantuan dengan mengetik:\n"
             f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`\n"
             f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n\n"
-            f"Atau klik tombol di bawah untuk navigasi cepat."
+            f"Gunakan `{prefix}help <topik>` untuk detail."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
@@ -32,6 +32,7 @@ def embed_overview(prefix: str) -> discord.Embed:
     e.add_field(name="⚡ Quick & Utility", value="Alias cepat: `dmg`, `heal`, `ene±`, `stam±`, `stat`, `party`, `undo`, `multi`.", inline=False)
     e.add_field(name="📊 Polling", value="Buat voting cepat dengan reaction angka.", inline=False)
     e.add_field(name="🧠 GPT", value="Tanya, definisi, ringkas, cerita.", inline=False)
+    e.set_footer(text=f"Contoh: {prefix}help enemy • {prefix}help quick")
     return e
 
 def embed_init(prefix: str) -> discord.Embed:
@@ -76,8 +77,7 @@ def embed_init(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Contoh Alur",
         value=(
-            f"```txt\n{prefix}init add Alice 18\n{prefix}init add Goblin 12\n{prefix}order\n"
-            f"{prefix}engage\n{prefix}next\n{prefix}victory\n```"
+            f"```txt\n{prefix}init add Alice 18\n{prefix}init add Goblin 12\n{prefix}order\n{prefix}engage\n{prefix}next\n{prefix}victory\n```"
         ),
         inline=False
     )
@@ -123,6 +123,11 @@ def embed_status(prefix: str) -> discord.Embed:
             f"```txt\n{prefix}status set Alice 20 5 3\n{prefix}status setcore Alice 14 12 12 10 8 13\n"
             f"{prefix}status buff Alice \"+2 STR\" 3\n{prefix}status dmg Alice 4\n{prefix}status show Alice\n{prefix}status tick\n```"
         ),
+        inline=False
+    )
+    e.add_field(
+        name="ℹ️ Tips",
+        value=f"Gunakan alias cepat di `{prefix}help quick` untuk operasi umum.",
         inline=False
     )
     return e
@@ -208,6 +213,14 @@ def embed_dice(prefix: str) -> discord.Embed:
         ),
         inline=False
     )
+    e.add_field(
+        name="🔹 Contoh Lengkap",
+        value=(
+            f"```txt\n{prefix}status set Alice 20 5 3\n{prefix}status setcore Alice 14 12 12 10 8 13\n"
+            f"{prefix}status buff Alice \"+2 STR\" 3\n{prefix}roll as Alice 1d20 +str +2 dc 12\n```"
+        ),
+        inline=False
+    )
     return e
 
 def embed_quick(prefix: str) -> discord.Embed:
@@ -236,6 +249,14 @@ def embed_quick(prefix: str) -> discord.Embed:
         value=(f"- `{prefix}undo` → batalkan perubahan terakhir (HP/EN/ST)\n- `{prefix}multi` → jalankan beberapa command dalam satu pesan"),
         inline=False
     )
+    e.add_field(
+        name="🔹 Contoh",
+        value=(
+            f"```txt\n{prefix}dmg Alice 4\n{prefix}heal Goblin 2\n{prefix}ene- Alice 1\n{prefix}stam+ Goblin 1\n"
+            f"{prefix}stat Alice\n{prefix}party\n{prefix}undo\n```"
+        ),
+        inline=False
+    )
     return e
 
 def embed_poll(prefix: str) -> discord.Embed:
@@ -251,6 +272,11 @@ def embed_poll(prefix: str) -> discord.Embed:
             f"- `{prefix}poll \"Pertanyaan?\" opsi1 opsi2 opsi3 ...`\n"
             f"  Contoh: `{prefix}poll \"Masuk dungeon?\" Ya Tidak Nanti`"
         ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Contoh",
+        value=f"```txt\n{prefix}poll \"Pilih arah?\" Kanan Kiri Mundur\n```",
         inline=False
     )
     return e
@@ -272,60 +298,15 @@ def embed_gpt(prefix: str) -> discord.Embed:
         ),
         inline=False
     )
+    e.add_field(
+        name="🔹 Contoh",
+        value=(
+            f"```txt\n{prefix}ask Apa itu advantage di d20?\n{prefix}define parry\n"
+            f"{prefix}summarize \"Teks panjang lore...\"\n{prefix}story \"Pembuka one-shot fantasi gelap\"\n```"
+        ),
+        inline=False
+    )
     return e
-
-# ========= VIEW (NAV BUTTONS) =========
-class HelpView(discord.ui.View):
-    def __init__(self, bot, prefix: str, author_id: int):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.prefix = prefix
-        self.author_id = author_id
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Hanya pembuka help yg boleh klik (biar tidak di-spam user lain)
-        if interaction.user.id != self.author_id:
-            await interaction.response.send_message("Menu ini milik pembuka help. Ketik `!help` untuk membuka sendiri.", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self) -> None:
-        for item in self.children:
-            if isinstance(item, discord.ui.Button):
-                item.disabled = True
-
-    # ---- Buttons ----
-    @discord.ui.button(label="📖 Overview", style=discord.ButtonStyle.secondary)
-    async def btn_overview(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_overview(self.prefix), view=self)
-
-    @discord.ui.button(label="⚔️ Initiative", style=discord.ButtonStyle.secondary)
-    async def btn_init(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_init(self.prefix), view=self)
-
-    @discord.ui.button(label="🧍 Status", style=discord.ButtonStyle.secondary)
-    async def btn_status(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_status(self.prefix), view=self)
-
-    @discord.ui.button(label="👾 Enemy", style=discord.ButtonStyle.secondary)
-    async def btn_enemy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_enemy(self.prefix), view=self)
-
-    @discord.ui.button(label="🎲 Dice", style=discord.ButtonStyle.secondary)
-    async def btn_dice(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_dice(self.prefix), view=self)
-
-    @discord.ui.button(label="⚡ Quick", style=discord.ButtonStyle.secondary)
-    async def btn_quick(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_quick(self.prefix), view=self)
-
-    @discord.ui.button(label="📊 Poll", style=discord.ButtonStyle.secondary)
-    async def btn_poll(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_poll(self.prefix), view=self)
-
-    @discord.ui.button(label="🧠 GPT", style=discord.ButtonStyle.secondary)
-    async def btn_gpt(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=embed_gpt(self.prefix), view=self)
 
 # ========= HELP COG =========
 class HelpCog(commands.Cog):
@@ -336,7 +317,6 @@ class HelpCog(commands.Cog):
     async def help_cmd(self, ctx, topic: str = None):
         prefix = ctx.prefix or "!"
         key = (topic or "").strip().lower()
-        view = HelpView(self.bot, prefix, ctx.author.id)
 
         if key in ("init", "initiative", "engage", "victory"):
             embed = embed_init(prefix)
@@ -355,7 +335,7 @@ class HelpCog(commands.Cog):
         else:
             embed = embed_overview(prefix)
 
-        await ctx.send(embed=embed, view=view)
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(HelpCog(bot))
