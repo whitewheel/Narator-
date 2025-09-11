@@ -1,3 +1,4 @@
+import math
 import discord
 from discord.ext import commands
 
@@ -12,7 +13,7 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     return "█" * filled + "░" * (width - filled)
 
 def _mod(score: int) -> int:
-    return (score - 10) // 2
+    return math.floor(score / 5)
 
 class CharacterStatus(commands.Cog):
     """
@@ -39,7 +40,7 @@ class CharacterStatus(commands.Cog):
                 "hp": 0, "hp_max": 0,
                 "energy": 0, "energy_max": 0,
                 "stamina": 0, "stamina_max": 0,
-                "core": {"str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10},
+                "core": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
                 "buffs": [],
                 "debuffs": []
             }
@@ -177,6 +178,38 @@ class CharacterStatus(commands.Cog):
         k = _key(ctx)
         self.state.pop(k, None)
         await ctx.send("🧹 Semua status di channel ini direset.")
+
+        @status_group.command(name="useenergy")
+    async def status_useenergy(self, ctx, name: str, amount: int):
+        """Kurangi Energy karakter"""
+        v = self._ensure_entry(ctx, name)
+        v["energy"] -= amount
+        self._clamp(v)
+        await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
+
+    @status_group.command(name="regenenergy")
+    async def status_regenenergy(self, ctx, name: str, amount: int):
+        """Tambah Energy karakter"""
+        v = self._ensure_entry(ctx, name)
+        v["energy"] += amount
+        self._clamp(v)
+        await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
+
+    @status_group.command(name="usestam")
+    async def status_usestam(self, ctx, name: str, amount: int):
+        """Kurangi Stamina karakter"""
+        v = self._ensure_entry(ctx, name)
+        v["stamina"] -= amount
+        self._clamp(v)
+        await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
+
+    @status_group.command(name="regenstam")
+    async def status_regenstam(self, ctx, name: str, amount: int):
+        """Tambah Stamina karakter"""
+        v = self._ensure_entry(ctx, name)
+        v["stamina"] += amount
+        self._clamp(v)
+        await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
     # ---------- Quick Commands ----------
     @commands.command(name="stat")
