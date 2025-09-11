@@ -155,14 +155,17 @@ class CharacterStatus(commands.Cog):
         s = self._ensure(ctx)
         if not s:
             return await ctx.send("⚠️ Belum ada data karakter.")
-        if name:
+
+        if name:  # kalau cuma 1 karakter
             if name not in s:
                 return await ctx.send(f"⚠️ Karakter {name} tidak ditemukan.")
             data = {name: s[name]}
-        else:
-            data = s
-        embed = self._make_embed(ctx, data)
-        await ctx.send(embed=embed)
+            embed = self._make_embed(ctx, data)
+            await ctx.send(embed=embed)
+        else:  # kalau semua karakter → kirim 1 embed per karakter
+            for cname, cdata in s.items():
+                embed = self._make_embed(ctx, {cname: cdata})
+                await ctx.send(embed=embed)
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
