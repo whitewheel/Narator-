@@ -268,4 +268,107 @@ class EnemyStatus(commands.Cog):
         await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
 
     @enemy_group.command(name="regenenergy")
-    async def
+    async def enemy_regenenergy(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["energy"]
+        v["energy"] = to_int(v["energy"]) + to_int(amount)
+        self._clamp(v)
+        history.push(ctx, name, "energy", old, v["energy"])
+        await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
+
+    @enemy_group.command(name="usestam")
+    async def enemy_usestam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
+        v["stamina"] = to_int(v["stamina"]) - to_int(amount)
+        self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
+        await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
+
+    @enemy_group.command(name="regenstam")
+    async def enemy_regenstam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
+        v["stamina"] = to_int(v["stamina"]) + to_int(amount)
+        self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
+        await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
+
+    @enemy_group.command(name="buff")
+    async def enemy_buff(self, ctx, name: str, text: str, duration: str = "perm"):
+        v = self._ensure_entry(ctx, name)
+        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
+        v["buffs"].append({"text": text, "duration": dur})
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {_format_effect(v['buffs'][-1])}")
+
+    @enemy_group.command(name="debuff")
+    async def enemy_debuff(self, ctx, name: str, text: str, duration: str = "perm"):
+        v = self._ensure_entry(ctx, name)
+        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
+        v["debuffs"].append({"text": text, "duration": dur})
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {_format_effect(v['debuffs'][-1])}")
+
+    @enemy_group.command(name="clearbuff")
+    async def enemy_clearbuff(self, ctx, name: str):
+        v = self._ensure_entry(ctx, name)
+        v["buffs"] = []
+        await ctx.send(f"✨ Semua buff dihapus dari {name}.")
+
+    @enemy_group.command(name="cleardebuff")
+    async def enemy_cleardebuff(self, ctx, name: str):
+        v = self._ensure_entry(ctx, name)
+        v["debuffs"] = []
+        await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
+
+    @enemy_group.command(name="unbuff")
+    async def enemy_unbuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        before = len(v["buffs"])
+        v["buffs"] = [e for e in v["buffs"] if e["text"] != text]
+        await ctx.send("✨ Buff dihapus." if len(v["buffs"]) < before else "⚠️ Buff tidak ditemukan.")
+
+    @enemy_group.command(name="undebuff")
+    async def enemy_undebuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        before = len(v["debuffs"])
+        v["debuffs"] = [e for e in v["debuffs"] if e["text"] != text]
+        await ctx.send("☠️ Debuff dihapus." if len(v["debuffs"]) < before else "⚠️ Debuff tidak ditemukan.")
+
+    @enemy_group.command(name="show")
+    async def enemy_show(self, ctx, name: str = None):
+        s = self._ensure(ctx)
+        if not s:
+            return await ctx.send("⚠️ Belum ada musuh.")
+        if name:
+            filtered = {n:v for n,v in s.items() if n.lower().startswith(name.lower())}
+            if not filtered:
+                return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
+            for ename, edata in filtered.items():
+                embed = self._make_embed(ctx, {ename: edata})
+                await ctx.send(embed=embed)
+        else:
+            for ename, edata in s.items():
+                embed = self._make_embed(ctx, {ename: edata})
+                await ctx.send(embed=embed)
+
+    @enemy_group.command(name="remove")
+    async def enemy_remove(self, ctx, name: str):
+        s = self._ensure(ctx)
+        if name in s:
+            del s[name]
+            await ctx.send(f"🗑️ Musuh {name} dihapus.")
+        else:
+            await ctx.send("⚠️ Nama musuh tidak ditemukan.")
+
+    @enemy_group.command(name="clear")
+    async def enemy_clear(self, ctx):
+        k = _key(ctx)
+        self.state.pop(k, None)
+        await ctx.send("🧹 Semua musuh di channel ini direset.")
+
+    @enemy_group.command(name="tick")
+    async def enemy_tick(self, ctx):
+        await self.tick_round(ctx)
+
+async def setup(bot):
+    await bot.add_cog(EnemyStatus(bot))
