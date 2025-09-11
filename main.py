@@ -40,6 +40,7 @@ class MyBot(commands.Bot):
             "cogs.karakter_status",
             "cogs.enemy_status",
             "cogs.multi",
+            "cogs.image",
             "cogs.status_alias",   # QoL alias: !dmg, !heal, !ene±, !stam±
             "cogs.help"            # Custom help (embed / optional buttons)
         ]
