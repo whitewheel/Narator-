@@ -11,17 +11,21 @@ class ImageGen(commands.Cog):
 
     @commands.command(name="img")
     async def generate_image(self, ctx, *, prompt: str):
-        """Generate gambar dari prompt. Contoh: !img cyberpunk dragon"""
-        await ctx.send("🎨 Sedang membuat gambar...")
+        """
+        Generate gambar dengan ukuran default landscape (1536x1024).
+        Contoh:
+        !img ksatria cyberpunk melawan naga neon
+        """
+        await ctx.send("🎨 Sedang membuat gambar (landscape 1536x1024)...")
 
         try:
             r = client.images.generate(
                 model="gpt-image-1",
                 prompt=prompt,
-                size="512x512"
+                size="1536x1024"   # ✅ default landscape
             )
             url = r.data[0].url
-            await ctx.send(f"🖼️ {prompt}\n{url}")
+            await ctx.send(f"🖼️ **{prompt}**\n{url}")
         except Exception as e:
             await ctx.send(f"❌ Error: {e}")
 
