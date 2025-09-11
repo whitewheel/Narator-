@@ -127,22 +127,47 @@ def embed_enemy(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Dasar",
-        value=(f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>`\n- `{prefix}enemy addmany`\n- `{prefix}enemy dmg/heal <Nama> <jumlah>`"),
+        value=(
+            f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>` → buat 1 musuh\n"
+            f"- `{prefix}enemy addmany` → tambah banyak musuh sekaligus\n"
+            "   Contoh:\n"
+            "   ```txt\n"
+            f"   {prefix}enemy addmany\n"
+            "   Goblin 15 0 5 x2\n"
+            "   Archer 10 5 3 x1\n"
+            "   ```\n"
+            "   → otomatis jadi Goblin_1, Goblin_2, Archer_1\n"
+            f"- `{prefix}enemy dmg <Nama> <jumlah>` → kurangi HP musuh\n"
+            f"- `{prefix}enemy heal <Nama> <jumlah>` → tambah HP musuh\n"
+            f"- Tambahkan `all` di akhir untuk AoE (kena semua musuh dengan nama sama)"
+        ),
         inline=False
     )
     e.add_field(
         name="🔹 Core Stats",
-        value=(f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`"),
+        value=f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`",
         inline=False
     )
     e.add_field(
         name="🔹 Buff & Debuff",
-        value=(f"- `{prefix}enemy buff/debuff <Nama> <teks> [durasi|perm]`\n- `{prefix}enemy clearbuff/cleardebuff <Nama>`"),
+        value=(
+            f"- `{prefix}enemy buff/debuff <Nama> <teks> [durasi|perm]`\n"
+            f"- `{prefix}enemy clearbuff/cleardebuff <Nama>`\n"
+            f"- `{prefix}enemy unbuff/undebuff <Nama> <teks>`"
+        ),
         inline=False
     )
     e.add_field(
         name="🔹 Show",
-        value=(f"- `{prefix}enemy show [Nama]`\n- Bisa filter nama: `{prefix}enemy show Goblin`"),
+        value=(
+            f"- `{prefix}enemy show` → tampilkan semua musuh (embed per musuh)\n"
+            f"- `{prefix}enemy show Goblin` → filter semua musuh yang namanya mulai dengan Goblin"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Tick Round",
+        value=f"- `{prefix}enemy tick` → kurangi durasi buff/debuff semua musuh per round",
         inline=False
     )
     return e
@@ -213,28 +238,48 @@ def embed_quick(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Status",
-        value=(f"- `{prefix}dmg <Nama> <jumlah>` = `{prefix}status dmg`\n"
-               f"- `{prefix}heal <Nama> <jumlah>` = `{prefix}status heal`\n"
-               f"- `{prefix}stat <Nama>` = `{prefix}status show <Nama>`\n"
-               f"- `{prefix}party` = `{prefix}status show` (semua karakter)"),
+        value=(
+            f"- `{prefix}dmg <Nama> <jumlah>` = `{prefix}status dmg`\n"
+            f"- `{prefix}heal <Nama> <jumlah>` = `{prefix}status heal`\n"
+            f"- `{prefix}stat <Nama>` = `{prefix}status show <Nama>`\n"
+            f"- `{prefix}party` = `{prefix}status show` (semua karakter)"
+        ),
         inline=False
     )
     e.add_field(
         name="🔹 Initiative",
-        value=(f"- `{prefix}next` / `{prefix}n` = `{prefix}init next`\n- `{prefix}order` = `{prefix}init show`"),
+        value=(
+            f"- `{prefix}next` / `{prefix}n` = `{prefix}init next`\n"
+            f"- `{prefix}order` = `{prefix}init show`"
+        ),
         inline=False
     )
     e.add_field(
         name="🔹 Dice",
-        value=(f"- `{prefix}r` = `{prefix}roll`\nContoh: `{prefix}r 1d20 +str`"),
+        value=(
+            f"- `{prefix}r` = `{prefix}roll`\n"
+            f"  Contoh: `{prefix}r 1d20 +str`"
+        ),
         inline=False
     )
     e.add_field(
         name="🔹 Utility",
-        value=(f"- `{prefix}multi` → jalankan beberapa command sekaligus (1 pesan, dipisah baris)\n"
-               f"- `{prefix}undo` → batalkan aksi terakhir (HP/Energy/Stamina karakter atau musuh)"),
+        value=(
+            f"- `{prefix}multi` → jalankan beberapa command sekaligus.\n"
+            "  Cara pakai:\n"
+            "  ```txt\n"
+            f"  {prefix}multi\n"
+            "  status set Alice 20 5 3\n"
+            "  status setcore Alice 10 12 14 8 13 9\n"
+            "  enemy set Goblin 15 2 4\n"
+            "  dmg Alice 5\n"
+            "  roll 1d20 +str\n"
+            "  ```\n"
+            f"- `{prefix}undo` → batalkan aksi terakhir (HP/Energy/Stamina karakter atau musuh)"
+        ),
         inline=False
     )
+    e.set_footer(text="Quick & Utility = shortcut dan helper → hasil sama seperti command panjangnya.")
     return e
 
 # ===== View dengan tombol =====
