@@ -15,10 +15,11 @@ class StatusAlias(commands.Cog):
         status_cog = self.bot.get_cog("CharacterStatus")
         if not status_cog:
             return False
-        cmd = status_cog.get_command(f"status {subcommand}")
-        if not cmd:
+        # panggil langsung method di cog: status_<subcommand>
+        fn = getattr(status_cog, f"status_{subcommand}", None)
+        if not fn:
             return False
-        await cmd.callback(status_cog, ctx, *args)
+        await fn(ctx, *args)
         return True
 
     # Helper untuk cek & panggil EnemyStatus
@@ -26,10 +27,10 @@ class StatusAlias(commands.Cog):
         enemy_cog = self.bot.get_cog("EnemyStatus")
         if not enemy_cog:
             return False
-        cmd = enemy_cog.get_command(f"enemy {subcommand}")
-        if not cmd:
+        fn = getattr(enemy_cog, f"enemy_{subcommand}", None)
+        if not fn:
             return False
-        await cmd.callback(enemy_cog, ctx, *args)
+        await fn(ctx, *args)
         return True
 
     # ==== Alias gabungan ====
