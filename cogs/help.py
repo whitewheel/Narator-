@@ -124,6 +124,27 @@ def embed_enemy(prefix: str) -> discord.Embed:
         description="Tracker musuh (NPC/monster): HP, Energy, Stamina, Core Stats + Buff/Debuff.",
         color=COLOR_ENEMY,
         timestamp=datetime.datetime.utcnow()
+  )
+    e.add_field(
+        name="🔹 Dasar",
+        value=(
+            f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>`\n"
+            f"- `{prefix}enemy addmany` → tambah banyak musuh sekaligus.\n"
+            "  Contoh inline:\n"
+            f"  ```txt\n"
+            f"  {prefix}enemy addmany Goblin 15 0 5 x2, Archer 10 5 3 x1\n"
+            "  ```\n"
+            "  Contoh multi-line:\n"
+            f"  ```txt\n"
+            f"  {prefix}enemy addmany\n"
+            "  Goblin 15 0 5 x2\n"
+            "  Archer 10 5 3 x1\n"
+            "  ```\n"
+            f"- `{prefix}enemy dmg <Nama> <jumlah>` → kurangi HP musuh\n"
+            f"- `{prefix}enemy heal <Nama> <jumlah>` → tambah HP musuh\n"
+            f"- Tambahkan `all` di akhir untuk AoE (kena semua musuh dengan nama sama)"
+        ),
+        inline=False
     )
     e.add_field(
         name="🔹 Dasar",
