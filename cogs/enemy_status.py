@@ -2,6 +2,7 @@ import math
 import re
 import discord
 from discord.ext import commands
+from .history import history   # ✅ import history
 
 def _key(ctx):
     return (ctx.guild.id if ctx.guild else 0, ctx.channel.id)
@@ -132,7 +133,7 @@ class EnemyStatus(commands.Cog):
             value = (
                 f"❤️ HP: {hp_text} [{_bar(v['hp'], v['hp_max'])}]\n"
                 f"🔋 Energy: {en_text} [{_bar(v['energy'], v['energy_max'])}]\n"
-                f"⚡ Stamina: {st_text} [{_bar(v['stamina'], v['stamina_max']})]\n\n"
+                f"⚡ Stamina: {st_text} [{_bar(v['stamina'], v['stamina_max'])}]\n\n"
                 f"📊 Stats:\n{stats_line}\n\n"
                 f"✨ Buffs:\n{buffs}\n\n"
                 f"☠️ Debuffs:\n{debuffs}"
@@ -172,36 +173,6 @@ class EnemyStatus(commands.Cog):
         })
         await ctx.send(f"👾 Musuh {name} dibuat/diupdate.")
 
-    @enemy_group.command(name="addmany")
-    async def enemy_addmany(self, ctx, *, entries: str = None):
-        if not entries:
-            return await ctx.send("⚠️ Format salah. Contoh:\n```txt\n!enemy addmany\nGoblin 30 0 0 x2\n```")
-
-        s = self._ensure(ctx)
-        lines = [l.strip() for l in entries.splitlines() if l.strip()]
-        added = []
-
-        for line in lines:
-            m = re.match(r"^(?P<name>\w+)\s+(?P<hp>\d+)\s+(?P<ene>\d+)\s+(?P<stam>\d+)\s+x(?P<count>\d+)$", line)
-            if not m:
-                continue
-            name = m.group("name")
-            hp, ene, stam, count = int(m.group("hp")), int(m.group("ene")), int(m.group("stam")), int(m.group("count"))
-            count = max(1, count)
-
-            existing = [n for n in s.keys() if n.startswith(name)]
-            start_idx = len(existing) + 1
-            for i in range(count):
-                new_name = f"{name}_{start_idx + i}"
-                e = self._ensure_entry(ctx, new_name)
-                e.update({"hp": hp, "hp_max": hp, "energy": ene, "energy_max": ene, "stamina": stam, "stamina_max": stam})
-                added.append(new_name)
-
-        if added:
-            await ctx.send(f"✅ Musuh ditambahkan: {', '.join(added)}")
-        else:
-            await ctx.send("⚠️ Tidak ada musuh valid ditambahkan.")
-
     @enemy_group.command(name="dmg")
     async def enemy_dmg(self, ctx, name: str, amount: int, target: str = None):
         s = self._ensure(ctx)
@@ -210,8 +181,10 @@ class EnemyStatus(commands.Cog):
             for ename in list(s.keys()):
                 if ename.lower().startswith(name.lower()):
                     v = s[ename]
-                    v["hp"] -= amount
+                    old = v["hp"]
+                    v["hp"] = max(0, v["hp"] - amount)
                     self._clamp(v)
+                    history.push(ctx, ename, "hp", old, v["hp"])
                     affected.append(f"{ename} → {v['hp']}/{v['hp_max']}")
         else:
             if name not in s:
@@ -220,8 +193,10 @@ class EnemyStatus(commands.Cog):
                     return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan. Mungkin maksud: {', '.join(suggestions)}")
                 return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
             v = s[name]
-            v["hp"] -= amount
+            old = v["hp"]
+            v["hp"] = max(0, v["hp"] - amount)
             self._clamp(v)
+            history.push(ctx, name, "hp", old, v["hp"])
             affected.append(f"{name} → {v['hp']}/{v['hp_max']}")
 
         if affected:
@@ -235,8 +210,10 @@ class EnemyStatus(commands.Cog):
             for ename in list(s.keys()):
                 if ename.lower().startswith(name.lower()):
                     v = s[ename]
-                    v["hp"] += amount
+                    old = v["hp"]
+                    v["hp"] = v["hp"] + amount if v["hp_max"] == 0 else min(v["hp_max"], v["hp"] + amount)
                     self._clamp(v)
+                    history.push(ctx, ename, "hp", old, v["hp"])
                     affected.append(f"{ename} → {v['hp']}/{v['hp_max']}")
         else:
             if name not in s:
@@ -245,12 +222,50 @@ class EnemyStatus(commands.Cog):
                     return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan. Mungkin maksud: {', '.join(suggestions)}")
                 return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
             v = s[name]
-            v["hp"] += amount
+            old = v["hp"]
+            v["hp"] = v["hp"] + amount if v["hp_max"] == 0 else min(v["hp_max"], v["hp"] + amount)
             self._clamp(v)
+            history.push(ctx, name, "hp", old, v["hp"])
             affected.append(f"{name} → {v['hp']}/{v['hp_max']}")
 
         if affected:
             await ctx.send("💚 Heal diterapkan:\n" + "\n".join(affected))
+
+    @enemy_group.command(name="useenergy")
+    async def enemy_useenergy(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["energy"]
+        v["energy"] -= amount
+        self._clamp(v)
+        history.push(ctx, name, "energy", old, v["energy"])
+        await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
+
+    @enemy_group.command(name="regenenergy")
+    async def enemy_regenenergy(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["energy"]
+        v["energy"] += amount
+        self._clamp(v)
+        history.push(ctx, name, "energy", old, v["energy"])
+        await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
+
+    @enemy_group.command(name="usestam")
+    async def enemy_usestam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
+        v["stamina"] -= amount
+        self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
+        await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
+
+    @enemy_group.command(name="regenstam")
+    async def enemy_regenstam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        old = v["stamina"]
+        v["stamina"] += amount
+        self._clamp(v)
+        history.push(ctx, name, "stamina", old, v["stamina"])
+        await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
     @enemy_group.command(name="buff")
     async def enemy_buff(self, ctx, name: str, text: str, duration: str = "perm"):
@@ -323,34 +338,6 @@ class EnemyStatus(commands.Cog):
         k = _key(ctx)
         self.state.pop(k, None)
         await ctx.send("🧹 Semua musuh di channel ini direset.")
-
-    @enemy_group.command(name="useenergy")
-    async def enemy_useenergy(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["energy"] -= amount
-        self._clamp(v)
-        await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
-
-    @enemy_group.command(name="regenenergy")
-    async def enemy_regenenergy(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["energy"] += amount
-        self._clamp(v)
-        await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
-
-    @enemy_group.command(name="usestam")
-    async def enemy_usestam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["stamina"] -= amount
-        self._clamp(v)
-        await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
-
-    @enemy_group.command(name="regenstam")
-    async def enemy_regenstam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        v["stamina"] += amount
-        self._clamp(v)
-        await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
     @enemy_group.command(name="tick")
     async def enemy_tick(self, ctx):
