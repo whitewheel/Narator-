@@ -179,7 +179,7 @@ class CharacterStatus(commands.Cog):
         self.state.pop(k, None)
         await ctx.send("🧹 Semua status di channel ini direset.")
 
-        @status_group.command(name="useenergy")
+    @status_group.command(name="useenergy")
     async def status_useenergy(self, ctx, name: str, amount: int):
         """Kurangi Energy karakter"""
         v = self._ensure_entry(ctx, name)
