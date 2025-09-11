@@ -173,6 +173,55 @@ class EnemyStatus(commands.Cog):
         })
         await ctx.send(f"👾 Musuh {name} dibuat/diupdate.")
 
+    @enemy_group.command(name="addmany")
+    async def enemy_addmany(self, ctx, *, entries: str = None):
+        # dukung multi-line setelah command
+        if not entries and "\n" in ctx.message.content:
+            entries = ctx.message.content.split("\n", 1)[1].strip()
+
+        if not entries:
+            return await ctx.send(
+                "⚠️ Format salah. Contoh:\n```txt\n"
+                f"{ctx.prefix}enemy addmany\n"
+                "Goblin 30 0 0 x2\n"
+                "Archer Goblin 15 5 3 x1\n"
+                "```"
+            )
+
+        s = self._ensure(ctx)
+        lines = re.split(r"[,\n;]+", entries)
+        lines = [l.strip() for l in lines if l.strip()]
+        added = []
+
+        for line in lines:
+            m = re.match(
+                r"^(?P<name>.+?)\s+(?P<hp>\d+)\s+(?P<ene>\d+)\s+(?P<stam>\d+)\s+x(?P<count>\d+)$",
+                line
+            )
+            if not m:
+                continue
+            name = m.group("name")
+            hp, ene, stam, count = int(m.group("hp")), int(m.group("ene")), int(m.group("stam")), int(m.group("count"))
+            count = max(1, count)
+
+            existing = [n for n in s.keys() if n.startswith(name)]
+            start_idx = len(existing) + 1
+
+            for i in range(count):
+                new_name = f"{name}_{start_idx + i}"
+                e = self._ensure_entry(ctx, new_name)
+                e.update({
+                    "hp": hp, "hp_max": hp,
+                    "energy": ene, "energy_max": ene,
+                    "stamina": stam, "stamina_max": stam
+                })
+                added.append(new_name)
+
+        if added:
+            await ctx.send(f"✅ Musuh ditambahkan: {', '.join(added)}")
+        else:
+            await ctx.send("⚠️ Tidak ada musuh valid ditambahkan.")
+
     @enemy_group.command(name="dmg")
     async def enemy_dmg(self, ctx, name: str, amount: int, target: str = None):
         s = self._ensure(ctx)
