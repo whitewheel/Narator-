@@ -38,6 +38,7 @@ class MyBot(commands.Bot):
             "cogs.gpt",
             "cogs.initmem",
             "cogs.karakter_status",
+            "cogs.enemy_status",
             "cogs.status_alias",   # ✅ QoL alias: !dmg, !heal, !ene±, !stam±
             "cogs.help"            # ✅ custom help
         ]
