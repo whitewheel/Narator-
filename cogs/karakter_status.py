@@ -6,7 +6,15 @@ from .history import history   # ✅ import history
 def _key(ctx):
     return (ctx.guild.id if ctx.guild else 0, ctx.channel.id)
 
+def to_int(x, default=0):
+    try:
+        return int(str(x).strip())
+    except Exception:
+        return default
+
 def _bar(cur: int, mx: int, width: int = 12) -> str:
+    cur = to_int(cur)
+    mx = to_int(mx)
     if mx <= 0:
         return "░" * width
     cur = max(0, min(cur, mx))
@@ -14,6 +22,7 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     return "█" * filled + "░" * (width - filled)
 
 def _mod(score: int) -> int:
+    # biarkan skema kamu; tampilannya tetap sama
     return math.floor(score / 5)
 
 def _format_effect(e):
@@ -26,7 +35,7 @@ def _normalize_effects_list(lst):
         if isinstance(x, str):
             out.append({"text": x, "duration": -1})
         elif isinstance(x, dict):
-            out.append({"text": x.get("text",""), "duration": int(x.get("duration",-1))})
+            out.append({"text": x.get("text",""), "duration": to_int(x.get("duration",-1), -1)})
     return out
 
 class CharacterStatus(commands.Cog):
@@ -58,12 +67,26 @@ class CharacterStatus(commands.Cog):
                 "buffs": [],
                 "debuffs": []
             }
-        s[name]["buffs"]   = _normalize_effects_list(s[name]["buffs"])
-        s[name]["debuffs"] = _normalize_effects_list(s[name]["debuffs"])
-        return s[name]
+        # normalisasi + jaga tipe
+        v = s[name]
+        v["hp"] = to_int(v.get("hp"))
+        v["hp_max"] = to_int(v.get("hp_max"))
+        v["energy"] = to_int(v.get("energy"))
+        v["energy_max"] = to_int(v.get("energy_max"))
+        v["stamina"] = to_int(v.get("stamina"))
+        v["stamina_max"] = to_int(v.get("stamina_max"))
+        core = v.get("core", {})
+        for k in ("str","dex","con","int","wis","cha"):
+            core[k] = to_int(core.get(k, 1), 1)
+        v["core"] = core
+        v["buffs"]   = _normalize_effects_list(v.get("buffs", []))
+        v["debuffs"] = _normalize_effects_list(v.get("debuffs", []))
+        return v
 
     def _clamp(self, v: dict):
         for cur, mx in (("hp","hp_max"), ("energy","energy_max"), ("stamina","stamina_max")):
+            v[cur] = to_int(v.get(cur))
+            v[mx]  = to_int(v.get(mx))
             if v[mx] > 0:
                 v[cur] = max(0, min(v[cur], v[mx]))
             else:
@@ -75,8 +98,8 @@ class CharacterStatus(commands.Cog):
         expired_lines = []
         for name, v in s.items():
             keep = []
-            for eff in v["buffs"]:
-                d = eff["duration"]
+            for eff in v.get("buffs", []):
+                d = to_int(eff.get("duration", -1), -1)
                 if d > 0:
                     d -= 1
                     eff["duration"] = d
@@ -87,8 +110,8 @@ class CharacterStatus(commands.Cog):
             v["buffs"] = keep
 
             keep = []
-            for eff in v["debuffs"]:
-                d = eff["duration"]
+            for eff in v.get("debuffs", []):
+                d = to_int(eff.get("duration", -1), -1)
                 if d > 0:
                     d -= 1
                     eff["duration"] = d
@@ -166,23 +189,26 @@ class CharacterStatus(commands.Cog):
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
         entry = self._ensure_entry(ctx, name)
         entry.update({
-            "hp": hp, "hp_max": hp,
-            "energy": energy, "energy_max": energy,
-            "stamina": stamina, "stamina_max": stamina
+            "hp": to_int(hp), "hp_max": to_int(hp),
+            "energy": to_int(energy), "energy_max": to_int(energy),
+            "stamina": to_int(stamina), "stamina_max": to_int(stamina)
         })
         await ctx.send(f"✅ {name} dibuat/diupdate.")
 
     @status_group.command(name="setcore")
     async def status_setcore(self, ctx, name: str, str_: int, dex: int, con: int, int_: int, wis: int, cha: int):
         entry = self._ensure_entry(ctx, name)
-        entry["core"] = {"str": str_, "dex": dex, "con": con, "int": int_, "wis": wis, "cha": cha}
+        entry["core"] = {
+            "str": to_int(str_, 1), "dex": to_int(dex, 1), "con": to_int(con, 1),
+            "int": to_int(int_, 1), "wis": to_int(wis, 1), "cha": to_int(cha, 1)
+        }
         await ctx.send(f"✅ Core stats {name} diupdate.")
 
     @status_group.command(name="dmg")
     async def status_dmg(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["hp"]
-        v["hp"] = max(0, v["hp"] - amount)
+        v["hp"] = max(0, to_int(v["hp"]) - to_int(amount))
         self._clamp(v)
         history.push(ctx, name, "hp", old, v["hp"])
         await ctx.send(f"💥 {name} menerima {amount} damage. Sekarang {v['hp']}/{v['hp_max']}.")
@@ -191,7 +217,10 @@ class CharacterStatus(commands.Cog):
     async def status_heal(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["hp"]
-        v["hp"] = v["hp"] + amount if v["hp_max"] == 0 else min(v["hp_max"], v["hp"] + amount)
+        if to_int(v["hp_max"]) == 0:
+            v["hp"] = to_int(v["hp"]) + to_int(amount)
+        else:
+            v["hp"] = min(to_int(v["hp_max"]), to_int(v["hp"]) + to_int(amount))
         self._clamp(v)
         history.push(ctx, name, "hp", old, v["hp"])
         await ctx.send(f"❤️ {name} dipulihkan {amount} HP. Sekarang {v['hp']}/{v['hp_max']}.")
@@ -199,14 +228,14 @@ class CharacterStatus(commands.Cog):
     @status_group.command(name="buff")
     async def status_buff(self, ctx, name: str, text: str, duration: str = "perm"):
         v = self._ensure_entry(ctx, name)
-        dur = -1 if duration.lower() == "perm" else int(duration)
+        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
         v["buffs"].append({"text": text, "duration": dur})
         await ctx.send(f"✨ Buff ditambahkan ke {name}: {_format_effect(v['buffs'][-1])}")
 
     @status_group.command(name="debuff")
     async def status_debuff(self, ctx, name: str, text: str, duration: str = "perm"):
         v = self._ensure_entry(ctx, name)
-        dur = -1 if duration.lower() == "perm" else int(duration)
+        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
         v["debuffs"].append({"text": text, "duration": dur})
         await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {_format_effect(v['debuffs'][-1])}")
 
@@ -272,7 +301,7 @@ class CharacterStatus(commands.Cog):
     async def status_useenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["energy"]
-        v["energy"] -= amount
+        v["energy"] = to_int(v["energy"]) - to_int(amount)
         self._clamp(v)
         history.push(ctx, name, "energy", old, v["energy"])
         await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
@@ -281,7 +310,7 @@ class CharacterStatus(commands.Cog):
     async def status_regenenergy(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["energy"]
-        v["energy"] += amount
+        v["energy"] = to_int(v["energy"]) + to_int(amount)
         self._clamp(v)
         history.push(ctx, name, "energy", old, v["energy"])
         await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
@@ -290,7 +319,7 @@ class CharacterStatus(commands.Cog):
     async def status_usestam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["stamina"]
-        v["stamina"] -= amount
+        v["stamina"] = to_int(v["stamina"]) - to_int(amount)
         self._clamp(v)
         history.push(ctx, name, "stamina", old, v["stamina"])
         await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
@@ -299,7 +328,7 @@ class CharacterStatus(commands.Cog):
     async def status_regenstam(self, ctx, name: str, amount: int):
         v = self._ensure_entry(ctx, name)
         old = v["stamina"]
-        v["stamina"] += amount
+        v["stamina"] = to_int(v["stamina"]) + to_int(amount)
         self._clamp(v)
         history.push(ctx, name, "stamina", old, v["stamina"])
         await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
