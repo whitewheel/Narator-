@@ -1,7 +1,7 @@
 def embed_quick(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="⚡ Quick Commands",
-        description="Alias singkat untuk mempercepat command yang sering dipakai.",
+        title="⚡ Quick Commands & Utility",
+        description="Alias singkat & utilitas untuk mempercepat command yang sering dipakai.",
         color=COLOR_QUICK,
         timestamp=datetime.datetime.utcnow()
     )
@@ -25,14 +25,14 @@ def embed_quick(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Dice",
-        value=( 
+        value=(
             f"- `{prefix}r` = `{prefix}roll`\n"
             f"Contoh: `{prefix}r 1d20 +str`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Multi-Command",
+        name="🔹 Utility",
         value=(
             f"- `{prefix}multi` → jalankan beberapa command sekaligus.\n"
             "  Contoh:\n"
@@ -42,9 +42,10 @@ def embed_quick(prefix: str) -> discord.Embed:
             "  status setcore Alice 10 12 14 8 13 9\n"
             "  enemy set Goblin 15 2 4\n"
             "  enemy setcore Goblin 8 14 12 6 10 7\n"
-            "  ```"
+            "  ```\n"
+            f"- `{prefix}undo` → batalkan aksi terakhir (HP/Energy/Stamina karakter atau musuh)"
         ),
         inline=False
     )
-    e.set_footer(text="Quick Commands hanya alias/shortcut → hasil sama seperti command panjangnya.")
+    e.set_footer(text="Quick & Utility = shortcut dan helper → hasil sama seperti command panjangnya.")
     return e
