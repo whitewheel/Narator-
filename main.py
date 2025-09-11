@@ -40,8 +40,8 @@ class MyBot(commands.Bot):
             "cogs.karakter_status",
             "cogs.enemy_status",
             "cogs.multi",
-            "cogs.status_alias",   # ✅ QoL alias: !dmg, !heal, !ene±, !stam±
-            "cogs.help"            # ✅ custom help
+            "cogs.status_alias",   # QoL alias: !dmg, !heal, !ene±, !stam±
+            "cogs.help"            # Custom help (embed / optional buttons)
         ]
         for ext in exts:
             try:
@@ -50,7 +50,12 @@ class MyBot(commands.Bot):
             except Exception as e:
                 logger.error(f"❌ Gagal load {ext}: {e}")
 
-bot = MyBot(command_prefix="!", intents=intents)
+# ✅ Matikan help bawaan supaya tidak bentrok dengan cogs.help
+bot = MyBot(command_prefix="!", intents=intents, help_command=None)
+try:
+    bot.remove_command("help")
+except Exception:
+    pass
 
 DISCORD_LIMIT = 2000
 FALLBACK_FILE_LIMIT = 10000
@@ -91,7 +96,7 @@ async def on_command_error(ctx, error):
         await ctx.send("❌ Command tidak dikenal. Coba `!help`.")
     else:
         await ctx.send("⚠️ Terjadi error, coba lagi nanti.")
-        logger.error(f"Error di command {ctx.command}: {error}")
+        logger.error(f"Error di command {getattr(ctx, 'command', None)}: {error}")
 
 # ====== COMMAND GPT DASAR (opsional, selain cogs.gpt) ======
 @bot.command(name="ask")
@@ -119,7 +124,7 @@ async def ask(ctx, *, prompt: str = None):
     finally:
         try:
             await msg.delete()
-        except:
+        except Exception:
             pass
 
 # ====== RUN ======
