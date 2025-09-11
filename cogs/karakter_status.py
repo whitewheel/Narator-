@@ -15,12 +15,25 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
 def _mod(score: int) -> int:
     return math.floor(score / 5)
 
+def _format_effect(e):
+    d = e.get("duration", -1)
+    return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
+
+def _normalize_effects_list(lst):
+    out = []
+    for x in lst:
+        if isinstance(x, str):
+            out.append({"text": x, "duration": -1})
+        elif isinstance(x, dict):
+            out.append({"text": x.get("text",""), "duration": int(x.get("duration",-1))})
+    return out
+
 class CharacterStatus(commands.Cog):
     """
     In-memory tracker:
     - HP / Energy / Stamina (+ max)
     - Core stats: STR, DEX, CON, INT, WIS, CHA
-    - Buffs & Debuffs
+    - Buffs & Debuffs (dengan durasi)
     """
     def __init__(self, bot):
         self.bot = bot
@@ -44,6 +57,8 @@ class CharacterStatus(commands.Cog):
                 "buffs": [],
                 "debuffs": []
             }
+        s[name]["buffs"]   = _normalize_effects_list(s[name]["buffs"])
+        s[name]["debuffs"] = _normalize_effects_list(s[name]["debuffs"])
         return s[name]
 
     def _clamp(self, v: dict):
@@ -52,6 +67,38 @@ class CharacterStatus(commands.Cog):
                 v[cur] = max(0, min(v[cur], v[mx]))
             else:
                 v[cur] = max(0, v[cur])
+
+    async def tick_round(self, ctx):
+        """Kurangi durasi buff/debuff per round dan hapus yang expired"""
+        s = self._ensure(ctx)
+        expired_lines = []
+        for name, v in s.items():
+            keep = []
+            for eff in v["buffs"]:
+                d = eff["duration"]
+                if d > 0:
+                    d -= 1
+                    eff["duration"] = d
+                if d == 0:
+                    expired_lines.append(f"✨ Buff habis → **{name}**: {eff['text']}")
+                else:
+                    keep.append(eff)
+            v["buffs"] = keep
+
+            keep = []
+            for eff in v["debuffs"]:
+                d = eff["duration"]
+                if d > 0:
+                    d -= 1
+                    eff["duration"] = d
+                if d == 0:
+                    expired_lines.append(f"☠️ Debuff habis → **{name}**: {eff['text']}")
+                else:
+                    keep.append(eff)
+            v["debuffs"] = keep
+
+        if expired_lines:
+            await ctx.send("⏳ **Efek berakhir (Karakter):**\n" + "\n".join(expired_lines))
 
     def _make_embed(self, ctx, data: dict, title="🧍 Karakter Status"):
         embed = discord.Embed(
@@ -78,8 +125,8 @@ class CharacterStatus(commands.Cog):
                 f"CHA {core['cha']} ({_mod(core['cha']):+d})"
             )
 
-            buffs = "\n".join([f"✅ {b}" for b in v["buffs"]]) if v["buffs"] else "-"
-            debuffs = "\n".join([f"❌ {d}" for d in v["debuffs"]]) if v["debuffs"] else "-"
+            buffs = "\n".join([f"✅ {_format_effect(b)}" for b in v["buffs"]]) if v["buffs"] else "-"
+            debuffs = "\n".join([f"❌ {_format_effect(d)}" for d in v["debuffs"]]) if v["debuffs"] else "-"
 
             value = (
                 f"❤️ HP: {hp_text} [{_bar(v['hp'], v['hp_max'])}]\n"
@@ -100,13 +147,16 @@ class CharacterStatus(commands.Cog):
             "Status Commands:\n"
             "!status set <Nama> <HP> <Energy> <Stamina>\n"
             "!status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>\n"
-            "!status buff <Nama> <teks>\n"
-            "!status debuff <Nama> <teks>\n"
+            "!status buff <Nama> <teks> [durasi|perm]\n"
+            "!status debuff <Nama> <teks> [durasi|perm]\n"
             "!status clearbuff <Nama>\n"
             "!status cleardebuff <Nama>\n"
+            "!status unbuff <Nama> <teks>\n"
+            "!status undebuff <Nama> <teks>\n"
             "!status show [Nama]\n"
             "!status remove <Nama>\n"
             "!status clear\n"
+            "!status tick (kurangi durasi efek 1 round)\n"
             "```"
         )
 
@@ -127,16 +177,18 @@ class CharacterStatus(commands.Cog):
         await ctx.send(f"✅ Core stats {name} diupdate.")
 
     @status_group.command(name="buff")
-    async def status_buff(self, ctx, name: str, *, text: str):
+    async def status_buff(self, ctx, name: str, text: str, duration: str = "perm"):
         v = self._ensure_entry(ctx, name)
-        v["buffs"].append(text)
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+        dur = -1 if duration.lower() == "perm" else int(duration)
+        v["buffs"].append({"text": text, "duration": dur})
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {_format_effect(v['buffs'][-1])}")
 
     @status_group.command(name="debuff")
-    async def status_debuff(self, ctx, name: str, *, text: str):
+    async def status_debuff(self, ctx, name: str, text: str, duration: str = "perm"):
         v = self._ensure_entry(ctx, name)
-        v["debuffs"].append(text)
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+        dur = -1 if duration.lower() == "perm" else int(duration)
+        v["debuffs"].append({"text": text, "duration": dur})
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {_format_effect(v['debuffs'][-1])}")
 
     @status_group.command(name="clearbuff")
     async def status_clearbuff(self, ctx, name: str):
@@ -150,19 +202,33 @@ class CharacterStatus(commands.Cog):
         v["debuffs"] = []
         await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
 
+    @status_group.command(name="unbuff")
+    async def status_unbuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        before = len(v["buffs"])
+        v["buffs"] = [e for e in v["buffs"] if e["text"] != text]
+        await ctx.send("✨ Buff dihapus." if len(v["buffs"]) < before else "⚠️ Buff tidak ditemukan.")
+
+    @status_group.command(name="undebuff")
+    async def status_undebuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        before = len(v["debuffs"])
+        v["debuffs"] = [e for e in v["debuffs"] if e["text"] != text]
+        await ctx.send("☠️ Debuff dihapus." if len(v["debuffs"]) < before else "⚠️ Debuff tidak ditemukan.")
+
     @status_group.command(name="show")
     async def status_show(self, ctx, name: str = None):
         s = self._ensure(ctx)
         if not s:
             return await ctx.send("⚠️ Belum ada data karakter.")
 
-        if name:  # kalau cuma 1 karakter
+        if name:
             if name not in s:
                 return await ctx.send(f"⚠️ Karakter {name} tidak ditemukan.")
             data = {name: s[name]}
             embed = self._make_embed(ctx, data)
             await ctx.send(embed=embed)
-        else:  # kalau semua karakter → kirim 1 embed per karakter
+        else:
             for cname, cdata in s.items():
                 embed = self._make_embed(ctx, {cname: cdata})
                 await ctx.send(embed=embed)
@@ -184,7 +250,6 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="useenergy")
     async def status_useenergy(self, ctx, name: str, amount: int):
-        """Kurangi Energy karakter"""
         v = self._ensure_entry(ctx, name)
         v["energy"] -= amount
         self._clamp(v)
@@ -192,7 +257,6 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="regenenergy")
     async def status_regenenergy(self, ctx, name: str, amount: int):
-        """Tambah Energy karakter"""
         v = self._ensure_entry(ctx, name)
         v["energy"] += amount
         self._clamp(v)
@@ -200,7 +264,6 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="usestam")
     async def status_usestam(self, ctx, name: str, amount: int):
-        """Kurangi Stamina karakter"""
         v = self._ensure_entry(ctx, name)
         v["stamina"] -= amount
         self._clamp(v)
@@ -208,21 +271,22 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="regenstam")
     async def status_regenstam(self, ctx, name: str, amount: int):
-        """Tambah Stamina karakter"""
         v = self._ensure_entry(ctx, name)
         v["stamina"] += amount
         self._clamp(v)
         await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
 
+    @status_group.command(name="tick")
+    async def status_tick(self, ctx):
+        await self.tick_round(ctx)
+
     # ---------- Quick Commands ----------
     @commands.command(name="stat")
     async def quick_stat(self, ctx, name: str):
-        """Alias cepat: !stat <Nama> → status 1 karakter"""
         await self.status_show(ctx, name=name)
 
     @commands.command(name="party")
     async def quick_party(self, ctx):
-        """Alias cepat: !party → status semua karakter"""
         await self.status_show(ctx)
 
 async def setup(bot):
