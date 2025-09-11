@@ -147,24 +147,6 @@ def embed_enemy(prefix: str) -> discord.Embed:
         inline=False
     )
     e.add_field(
-        name="🔹 Dasar",
-        value=(
-            f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>` → buat 1 musuh\n"
-            f"- `{prefix}enemy addmany` → tambah banyak musuh sekaligus\n"
-            "   Contoh:\n"
-            "   ```txt\n"
-            f"   {prefix}enemy addmany\n"
-            "   Goblin 15 0 5 x2\n"
-            "   Archer 10 5 3 x1\n"
-            "   ```\n"
-            "   → otomatis jadi Goblin_1, Goblin_2, Archer_1\n"
-            f"- `{prefix}enemy dmg <Nama> <jumlah>` → kurangi HP musuh\n"
-            f"- `{prefix}enemy heal <Nama> <jumlah>` → tambah HP musuh\n"
-            f"- Tambahkan `all` di akhir untuk AoE (kena semua musuh dengan nama sama)"
-        ),
-        inline=False
-    )
-    e.add_field(
         name="🔹 Core Stats",
         value=f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`",
         inline=False
