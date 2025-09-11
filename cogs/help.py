@@ -10,6 +10,7 @@ COLOR_DICE      = discord.Color.gold()
 COLOR_POLL      = discord.Color.blue()
 COLOR_GPT       = discord.Color.purple()
 COLOR_QUICK     = discord.Color.orange() 
+COLOR_ENEMY     = discord.Color.dark_red()
 
 # ===== Embed Builders =====
 def embed_overview(prefix: str) -> discord.Embed:
@@ -178,6 +179,64 @@ def embed_status(prefix: str) -> discord.Embed:
     e.set_footer(text="Visual bar: █ penuh | ░ kosong • Buff/debuff tertentu ikut ke dice roller")
     return e
 
+def embed_enemy(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="👾 Enemy Status",
+        description="Tracker musuh: ❤️ HP / 🔋 Energy / ⚡ Stamina + Core Stats (STR, DEX, CON, INT, WIS, CHA) + Buff/Debuff.",
+        color=COLOR_ENEMY,
+        timestamp=datetime.datetime.utcnow()
+    )
+    e.add_field(
+        name="🔹 Perintah Dasar",
+        value=(
+            f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>` → buat musuh\n"
+            f"- `{prefix}enemy addmany` → tambah banyak musuh sekaligus (`xN` auto-numbering)\n"
+            f"- `{prefix}enemy dmg/heal <Nama> <jumlah>` → ubah HP musuh (pakai `all` untuk AoE)\n"
+            f"- `{prefix}enemy useenergy/regenenergy <Nama> <jumlah>` → ubah Energy\n"
+            f"- `{prefix}enemy usestam/regenstam <Nama> <jumlah>` → ubah Stamina\n"
+            f"- `{prefix}enemy remove <Nama>` / `{prefix}enemy clear` → hapus/reset"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Core Stats",
+        value=(
+            f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>` → set core stat\n"
+            "- Modifier dihitung otomatis: floor(score/5)"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Buff & Debuff",
+        value=(
+            f"- `{prefix}enemy buff <Nama> <teks> [durasi|perm]` → tambah buff\n"
+            f"- `{prefix}enemy debuff <Nama> <teks> [durasi|perm]` → tambah debuff\n"
+            f"- `{prefix}enemy unbuff/undebuff <Nama> <teks>` → hapus satu buff/debuff tertentu\n"
+            f"- `{prefix}enemy clearbuff/cleardebuff <Nama>` → hapus semua buff/debuff\n"
+            "- Buff/debuff bisa pakai durasi → auto berkurang tiap round & hilang otomatis"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Show",
+        value=(
+            f"- `{prefix}enemy show` → tampilkan semua musuh (1 embed per musuh)\n"
+            f"- `{prefix}enemy show Goblin` → filter semua musuh yang namanya mulai dengan Goblin\n"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Tick Round",
+        value=(
+            f"- `{prefix}enemy tick` → kurangi durasi buff/debuff 1 round\n"
+            "- Biasanya dipanggil otomatis saat round naik di initiative tracker"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Enemy status mirip karakter, tapi khusus untuk musuh (NPC/monster).")
+    return e
+
+
 def embed_dice(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🎲 Dice Roller",
@@ -322,6 +381,10 @@ class HelpView(discord.ui.View):
     async def btn_status(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=embed_status(self.prefix), view=self)
 
+    @discord.ui.button(label="Enemy", style=discord.ButtonStyle.secondary, emoji="👾")
+    async def btn_enemy(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=embed_enemy(self.prefix), view=self)
+
     @discord.ui.button(label="Dice", style=discord.ButtonStyle.secondary, emoji="🎲")
     async def btn_dice(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=embed_dice(self.prefix), view=self)
@@ -358,6 +421,8 @@ class CustomHelp(commands.Cog):
             await ctx.send(embed=embed_init(prefix))
         elif t == "status":
             await ctx.send(embed=embed_status(prefix))
+        elif t in ("enemy", "monsters", "npc"):
+            await ctx.send(embed=embed_enemy(prefix))
         elif t in ("roll", "dice"):
             await ctx.send(embed=embed_dice(prefix))
         elif t == "poll":
