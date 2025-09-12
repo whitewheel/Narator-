@@ -87,7 +87,7 @@ def wipe_guild(guild_id):
     with _conn() as c:
         c.execute("DELETE FROM memories WHERE guild_id=?", (str(guild_id),))
 
-# ==== Taksonomi kategori + ikon (tidak menulis row kosong; dipakai saat render/prompt) ====
+# ==== Taksonomi kategori + ikon (tanpa seed row; dipakai saat render/prompt) ====
 CATEGORY = {
   "history":   {"icon":"🗂️", "desc":"Catatan narasi & aksi"},
   "story":     {"icon":"📜", "desc":"Lore/storyline dunia"},
@@ -116,3 +116,32 @@ def category_icon(cat:str)->str:
 
 def template_for(cat:str)->dict:
     return copy.deepcopy(TEMPLATE.get(cat,{}))
+
+def peek_related(guild_id, channel_id, terms:list[str],
+                 cats=("npc","quest","zone","story","item","character"), limit=5):
+    """Cari fakta singkat dari memori berdasarkan terms (LIKE) untuk dipakai di prompt GM."""
+    if not terms: return []
+    terms = [t.strip() for t in terms if t and t.strip()]
+    if not terms: return []
+    facts = []
+    with _conn() as c:
+        for cat in cats:
+            for term in terms:
+                like = f"%{term}%"
+                rows = c.execute(
+                    "SELECT category, content FROM memories "
+                    "WHERE guild_id=? AND channel_id=? AND category=? AND content LIKE ? "
+                    "AND archived=0 ORDER BY id DESC LIMIT ?",
+                    (str(guild_id), str(channel_id), cat, like, limit)
+                ).fetchall()
+                for (cc, content) in rows:
+                    icon = category_icon(cc)
+                    snippet = content.strip().replace("\n"," ")
+                    if len(snippet) > 100: snippet = snippet[:100] + "…"
+                    facts.append(f"{icon} {cc}: {snippet}")
+    # dedupe
+    out, seen = [], set()
+    for f in facts:
+        if f in seen: continue
+        seen.add(f); out.append(f)
+    return out[:10]
