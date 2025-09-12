@@ -6,6 +6,10 @@ import discord
 from discord.ext import commands
 from openai import OpenAI
 
+# === DB (SQLite) ===
+# pastikan file memory.py sudah ada (yang tadi kita buat)
+from memory import init_db, DB_PATH  # NEW
+
 # ====== LOGGING ======
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +26,10 @@ if not DISCORD_TOKEN:
     raise RuntimeError("❌ ENV DISCORD_TOKEN kosong.")
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ ENV OPENAI_API_KEY kosong.")
+
+# Inisialisasi DB (akan membuat / membuka memory.db di volume)
+init_db()  # NEW
+logger.info(f"📦 SQLite DB path: {DB_PATH}")  # NEW
 
 # ====== GPT CLIENT ======
 client_gpt = OpenAI(api_key=OPENAI_API_KEY)
@@ -42,7 +50,8 @@ class MyBot(commands.Bot):
             "cogs.multi",
             "cogs.image",
             "cogs.status_alias",   # QoL alias: !dmg, !heal, !ene±, !stam±
-            "cogs.help"            # Custom help (embed / optional buttons)
+            "cogs.help",           # Custom help
+            "cogs.gm_cog",         # NEW: GM/Narrator mode
         ]
         for ext in exts:
             try:
@@ -62,30 +71,25 @@ DISCORD_LIMIT = 2000
 FALLBACK_FILE_LIMIT = 10000
 
 def split_message(text, limit=DISCORD_LIMIT):
-    """Pecah text panjang jadi potongan <= limit karakter."""
     if len(text) <= limit:
         return [text]
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
 async def send_long(ctx, content: str):
-    """Kirim jawaban panjang dengan format blok kode."""
     if len(content) <= DISCORD_LIMIT:
         await ctx.send(f"```{content}```")
         return
-
     if len(content) <= FALLBACK_FILE_LIMIT:
         parts = split_message(content, DISCORD_LIMIT)
         for idx, part in enumerate(parts, start=1):
             await ctx.send(f"**Bagian {idx}/{len(parts)}**\n```{part}```")
         return
-
     data = io.StringIO(content)
     await ctx.send(
         "📄 Jawaban panjang banget, aku kirim dalam file ya 👇",
         file=discord.File(fp=data, filename="jawaban.txt"),
     )
 
-# ====== EVENTS ======
 @bot.event
 async def on_ready():
     cmds = ", ".join(sorted(c.name for c in bot.commands))
@@ -99,14 +103,11 @@ async def on_command_error(ctx, error):
         await ctx.send("⚠️ Terjadi error, coba lagi nanti.")
         logger.error(f"Error di command {getattr(ctx, 'command', None)}: {error}")
 
-# ====== COMMAND GPT DASAR (opsional, selain cogs.gpt) ======
 @bot.command(name="ask")
 async def ask(ctx, *, prompt: str = None):
-    """Tanya GPT dengan !ask <pertanyaan>"""
     if not prompt:
         await send_long(ctx, "⚠️ Tolong kasih pertanyaan setelah `!ask`")
         return
-
     msg = await ctx.send("🤖...")
     try:
         response = client_gpt.chat.completions.create(
@@ -120,14 +121,11 @@ async def ask(ctx, *, prompt: str = None):
         answer = response.choices[0].message.content
         await send_long(ctx, answer)
     except Exception as e:
-        logger.error(f"❌ Error GPT: {e}")
+        logging.getLogger("bot").error(f"❌ Error GPT: {e}")
         await send_long(ctx, f"❌ Error: {str(e)}")
     finally:
-        try:
-            await msg.delete()
-        except Exception:
-            pass
+        try: await msg.delete()
+        except Exception: pass
 
-# ====== RUN ======
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
