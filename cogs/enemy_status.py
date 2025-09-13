@@ -108,7 +108,7 @@ class EnemyStatus(commands.Cog):
             buffs = "\n".join([f"✅ {_format_effect(b)}" for b in v["buffs"]]) if v["buffs"] else "-"
             debuffs = "\n".join([f"❌ {_format_effect(d)}" for d in v["debuffs"]]) if v["debuffs"] else "-"
             reward_line = f"XP {v['xp_reward']} | Gold {v['gold_reward']}"
-            loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in v.get("loot",[])]) or "-"
+            loot_line = "\n".join([f"- {it['name']} ({it.get('rarity', '')})" for it in v.get("loot",[])]) or "-"
             value = (
                 f"❤️ HP: {hp_text} [{_bar(v['hp'], v['hp_max'])}]\n"
                 f"📊 Stats: {stats_line}\n"
@@ -167,7 +167,7 @@ class EnemyStatus(commands.Cog):
         loots = e.get("loot", [])
         if not loots:
             return await ctx.send("❌ Musuh ini tidak punya loot.")
-        out = [f"- {it['name']} ({it.get('rarity','')})" for it in loots]
+        out = [f"- {it['name']} ({it.get('rarity', '')})" for it in loots]
         await ctx.send(f"🎁 Loot dari {name}:\n" + "\n".join(out))
 
 async def setup(bot):
