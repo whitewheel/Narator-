@@ -18,23 +18,36 @@ def embed_overview(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="📖 Bantuan Bot",
         description=(
-            "Selamat datang! Pilih topik bantuan dengan mengetik:\n"
-            f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`\n"
-            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n"
-            f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`\n\n"
+            "Selamat datang! Pilih topik bantuan dengan mengetik:
+"
+            f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`
+"
+            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`
+"
+            f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`
+
+"
             f"Gunakan `{prefix}help <topik>` untuk detail."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
     )
-    e.add_field(name="⚔️ Initiative", value="Kelola urutan giliran & ronde.", inline=False)
-    e.add_field(name="🧍 Karakter Status", value="HP / Energy / Stamina, Core, Buff/Debuff, tampilkan status.", inline=False)
-    e.add_field(name="👾 Enemy Status", value="Tracker musuh: tambah satu/banyak, dmg/heal (bisa AoE), buff/debuff.", inline=False)
-    e.add_field(name="🎲 Dice Roller", value="Roll fleksibel, dukung `+str` dkk, `as <Nama>`, dan `dc`/`vs`.", inline=False)
-    e.add_field(name="⚡ Quick & Utility", value="Alias: `dmg`, `heal`, `ene±`, `stam±`, `party`, `undo`, `multi`.", inline=False)
-    e.add_field(name="📊 Polling", value="Buat voting cepat dengan reaction angka.", inline=False)
-    e.add_field(name="🧠 GPT", value="Tanya, definisi, ringkas, cerita.", inline=False)
-    e.set_footer(text=f"Contoh: {prefix}help enemy • {prefix}help quick")
+    # Core play
+    e.add_field(name="🧍 Karakter Status", value="HP/Energy/Stamina, Core, Buff/Debuff, ringkasan `!party`.", inline=False)
+    e.add_field(name="👾 Enemy Status", value="Tambah satu/banyak, AoE `dmg/heal [all]`, buff/debuff, tick.", inline=False)
+    e.add_field(name="⚔️ Initiative", value="Urutan giliran, `next`, `setptr`, `round`, `shuffle`.", inline=False)
+    e.add_field(name="🎲 Dice Roller", value="`roll`/`r`, dukung `as <Nama>`, `+str|dex|…`, `dc|vs`.", inline=False)
+    e.add_field(name="⚡ Quick & Utility", value="Alias cepat: `dmg/heal/ene±/stam±`, `party`, `undo`, `multi`.", inline=False)
+    # World systems
+    e.add_field(name="📜 Quest", value="Tambah/show/detail/done/fail/reveal/remove. Dukung `--hidden`.", inline=False)
+    e.add_field(name="👤 NPC", value="Tambah/show/detail, `--hidden`, `reveal`, catatan & sikap.", inline=False)
+    e.add_field(name="🧰 Item", value="Inventori & loot: add/show/detail/remove.", inline=False)
+    e.add_field(name="🪙 Favor", value="Reputasi fraksi: add/set/show/detail/remove.", inline=False)
+    e.add_field(name="📍 Scene", value="Pin & tampilkan lokasi/scene aktif kanal.", inline=False)
+    # Misc
+    e.add_field(name="📊 Polling", value="Voting cepat 1–10 dengan reaction angka.", inline=False)
+    e.add_field(name="🧠 GPT", value="Define, summarize, dan story (narasi).", inline=False)
+    e.set_footer(text=f"Contoh: {prefix}help enemy • {prefix}help quest • {prefix}help init")
     return e
 
 def embed_init(prefix: str) -> discord.Embed:
@@ -118,7 +131,7 @@ def embed_enemy(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Tambah Banyak",
         value=(
-            f"- Inline: `{prefix}enemy addmany Goblin 15 0 10 x2, Archer 10 3 10 x1`\n"
+            f"- Inline: `{prefix}enemy addmany Goblin 15 0 15 x2, Archer 10 5 10 x1`\n"
             f"- Multiline: gunakan satu baris per entri"
         ),
         inline=False
@@ -198,7 +211,7 @@ def embed_poll(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Contoh",
         value=(
-            f"- `{prefix}poll \"Makan apa?\" Nasi Mie Roti`"
+            f"- `{prefix}poll "Makan apa?" Nasi Mie Roti`"
         ),
         inline=False
     )
@@ -330,10 +343,4 @@ class HelpCog(commands.Cog):
         await ctx.send(embed=embed)
 
 async def setup(bot):
-    # Pastikan default help bawaan discord.py dimatikan agar tidak bentrok
-    try:
-        bot.help_command = None
-        bot.remove_command("help")
-    except Exception:
-        pass
     await bot.add_cog(HelpCog(bot))
