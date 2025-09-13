@@ -50,6 +50,7 @@ class MyBot(commands.Bot):
             "cogs.multi",
             "cogs.history",
             "cogs.image",
+            "cogs.help_ui",
             "cogs.quest",     # ✅ BARU
             "cogs.item",      # ✅ BARU
             "cogs.npc",       # ✅ BARU
