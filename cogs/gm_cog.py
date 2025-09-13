@@ -1,400 +1,323 @@
-# cogs/gm_cog.py
-import os, random, json, re
+
 import discord
 from discord.ext import commands
-from memory import (
-    init_db, save_memory, get_recent, get_latest_summary, write_summary, mark_archived,
-    export_all_json, wipe_channel, count_rows, category_icon, peek_related
-)
+from openai import OpenAI
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from memory import save_memory, get_recent
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = os.getenv("GM_MODEL", "gpt-4o-mini")
+client = OpenAI()
 
-try:
-    from openai import OpenAI
-    oai = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-except Exception:
-    oai = None
+def _key(ctx):
+    return (str(ctx.guild.id), str(ctx.channel.id))
 
-ICON = {"narration":"🟣", "dialogue":"🗨️"}
-COLOR = 0x00B3FF
+START_WORDS = ["start", "mulai", "gas", "lanjut"]
+STYLE_PRESETS = ["noir","anime","cyberpunk","high-fantasy","dark-fantasy","epic-saga","slice-of-life","surreal-horror","technonesia"]
+DEPTH_LEVELS = ["short","medium","long"]
 
-# GM netral: tidak tahu lore, hanya pakai memori
-GM_HINT = (
-    "Kamu adalah GM/Narator NETRAL yang tidak mengetahui dunia/plot di awal. "
-    "Hanya gunakan informasi dari KONTEKS & FAKTA TERKAIT (memori). "
-    "Jika tidak ada catatan, katakan singkat 'Belum ada catatan' dan tawarkan: "
-    "bertanya klarifikasi atau menambahkan entri baru (setelah pemain setuju). "
-    "Hindari membuat nama/entitas baru tanpa konfirmasi. Gaya singkat dan responsif."
-)
+def _style_hint(style: str) -> str:
+    style = (style or "default").lower()
+    mapping = {
+        "noir": "Gaya noir detektif gelap, sinis, penuh bayangan.",
+        "anime": "Gaya anime dramatis, emosional, penuh ekspresi heroik.",
+        "cyberpunk": "Gaya cyberpunk neon-dystopia, korporasi, teknologi usang.",
+        "high-fantasy": "Gaya high fantasy epik, magis, metafora indah.",
+        "dark-fantasy": "Gaya dark fantasy grimdark, brutal, suram.",
+        "epic-saga": "Gaya legenda epik, skala besar, heroik.",
+        "slice-of-life": "Gaya ringan, hangat, keseharian, fokus interaksi.",
+        "surreal-horror": "Gaya horor surealis, aneh, mengganggu, eldritch.",
+        "technonesia": "Campuran cyberpunk + mistik Nusantara; neon, klenik, doa & data."
+    }
+    return mapping.get(style, "Gaya narasi netral sinematik.")
 
-QUESTION_WORDS = (
-    "apa","siapa","kapan","dimana","di mana","bagaimana","mengapa","kenapa",
-    "berapa","bisakah","bolehkah","mungkinkah","gimana","kenap"
-)
+def _depth_hint(depth: str) -> str:
+    if depth == "short":
+        return "Batasi ke 2-3 kalimat ringkas."
+    if depth == "long":
+        return "Buat 6-10 kalimat detail, sinematik."
+    return "Buat 3-5 kalimat seimbang."
 
-def detect_intent(text: str) -> str:
-    """qa | dialogue | action | ooc"""
-    if not text: return "action"
-    t = text.lower().strip()
-    if t.startswith("((") and t.endswith("))"): return "ooc"
-    if t.startswith("?") or t.endswith("?") or any(re.search(rf"\b{w}\b", t) for w in QUESTION_WORDS):
-        return "qa"
-    if re.search(r"[\"“].+?[\"”]", t) or any(k in t for k in ["kataku","katanya","aku berkata","dia berkata","ujar","tanya"]):
-        return "dialogue"
-    return "action"
+def _auto_style_from_scene(scene_text: str) -> str:
+    s = (scene_text or "").lower()
+    if any(k in s for k in ["arcology","neon","corp","artha","dyne"]):
+        return "cyberpunk"
+    if any(k in s for k in ["keris","ritual","kemenyan","kuil","candi","hutan"]):
+        return "technonesia"
+    if any(k in s for k in ["crypt","catacomb","dungeon","undead","curse"]):
+        return "dark-fantasy"
+    if any(k in s for k in ["boss","legend","ancient","prophecy"]):
+        return "epic-saga"
+    return "slice-of-life"
 
-class GM(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+class GMCog(commands.Cog):
+    def __init__(self, bot):
         self.bot = bot
-        init_db()
-        self.gm_channels: set[tuple[str,str]] = set()
-        # per-channel: length auto|short|medium|long, freedom low|normal|high, battle bool, canon strict|soft
-        self.settings: dict[tuple[str,str], dict] = {}
+        self.enabled: Dict[Any,bool] = {}
+        self.mode: Dict[Any,str] = {}         # auto / narrator / assistant / dual
+        self.started: Dict[Any,bool] = {}     # story started or not
+        self.styles: Dict[Any,str] = {}
+        self.depths: Dict[Any,str] = {}       # short/medium/long
 
-    # --------- Utils ----------
-    def _key(self, g, ch): return (str(g), str(ch))
-    def _get_setting(self, key, name, default):
-        return self.settings.get(key, {}).get(name, default)
-    def _set_setting(self, key, name, value):
-        self.settings.setdefault(key, {})[name] = value
-        save_memory(key[0], key[1], "system", "gm_settings", f"set {name}={value}", {})
+    # ---------- helpers ----------
+    def _is_on(self, ctx): return self.enabled.get(_key(ctx), False)
+    def _get_mode(self, ctx): return self.mode.get(_key(ctx), "auto")
+    def _style(self, ctx): return self.styles.get(_key(ctx), "default")
+    def _depth(self, ctx): return self.depths.get(_key(ctx), "medium")
 
-    def _length_hint(self, user_text: str | None) -> str:
-        if not user_text: return "medium"
-        t = user_text.lower().strip()
-        if len(t) <= 18 or any(k in t for k in ["ok","oke","ya","lanjut","ke bar","ke market","pergi"]):
-            return "short"
-        if any(k in t for k in ["jelaskan","detail","investigasi","lihat sekitar","terangkan"]):
-            return "long"
-        return "medium"
+    def _save_internal(self, ctx, role: str, text: str, kind: str = "assistant"):
+        g,c = _key(ctx)
+        meta = {"kind": kind, "style": self._style(ctx), "depth": self._depth(ctx)}
+        save_memory(g, c, ctx.author.id if ctx and ctx.author else 0, "gm_internal", f"{role.upper()}: {text}", meta)
 
-    def _is_ooc(self, text:str)->bool:
-        t = text.strip()
-        return t.startswith("((") and t.endswith("))")
+    def _latest_scene_text(self, ctx) -> str:
+        g,c = _key(ctx)
+        rows = get_recent(g, c, "scene", 10)
+        for (_id, cat, content, meta, ts) in rows:
+            if cat == "scene":
+                return content or ""
+        return ""
 
-    def _render_embed(self, data: dict) -> discord.Embed:
-        typ = data.get("type", "narration")
-        speaker = data.get("speaker", "Narrator")
-        icon = "❓" if speaker=="GM" and typ=="dialogue" else ICON.get(typ,"🟣")
-        title = f"{icon} {speaker} • {'Dialog' if typ=='dialogue' else 'Narasi'}"
-        desc = data.get("text", "")
-        embed = discord.Embed(title=title, description=desc, color=COLOR)
-        # choices
-        chs = data.get("choices") or []
-        if chs:
-            embed.add_field(name="Pilihan", value="\n".join(f"• {c}" for c in chs), inline=False)
-        # tags footer
-        tags = data.get("tags") or {}
-        bits = []
-        if tags.get("location"): bits.append(f"📍 {tags['location']}")
-        if tags.get("npcs"): bits.append(f"👤 {', '.join(tags['npcs'])}")
-        if tags.get("quest_hook"): bits.append("🪧 Hook misi")
-        if bits: embed.set_footer(text=" | ".join(bits))
-        return embed
+    async def _narrate(self, ctx, topic: str, extra: Optional[str] = None, force_style: Optional[str] = None):
+        """Call GPT to produce narration according to style/depth, log internally, post to chat."""
+        style = (force_style or self._style(ctx) or "default").lower()
+        if style == "default":
+            auto_style = _auto_style_from_scene(self._latest_scene_text(ctx))
+            style = auto_style
+        depth = self._depth(ctx)
 
-    async def _ask_json(self, prompt:str, length:str, freedom:str, ooc:bool, intent:str, canon:str) -> dict | None:
-        # fallback lokal
-        if not oai:
-            if intent == "qa" or ooc:
-                return {"type":"dialogue","speaker":"GM","length":"short","text":"(Belum ada catatan. Mau tambah entri atau klarifikasi?)","choices":[],"tags":{}}
-            return {"type":"narration","speaker":"Narrator","length":"short","text":"Ambient generik: lampu redup dan hujan halus.","choices":["Lihat sekitar"],"tags":{}}
-
-        temp = 0.7 if freedom=="normal" else (0.4 if freedom=="low" else 0.95)
-        if intent == "qa" or ooc:
-            temp = min(temp, 0.5)  # deterministik untuk jawaban langsung
-
-        schema = (
-          "Keluarkan JSON SAJA: "
-          '{"type":"narration|dialogue","speaker":"Narrator atau nama NPC",'
-          '"length":"short|medium|long","text":"...",'
-          '"choices":["opsi1","opsi2"],'
-          '"tags":{"location":"...", "npcs":["..."], "quest_hook": true}}.'
-        )
-
-        # === Kebijakan pengetahuan & canon ===
-        base_knowledge = (
-            "Kamu TIDAK mengetahui dunia/plot di luar yang ada di KONTEKS & FAKTA TERKAIT. "
-            "Jika sesuatu tidak ada di memori, jawab: 'Belum ada catatan.' lalu tawarkan klarifikasi atau penambahan entri (setelah pemain setuju). "
-            "Jangan bertentangan dengan fakta yang sudah tersimpan."
-        )
-        if ooc:
-            sys = "Kamu GM/Narator (bot) yang menjawab meta singkat dan jelas."
-        elif intent == "qa":
-            sys = "Kamu GM. Jawab pertanyaan pemain langsung, ringkas, tanpa memajukan cerita."
-        else:
-            sys = "Kamu GM/Narator. Efisien, imersif, tidak bertele-tele."
-
-        if canon == "strict":
-            canon_rules = (
-                "Canon STRICT: dilarang memperkenalkan proper noun/entitas baru tanpa persetujuan pemain. "
-                "Jika butuh warna, gunakan ambient generik tanpa nama khusus."
-            )
-        else:
-            canon_rules = (
-                "Canon SOFT: boleh menambah warna kecil generik (tanpa proper noun), "
-                "tetap tidak boleh kontradiksi dan jangan memajukan lore besar tanpa konfirmasi."
-            )
-
-        sys_full = f"{sys} {base_knowledge} {canon_rules}"
-
-        rsp = oai.chat.completions.create(
-            model=MODEL_NAME,
-            response_format={"type":"json_object"},
-            temperature=temp,
-            max_tokens= 220 if length=="short" else (340 if length=="medium" else 520),
-            messages=[
-                {"role":"system","content": sys_full},
-                {"role":"user","content": schema + " Patuhi mode QA/OOC & Canon."},
-                {"role":"user","content": prompt},
-            ],
-        )
+        sys = f"Kamu adalah Narator AI. { _style_hint(style) } { _depth_hint(depth) } Tulis dalam bahasa Indonesia."
+        user = f"Narasikan: {topic}."
+        if extra:
+            user += f" Konteks: {extra}."
         try:
-            return json.loads(rsp.choices[0].message.content)
-        except Exception:
-            return None
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role":"system","content":sys},{"role":"user","content":user}],
+                max_tokens=300, temperature=0.8
+            )
+            text = resp.choices[0].message.content.strip()
+        except Exception as e:
+            text = f"(narator terbatuk sejenak...) {topic}"
 
-    # --------- Commands ----------
+        self._save_internal(ctx, "narrator", text, kind="narrator")
+        await ctx.send(text)
+
+    async def _assistant_reply(self, ctx, message: str):
+        """Assistant reply (meta/helper), logged internally."""
+        sys = "Kamu adalah Assistant GM (OOC). Jawab ringkas dan jelas, berikan status/opsi yang relevan."
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role":"system","content":sys},{"role":"user","content":message}],
+                max_tokens=180, temperature=0.5
+            )
+            text = resp.choices[0].message.content.strip()
+        except Exception as e:
+            text = "(…)"
+
+        self._save_internal(ctx, "assistant", f"Q:{message} | A:{text}", kind="assistant")
+        await ctx.send(text)
+
+    # ---------- base commands ----------
     @commands.group(name="gm", invoke_without_command=True)
-    async def gm(self, ctx:commands.Context):
-        await ctx.send(
-            "Gunakan: `!gm on`, `!gm off`, `!gm next`, "
-            "`!gm style <auto|short|medium|long>`, `!gm freedom <low|normal|high>`, "
-            "`!gm canon <strict|soft>`, `!gm battle <on|off>`, `!gm status`, "
-            "`!gm reset_memory SAYA_MENGERTI_AKAN_MENGHAPUS_SEMUA_DATA`"
-        )
+    async def gm(self, ctx):
+        await ctx.send("Gunakan: `!gm on`, `!gm off`, `!gm mode <auto|narrator|assistant|dual>`, `!gm depth <short|medium|long>`, `!gm quest suggest`, `!gm npc suggest`, `!gm item suggest`, `!gm encounter suggest|apply`, `!style <nama>`")
 
     @gm.command(name="on")
-    async def gm_on(self, ctx:commands.Context):
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self.gm_channels.add(key)
-        self._set_setting(key,"length","auto")
-        self._set_setting(key,"freedom","normal")
-        self._set_setting(key,"battle",False)
-        self._set_setting(key,"canon","strict")  # default anti-ngarang
-        save_memory(ctx.guild.id, ctx.channel.id, ctx.author.id, "system", "GM ON", {})
-        await ctx.send("✅ **GM mode ON** untuk channel ini. Tulis natural tanpa `!`.")
+    async def gm_on(self, ctx):
+        k = _key(ctx)
+        self.enabled[k] = True
+        self.mode[k] = "auto"
+        self.started[k] = False
+        self.depths[k] = "medium"
+        await ctx.send("🎙️ GM aktif (Assistant dulu). Ngobrol/briefing dulu boleh. Ketik **start/mulai/gas** kalau mau mulai cerita.")
 
     @gm.command(name="off")
-    async def gm_off(self, ctx:commands.Context):
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self.gm_channels.discard(key)
-        save_memory(ctx.guild.id, ctx.channel.id, ctx.author.id, "system", "GM OFF", {})
-        await ctx.send("🛑 **GM mode OFF** untuk channel ini.")
+    async def gm_off(self, ctx):
+        k = _key(ctx)
+        self.enabled[k] = False
+        await ctx.send("🎙️ GM **OFF**.")
 
-    @gm.command(name="style")
-    async def gm_style(self, ctx:commands.Context, mode:str):
-        mode = mode.lower().strip()
-        if mode not in {"auto","short","medium","long"}:
-            return await ctx.send("❌ Pilih: `auto|short|medium|long`")
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self._set_setting(key,"length",mode)
-        await ctx.send(f"✨ Style panjang respons: **{mode}**")
+    @gm.command(name="mode")
+    async def gm_mode(self, ctx, *, mode: str):
+        k = _key(ctx); mode = mode.lower()
+        if mode not in ["auto","narrator","assistant","dual"]:
+            return await ctx.send("Mode tidak valid. Gunakan: auto | narrator | assistant | dual")
+        self.mode[k] = mode
+        await ctx.send(f"⚙️ GM mode: **{mode}**")
 
-    @gm.command(name="freedom")
-    async def gm_freedom(self, ctx:commands.Context, level:str):
-        level = level.lower().strip()
-        if level not in {"low","normal","high"}:
-            return await ctx.send("❌ Pilih: `low|normal|high`")
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self._set_setting(key,"freedom",level)
-        await ctx.send(f"🧠 Kreativitas GM: **{level}**")
+    @gm.command(name="depth")
+    async def gm_depth(self, ctx, *, level: str):
+        k = _key(ctx); level = level.lower()
+        if level not in DEPTH_LEVELS:
+            return await ctx.send("Depth tidak valid. Gunakan: short | medium | long")
+        self.depths[k] = level
+        await ctx.send(f"📏 Depth narasi: **{level}**")
 
-    @gm.command(name="canon")
-    async def gm_canon(self, ctx: commands.Context, mode: str):
-        mode = mode.lower().strip()
-        if mode not in {"strict","soft"}:
-            return await ctx.send("❌ Pilih: `strict|soft`")
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self._set_setting(key, "canon", mode)
-        await ctx.send(f"📚 Canon mode: **{mode}** "
-                       f"({'tanpa proper noun baru' if mode=='strict' else 'warna kecil boleh, tanpa kontradiksi'})")
+    @gm.command(name="force")
+    async def gm_force_start(self, ctx):
+        k = _key(ctx)
+        if not self.enabled.get(k, False):
+            return await ctx.send("❌ GM tidak aktif.")
+        self.started[k] = True
+        await ctx.send("📖 Force start → Narator mode berjalan.")
 
-    @gm.command(name="battle")
-    async def gm_battle(self, ctx:commands.Context, mode:str):
-        mode = mode.lower().strip()
-        if mode not in {"on","off"}:
-            return await ctx.send("❌ Pilih: `on|off`")
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        self._set_setting(key,"battle", mode=="on")
-        await ctx.send(f"⚔️ Battle mode: **{mode.upper()}** (narasi lebih ringkas & fokus aksi)")
+    @commands.command(name="style")
+    async def style(self, ctx, *, style: str):
+        st = style.lower()
+        if st not in STYLE_PRESETS and st != "default":
+            return await ctx.send(f"Style tidak dikenal. Preset: {', '.join(STYLE_PRESETS)} atau 'default'.")
+        self.styles[_key(ctx)] = st
+        await ctx.send(f"🎨 Style: **{st}**")
 
-    @gm.command(name="status")
-    async def gm_status(self, ctx:commands.Context):
-        key = self._key(ctx.guild.id, ctx.channel.id)
-        state = "ON" if key in self.gm_channels else "OFF"
-        total = count_rows(ctx.guild.id, ctx.channel.id)
-        s = self.settings.get(key, {})
-        await ctx.send(f"📊 GM: **{state}** | rows: **{total}** | "
-                       f"style: {s.get('length','auto')} | freedom: {s.get('freedom','normal')} | "
-                       f"battle: {s.get('battle',False)} | canon: {s.get('canon','strict')}")
+    # ---------- suggestions / generators ----------
+    @gm.command(name="quest")
+    async def gm_quest(self, ctx, subcmd: str = None):
+        if subcmd and subcmd.lower() == "suggest":
+            g,c = _key(ctx)
+            rows = get_recent(g, c, None, 30)
+            context = []
+            for (_id, cat, content, meta, ts) in rows:
+                context.append(f"[{cat}] {content[:200]}")
+            prompt = "Buat 1 ide quest (judul, deskripsi, hook singkat) dari konteks: \n" + "\n".join(context[-12:])
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role":"system","content":"Kamu Game Master AI."},{"role":"user","content":prompt}],
+                    max_tokens=240, temperature=0.8
+                )
+                text = resp.choices[0].message.content.strip()
+            except Exception as e:
+                text = "(gagal membuat saran quest)"
+            self._save_internal(ctx, "assistant", f"QuestSuggest: {text}")
+            embed = discord.Embed(title="💡 Quest Suggestion", description=text, color=discord.Color.gold())
+            await ctx.send(embed=embed)
 
-    @gm.command(name="next")
-    async def gm_next(self, ctx:commands.Context):
-        await self._narrate(ctx.channel, None, False, "action")
+    @gm.command(name="npc")
+    async def gm_npc(self, ctx, subcmd: str = None):
+        if subcmd and subcmd.lower() == "suggest":
+            g,c = _key(ctx)
+            scene = self._latest_scene_text(ctx)
+            prompt = f"Buat 1 NPC yang cocok dengan scene berikut: {scene}. Sertakan: Nama, Peran, Kepribadian, Rahasia singkat."
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role":"system","content":"Kamu pembuat NPC ringkas."},{"role":"user","content":prompt}],
+                    max_tokens=220, temperature=0.9
+                )
+                text = resp.choices[0].message.content.strip()
+            except Exception as e:
+                text = "(gagal membuat NPC)"
+            self._save_internal(ctx, "assistant", f"NPCSuggest: {text}")
+            await ctx.send(embed=discord.Embed(title="🧩 NPC Suggestion", description=text, color=discord.Color.blurple()))
 
-    @gm.command(name="reset_memory")
-    async def gm_reset_mem(self, ctx:commands.Context, confirm:str=None):
-        phrase = "SAYA_MENGERTI_AKAN_MENGHAPUS_SEMUA_DATA"
-        if confirm != phrase:
-            return await ctx.send(f"⚠️ Ini akan MENGHAPUS SEMUA data channel ini.\nKetik: `!gm reset_memory {phrase}` untuk konfirmasi.")
-        path = export_all_json("/data/memory_export.json")
-        wipe_channel(ctx.guild.id, ctx.channel.id)
-        await ctx.send(f"🧹 Memori channel ini sudah dihapus. Backup: `{path}`")
+    @gm.command(name="item")
+    async def gm_item(self, ctx, subcmd: str = None):
+        if subcmd and subcmd.lower() == "suggest":
+            g,c = _key(ctx)
+            scene = self._latest_scene_text(ctx)
+            prompt = f"Buat 1 item menarik terkait scene '{scene}'. Sertakan: Nama, Rarity, Efek (singkat), Flavor."
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role":"system","content":"Kamu pembuat item ringkas."},{"role":"user","content":prompt}],
+                    max_tokens=200, temperature=0.9
+                )
+                text = resp.choices[0].message.content.strip()
+            except Exception as e:
+                text = "(gagal membuat item)"
+            self._save_internal(ctx, "assistant", f"ItemSuggest: {text}")
+            await ctx.send(embed=discord.Embed(title="🎁 Item Suggestion", description=text, color=discord.Color.green()))
 
-    # --------- Listener (percakapan natural) ----------
+    @gm.command(name="encounter")
+    async def gm_encounter(self, ctx, subcmd: str = None):
+        g,c = _key(ctx)
+        if subcmd and subcmd.lower() == "suggest":
+            scene = self._latest_scene_text(ctx)
+            prompt = f"Buat 1 rancangan encounter (ringkas): enemy list + role, loot, dan quest hook singkat. Scene: {scene}."
+            try:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role":"system","content":"Kamu perancang encounter ringkas."},{"role":"user","content":prompt}],
+                    max_tokens=260, temperature=0.9
+                )
+                text = resp.choices[0].message.content.strip()
+            except Exception as e:
+                text = "(gagal membuat encounter)"
+            self._save_internal(ctx, "assistant", f"EncounterSuggest: {text}")
+            await ctx.send(embed=discord.Embed(title="⚔️ Encounter Suggestion", description=text, color=discord.Color.red()))
+        elif subcmd and subcmd.lower() == "apply":
+            # Minimal implementation: store a marker so other cogs (enemy_status) can read/apply manually.
+            rows = get_recent(g, c, "gm_internal", 20)
+            plan = None
+            for (_id, cat, content, meta, ts) in rows:
+                if "EncounterSuggest:" in content:
+                    plan = content.split("EncounterSuggest:",1)[-1].strip()
+            if not plan:
+                return await ctx.send("Tidak ada saran encounter terbaru untuk di-apply.")
+            save_memory(g, c, ctx.author.id, "encounter_plan", plan, {"applied": True, "ts": datetime.utcnow().isoformat()})
+            await ctx.send("✅ Encounter plan disimpan. (Spawn musuh/loot sesuai rencana via perintah enemy/loot)")
+        else:
+            await ctx.send("Gunakan: `!gm encounter suggest` atau `!gm encounter apply`")
+
+    # ---------- cutscenes / immersion ----------
+    @commands.command(name="cutscene")
+    async def cutscene(self, ctx, *, topic: str):
+        """Manual trigger cutscene pendek sesuai style/depth."""
+        await self._narrate(ctx, topic)
+
+    @commands.command(name="victory")
+    async def victory(self, ctx):
+        """Epilog singkat setelah menang."""
+        await self._narrate(ctx, "Kemenangan party dan suasana sesudah pertempuran", extra=self._latest_scene_text(ctx))
+
+    @commands.command(name="levelup")
+    async def levelup(self, ctx, *, name: str):
+        """Cutscene level up untuk karakter bernama 'name'."""
+        await self._narrate(ctx, f"Proses level up yang dialami {name}", extra="Berikan nuansa heroik.")
+
+    # ---------- listener: auto-switch chat ----------
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or not message.guild:
+        if message.author.bot:
             return
-        if message.content.strip().startswith("!"):
+        ctx = await self.bot.get_context(message)
+        if not ctx or not ctx.guild:
             return
-        key = self._key(message.guild.id, message.channel.id)
-        if key not in self.gm_channels:
+        k = _key(ctx)
+        if not self.enabled.get(k, False):
             return
 
         content = message.content.strip()
-        is_ooc = self._is_ooc(content)
-        if is_ooc:
-            content = content[2:-2].strip()
+        if content.startswith("!"):   # let commands flow
+            return
 
-        # simpan ke history
-        save_memory(message.guild.id, message.channel.id, message.author.id, "history", content,
-                    {"author": message.author.display_name, "ooc": is_ooc})
+        # pre-start: look for start words once
+        if not self.started.get(k, False):
+            if any(w in content.lower() for w in START_WORDS):
+                self.started[k] = True
+                await message.channel.send("📖 Cerita dimulai! (Narator mode ON)")
+                return
+            # assistant small talk
+            await self._assistant_reply(ctx, content)
+            return
 
-        intent = detect_intent(content)
-        await self._narrate(message.channel, content, is_ooc, intent)
+        # after started → auto mode or overrides
+        mode = self._get_mode(ctx)
+        if mode == "assistant":
+            await self._assistant_reply(ctx, content)
+        elif mode == "narrator":
+            await self._narrate(ctx, f"Aksi/ucapan pemain: {content}")
+        elif mode == "dual":
+            await self._narrate(ctx, f"Aksi/ucapan pemain: {content}")
+            await self._assistant_reply(ctx, f"Ringkas info terkait '{content}'")
+        else:  # auto
+            # heuristic: if question/meta words → assistant else narrator
+            meta_words = ["status","quest","berapa","dimana","siapa","apa","bagaimana","gimana","hp","xp","gold","inventory","favor","scene"]
+            if any(w in content.lower() for w in meta_words) or content.endswith("?"):
+                await self._assistant_reply(ctx, content)
+            else:
+                await self._narrate(ctx, f"Aksi/ucapan pemain: {content}")
 
-    # --------- Narasi utama ----------
-    async def _narrate(self, channel: discord.TextChannel, player_text: str | None,
-                       is_ooc: bool=False, intent: str="action"):
-        g, ch = channel.guild.id, channel.id
-        key = self._key(g, ch)
-
-        # 1) Tarik konteks
-        summary = get_latest_summary(g, ch) or "(Belum ada rekap.)"
-        recent = get_recent(g, ch, None, 10)
-        ctx_text = "\n".join(f"[{cat}] {content}" for (_id,cat,content,meta,ts) in reversed(recent[-10:]))
-
-        # 1b) Fakta terkait dari memori (baca sebelum menjawab)
-        terms = []
-        if player_text:
-            terms = [w for w in re.findall(r"[A-Za-zÀ-ÿ0-9_-]{4,}", player_text)]
-        facts = peek_related(g, ch, terms)[:6]
-        facts_text = ("\n".join(f"- {f}" for f in facts)) if facts else "(tidak ada fakta khusus)"
-
-        # 2) Panjang & kreativitas
-        style = self._get_setting(key, "length", "auto")
-        hint = self._length_hint(player_text) if style=="auto" else style
-        freedom = self._get_setting(key, "freedom", "normal")
-        battle_mode = self._get_setting(key, "battle", False)
-        canon = self._get_setting(key, "canon", "strict")
-
-        # 3) Twist ringan (disabled untuk QA/OOC)
-        d20 = None
-        twist = None
-        if not (is_ooc or intent == "qa"):
-            d20 = random.randint(1,20)
-            twist = ("Encounter kecil" if d20<=5 else "NPC relevan" if d20<=10 else "Benih quest" if d20<=15 else "Ambient/world event")
-
-        # RULES
-        rules = [
-            "Selalu prioritaskan fakta dari memori (Fakta terkait).",
-            "Jika fakta tidak memadai, sampaikan 'Belum ada catatan' lalu tawarkan klarifikasi/penambahan entri.",
-            f"Target length: {hint} (short=1-3 kalimat, medium=3-5, long=5-8).",
-            "Hindari bertele-tele; langsung aksi/dialog."
-        ]
-        if intent == "qa":
-            rules += [
-                "MODE: QA. Jawab pertanyaan pemain secara langsung sebagai GM.",
-                "Jangan menambah event/encounter/NPC/quest baru.",
-                "Jangan memajukan timeline cerita.",
-                "Output JSON: type='dialogue', speaker='GM', choices=[], tags={}.",
-            ]
-        else:
-            rules += [
-                "Respons bisa Narasi atau Dialog NPC.",
-                "Jangan drop quest resmi; beri hook dulu.",
-                "Berikan 1–3 pilihan jika relevan."
-            ]
-            if battle_mode:
-                rules += ["Mode pertempuran aktif: fokus pada aksi singkat, hit/miss, kondisi ringkas."]
-
-        prompt = f"""{GM_HINT}
-
-# KONTEKS
-Rekap:
-{summary}
-
-Riwayat (lama→baru, ringkas):
-{ctx_text}
-
-Fakta terkait:
-{facts_text}
-
-{'' if not twist else f'D20 twist: {twist}'}
-
-Aturan:
-- """ + "\n- ".join(rules) + f"""
-
-Input pemain (opsional):
-{player_text or '(none)'}
-"""
-
-        # 4) Typing + spinner
-        async with channel.typing():
-            spinner = await channel.send("⌛ Narator merender…")
-            try:
-                data = await self._ask_json(prompt, hint, freedom, is_ooc, intent, canon)
-            finally:
-                try: await spinner.delete()
-                except: pass
-
-        if not data:
-            data = {"type":"dialogue" if (intent=="qa" or is_ooc) else "narration",
-                    "speaker":"GM" if (intent=="qa" or is_ooc) else "Narrator",
-                    "length":"short","text":"(Singkat.)","choices":[],"tags":{}}
-
-        # Paksa patuh QA/OOC
-        if intent == "qa" or is_ooc:
-            data["type"] = "dialogue"
-            data["speaker"] = "GM"
-            data["choices"] = []
-            data["tags"] = {}
-            if data.get("length") == "long":
-                data["length"] = "short"
-
-        # lead-in bila panjang
-        if data.get("length") == "long":
-            await channel.send("…")
-
-        embed = self._render_embed(data)
-        await channel.send(embed=embed)
-
-        # simpan jawaban GM
-        save_memory(g, ch, "gm", "history", data.get("text",""),
-                    {"role":"gm","len":data.get("length"),"d20":d20, "battle":battle_mode, "intent":intent, "canon":canon})
-
-        # Ringkas otomatis sederhana (arsipkan di luar 40 terbaru)
-        active_hist = get_recent(g, ch, category="history", limit=60)
-        if len(active_hist) >= 40:
-            ids = [row[0] for row in active_hist][40:]
-            if ids:
-                snippet = "\n".join(f"- {r[2][:120]}" for r in reversed(active_hist[40:50]))
-                summary_text = "Ringkasan sesi (otomatis)."
-                if oai:
-                    try:
-                        r = oai.chat.completions.create(
-                            model=MODEL_NAME,
-                            messages=[{"role":"system","content":"Ringkas 5–7 kalimat, fokus kronologi & tokoh."},
-                                      {"role":"user","content": snippet}],
-                            temperature=0.4, max_tokens=220
-                        )
-                        summary_text = r.choices[0].message.content.strip()
-                    except Exception:
-                        pass
-                write_summary(g, ch, summary_text, {"archived_ids": ids})
-                mark_archived(g, ch, ids)
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(GM(bot))
+async def setup(bot):
+    await bot.add_cog(GMCog(bot))

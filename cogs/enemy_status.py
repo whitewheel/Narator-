@@ -1,8 +1,8 @@
 import math
-import re
 import discord
 from discord.ext import commands
-from .history import history   # history manager untuk !undo
+from memory import save_memory, get_recent, template_for
+import json
 
 def _key(ctx):
     return (ctx.guild.id if ctx.guild else 0, ctx.channel.id)
@@ -23,7 +23,6 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     return "█" * filled + "░" * (width - filled)
 
 def _mod(score: int) -> int:
-    # ikuti skema mod kamu (kosmetik)
     return math.floor(score / 5)
 
 def _format_effect(e):
@@ -38,10 +37,6 @@ def _normalize_effects_list(lst):
         elif isinstance(x, dict):
             out.append({"text": x.get("text",""), "duration": to_int(x.get("duration",-1), -1)})
     return out
-
-
-from memory import save_memory, get_recent, template_for
-import json
 
 def save_enemy_to_memory(guild_id, channel_id, user_id, name, data):
     save_memory(guild_id, channel_id, user_id, "enemy", json.dumps(data), {"name": name})
@@ -58,20 +53,11 @@ def load_all_enemies(guild_id, channel_id):
             continue
     return state
 
-
 class EnemyStatus(commands.Cog):
-    """
-    In-memory tracker untuk musuh
-    - HP / Energy / Stamina (+maks)
-    - Core stats (STR..CHA)
-    - Buff & Debuff (dengan durasi)
-    """
-
     def __init__(self, bot):
         self.bot = bot
-        self.state = {}  # {(guild, channel): {name: {...}}}
+        self.state = {}
 
-    # ---------- helpers ----------
     def _ensure(self, ctx):
         k = _key(ctx)
         if k not in self.state:
@@ -86,8 +72,8 @@ class EnemyStatus(commands.Cog):
                 "energy": 0, "energy_max": 0,
                 "stamina": 0, "stamina_max": 0,
                 "core": {"str": 1, "dex": 1, "con": 1, "int": 1, "wis": 1, "cha": 1},
-                "buffs": [],
-                "debuffs": []
+                "buffs": [], "debuffs": [],
+                "xp_reward": 0, "gold_reward": 0, "loot": []
             }
         v = s[name]
         v["hp"] = to_int(v.get("hp"))
@@ -102,377 +88,87 @@ class EnemyStatus(commands.Cog):
         v["core"] = core
         v["buffs"]   = _normalize_effects_list(v.get("buffs", []))
         v["debuffs"] = _normalize_effects_list(v.get("debuffs", []))
+        v["xp_reward"] = to_int(v.get("xp_reward",0),0)
+        v["gold_reward"] = to_int(v.get("gold_reward",0),0)
+        v["loot"] = v.get("loot", [])
         return v
 
-    def _clamp(self, v: dict):
-        for cur, mx in (("hp","hp_max"), ("energy","energy_max"), ("stamina","stamina_max")):
-            v[cur] = to_int(v.get(cur))
-            v[mx]  = to_int(v.get(mx))
-            if v[mx] > 0:
-                v[cur] = max(0, min(v[cur], v[mx]))
-            else:
-                v[cur] = max(0, v[cur])
-
-    async def tick_round(self, ctx):
-        s = self._ensure(ctx)
-        expired_lines = []
-        for name, v in s.items():
-            keep = []
-            for eff in v.get("buffs", []):
-                d = to_int(eff.get("duration", -1), -1)
-                if d > 0:
-                    d -= 1
-                    eff["duration"] = d
-                if d == 0:
-                    expired_lines.append(f"✨ Buff habis → **{name}**: {eff['text']}")
-                else:
-                    keep.append(eff)
-            v["buffs"] = keep
-
-            keep = []
-            for eff in v.get("debuffs", []):
-                d = to_int(eff.get("duration", -1), -1)
-                if d > 0:
-                    d -= 1
-                    eff["duration"] = d
-                if d == 0:
-                    expired_lines.append(f"☠️ Debuff habis → **{name}**: {eff['text']}")
-                else:
-                    keep.append(eff)
-            v["debuffs"] = keep
-
-        if expired_lines:
-            await ctx.send("⏳ **Efek berakhir (Musuh):**\n" + "\n".join(expired_lines))
-
-    def _make_embed(self, ctx, data: dict, title="👾 Enemy Status"):
-        embed = discord.Embed(
-            title=title,
-            description=f"Channel: **{ctx.channel.name}**",
-            color=discord.Color.red()
-        )
+    def _make_embed(self, ctx, data: dict, title="👹 Enemy Status"):
+        embed = discord.Embed(title=title, description=f"Channel: **{ctx.channel.name}**", color=discord.Color.red())
         if not data:
-            embed.add_field(name="(kosong)", value="Gunakan `!enemy set` atau `!enemy addmany`.", inline=False)
+            embed.add_field(name="(kosong)", value="Gunakan `!enemy add` untuk menambah musuh.", inline=False)
             return embed
-
         for name, v in data.items():
             hp_text = f"{v['hp']}/{v['hp_max']}" if v['hp_max'] else str(v['hp'])
-            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max'] else str(v['energy'])
-            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max'] else str(v['stamina'])
-
-            core = v["core"]
             stats_line = (
-                f"STR {core['str']} ({_mod(core['str']):+d}) | "
-                f"DEX {core['dex']} ({_mod(core['dex']):+d}) | "
-                f"CON {core['con']} ({_mod(core['con']):+d})\n"
-                f"INT {core['int']} ({_mod(core['int']):+d}) | "
-                f"WIS {core['wis']} ({_mod(core['wis']):+d}) | "
-                f"CHA {core['cha']} ({_mod(core['cha']):+d})"
+                f"STR {v['core']['str']} ({_mod(v['core']['str']):+d}) | "
+                f"DEX {v['core']['dex']} ({_mod(v['core']['dex']):+d}) | "
+                f"CON {v['core']['con']} ({_mod(v['core']['con']):+d})"
             )
-
             buffs = "\n".join([f"✅ {_format_effect(b)}" for b in v["buffs"]]) if v["buffs"] else "-"
             debuffs = "\n".join([f"❌ {_format_effect(d)}" for d in v["debuffs"]]) if v["debuffs"] else "-"
-
+            reward_line = f"XP {v['xp_reward']} | Gold {v['gold_reward']}"
+            loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in v.get("loot",[])]) or "-"
             value = (
                 f"❤️ HP: {hp_text} [{_bar(v['hp'], v['hp_max'])}]\n"
-                f"🔋 Energy: {en_text} [{_bar(v['energy'], v['energy_max'])}]\n"
-                f"⚡ Stamina: {st_text} [{_bar(v['stamina'], v['stamina_max'])}]\n\n"
-                f"📊 Stats:\n{stats_line}\n\n"
-                f"✨ Buffs:\n{buffs}\n\n"
-                f"☠️ Debuffs:\n{debuffs}"
+                f"📊 Stats: {stats_line}\n"
+                f"✨ Buffs:\n{buffs}\n"
+                f"☠️ Debuffs:\n{debuffs}\n\n"
+                f"🎁 Reward: {reward_line}\n"
+                f"🎒 Loot:\n{loot_line}"
             )
             embed.add_field(name=name, value=value, inline=False)
         return embed
 
-    def _all_defeated(self, ctx) -> bool:
-        """True jika tidak ada musuh dengan HP > 0 di channel ini."""
-        s = self._ensure(ctx)
-        if not s:
-            return False
-        for v in s.values():
-            hp = to_int(v.get("hp", 0))
-            if hp > 0:
-                return False
-        return True
-
-    # ---------- commands ----------
     @commands.group(name="enemy", invoke_without_command=True)
-    async def enemy_group(self, ctx):
-        await ctx.send(
-            "```txt\n"
-            "Enemy Commands:\n"
-            "!enemy set <Nama> <HP> <Energy> <Stamina>\n"
-            "!enemy addmany  (multiline / koma / ; / |)\n"
-            "  Format tiap baris: <Nama> <HP> <EN> <ST> [xJumlah]\n"
-            "  Contoh:\n"
-            "    Goblin 15 0 15 x2\n"
-            "    Archer 10 5 10 x1\n"
-            "!enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>\n"
-            "!enemy dmg/heal <Nama> <jumlah> [all]\n"
-            "!enemy useenergy/regenenergy <Nama> <jumlah>\n"
-            "!enemy usestam/regenstam <Nama> <jumlah>\n"
-            "!enemy buff/debuff <Nama> <teks> [durasi|perm]\n"
-            "!enemy clearbuff/cleardebuff <Nama>\n"
-            "!enemy unbuff/undebuff <Nama> <teks>\n"
-            "!enemy show [Nama]\n"
-            "!enemy remove <Nama>\n"
-            "!enemy clear\n"
-            "!enemy tick\n"
-            "```"
-        )
+    async def enemy(self, ctx):
+        await ctx.send("Gunakan: `!enemy add`, `!enemy show`, `!enemy dmg`, `!enemy heal`, `!enemy loot`")
 
-    @enemy_group.command(name="set")
-    async def enemy_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        entry = self._ensure_entry(ctx, name)
-        entry.update({
-            "hp": to_int(hp), "hp_max": to_int(hp),
-            "energy": to_int(energy), "energy_max": to_int(energy),
-            "stamina": to_int(stamina), "stamina_max": to_int(stamina)
-        })
-        await ctx.send(f"👾 Musuh {name} dibuat/diupdate.")
+    @enemy.command(name="add")
+    async def enemy_add(self, ctx, name: str, hp: int, *, opts: str = None):
+        e = self._ensure_entry(ctx, name)
+        e["name"] = name
+        e["hp"] = hp
+        e["hp_max"] = hp
+        if opts:
+            if "--xp" in opts:
+                try: e["xp_reward"] = int(opts.split("--xp")[1].split()[0])
+                except: pass
+            if "--gold" in opts:
+                try: e["gold_reward"] = int(opts.split("--gold")[1].split()[0])
+                except: pass
+            if "--loot" in opts:
+                try:
+                    loot_str = opts.split("--loot")[1].strip()
+                    parts = loot_str.split(";")
+                    loots = []
+                    for p in parts:
+                        segs = [s.strip() for s in p.split("|")]
+                        if not segs or len(segs)<1: continue
+                        item = {"name":segs[0]}
+                        if len(segs)>1: item["type"]=segs[1]
+                        if len(segs)>2: item["effect"]=segs[2]
+                        if len(segs)>3: item["rarity"]=segs[3]
+                        loots.append(item)
+                    e["loot"] = loots
+                except: pass
+        save_enemy_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, e)
+        await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
 
-    @enemy_group.command(name="addmany")
-    async def enemy_addmany(self, ctx, *, entries: str = None):
-        """
-        Tambah banyak musuh sekaligus.
-        Format baris: <Nama> <HP> <EN> <ST> [xJumlah]
-        Bisa dipisah pakai koma ( , ), titik koma ( ; ), pipe ( | ), atau baris baru.
-        """
-        # Ambil teks setelah "addmany" jika user kirim multiline tanpa arg
-        if entries is None:
-            raw = ctx.message.content
-            idx = raw.lower().find("addmany")
-            entries = raw[idx + len("addmany"):].strip() if idx != -1 else ""
-
-        if not entries:
-            return await ctx.send("⚠️ Format: `!enemy addmany` lalu diikuti daftar di baris-baris berikutnya.")
-
-        chunks = [c.strip() for c in re.split(r'[,\n;|]+', entries) if c.strip()]
-
-        added = 0
-        skipped = []
-
-        # Pola: Nama boleh ada spasi; angka wajib; opsional xN di akhir
-        pat = re.compile(r'^(?P<name>.+?)\s+(?P<hp>-?\d+)\s+(?P<en>-?\d+)\s+(?P<st>-?\d+)(?:\s*x(?P<count>\d+))?$', re.IGNORECASE)
-
-        for ch in chunks:
-            m = pat.match(ch)
-            if not m:
-                skipped.append(ch)
-                continue
-
-            name = m.group('name').strip()
-            hp   = to_int(m.group('hp'))
-            en   = to_int(m.group('en'))
-            st   = to_int(m.group('st'))
-            cnt  = to_int(m.group('count'), 1)
-            cnt  = max(1, cnt)
-
-            if cnt == 1:
-                entry = self._ensure_entry(ctx, name)
-                entry.update({
-                    "hp": hp, "hp_max": hp,
-                    "energy": en, "energy_max": en,
-                    "stamina": st, "stamina_max": st
-                })
-                added += 1
-            else:
-                for i in range(cnt):
-                    entry_name = f"{name}_{i+1}"
-                    entry = self._ensure_entry(ctx, entry_name)
-                    entry.update({
-                        "hp": hp, "hp_max": hp,
-                        "energy": en, "energy_max": en,
-                        "stamina": st, "stamina_max": st
-                    })
-                    added += 1
-
-        msg = f"✅ Ditambahkan/diupdate **{added}** musuh."
-        if skipped:
-            preview = ", ".join(skipped[:5])
-            if len(skipped) > 5:
-                preview += ", ..."
-            msg += f" (gagal parse: {preview})"
-        await ctx.send(msg)
-
-    @enemy_group.command(name="dmg")
-    async def enemy_dmg(self, ctx, name: str, amount: int, target: str = None):
+    @enemy.command(name="show")
+    async def enemy_show(self, ctx):
         s = self._ensure(ctx)
-        affected = []
-        if target == "all":
-            for ename in list(s.keys()):
-                if ename.lower().startswith(name.lower()):
-                    v = s[ename]
-                    old = v["hp"]
-                    v["hp"] = max(0, to_int(v["hp"]) - to_int(amount))
-                    self._clamp(v)
-                    history.push(ctx, ename, "hp", old, v["hp"])
-                    affected.append(f"{ename} → {v['hp']}/{v['hp_max']}")
-        else:
-            if name not in s:
-                suggestions = [n for n in s.keys() if n.lower().startswith(name.lower())]
-                if suggestions:
-                    return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan. Mungkin maksud: {', '.join(suggestions)}")
-                return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
-            v = s[name]
-            old = v["hp"]
-            v["hp"] = max(0, to_int(v["hp"]) - to_int(amount))
-            self._clamp(v)
-            history.push(ctx, name, "hp", old, v["hp"])
-            affected.append(f"{name} → {v['hp']}/{v['hp_max']}")
+        embed = self._make_embed(ctx, s)
+        await ctx.send(embed=embed)
 
-        if affected:
-            await ctx.send("💥 Damage diterapkan:\n" + "\n".join(affected))
-            # 🔔 cek otomatis: semua musuh 0 HP?
-            if self._all_defeated(ctx):
-                await ctx.send("✅ Semua musuh 0 HP. Ketik `!victory` untuk mengakhiri encounter.")
-
-    @enemy_group.command(name="heal")
-    async def enemy_heal(self, ctx, name: str, amount: int, target: str = None):
-        s = self._ensure(ctx)
-        affected = []
-        if target == "all":
-            for ename in list(s.keys()):
-                if ename.lower().startswith(name.lower()):
-                    v = s[ename]
-                    old = v["hp"]
-                    if to_int(v["hp_max"]) == 0:
-                        v["hp"] = to_int(v["hp"]) + to_int(amount)
-                    else:
-                        v["hp"] = min(to_int(v["hp_max"]), to_int(v["hp"]) + to_int(amount))
-                    self._clamp(v)
-                    history.push(ctx, ename, "hp", old, v["hp"])
-                    affected.append(f"{ename} → {v['hp']}/{v['hp_max']}")
-        else:
-            if name not in s:
-                suggestions = [n for n in s.keys() if n.lower().startswith(name.lower())]
-                if suggestions:
-                    return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan. Mungkin maksud: {', '.join(suggestions)}")
-                return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
-            v = s[name]
-            old = v["hp"]
-            if to_int(v["hp_max"]) == 0:
-                v["hp"] = to_int(v["hp"]) + to_int(amount)
-            else:
-                v["hp"] = min(to_int(v["hp_max"]), to_int(v["hp"]) + to_int(amount))
-            self._clamp(v)
-            history.push(ctx, name, "hp", old, v["hp"])
-            affected.append(f"{name} → {v['hp']}/{v['hp_max']}")
-
-        if affected:
-            await ctx.send("💚 Heal diterapkan:\n" + "\n".join(affected))
-
-    @enemy_group.command(name="useenergy")
-    async def enemy_useenergy(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        old = v["energy"]
-        v["energy"] = to_int(v["energy"]) - to_int(amount)
-        self._clamp(v)
-        history.push(ctx, name, "energy", old, v["energy"])
-        await ctx.send(f"🔋 {name} menggunakan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
-
-    @enemy_group.command(name="regenenergy")
-    async def enemy_regenenergy(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        old = v["energy"]
-        v["energy"] = to_int(v["energy"]) + to_int(amount)
-        self._clamp(v)
-        history.push(ctx, name, "energy", old, v["energy"])
-        await ctx.send(f"🔋 {name} memulihkan {amount} Energy. Sekarang {v['energy']}/{v['energy_max']}.")
-
-    @enemy_group.command(name="usestam")
-    async def enemy_usestam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        old = v["stamina"]
-        v["stamina"] = to_int(v["stamina"]) - to_int(amount)
-        self._clamp(v)
-        history.push(ctx, name, "stamina", old, v["stamina"])
-        await ctx.send(f"⚡ {name} menggunakan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
-
-    @enemy_group.command(name="regenstam")
-    async def enemy_regenstam(self, ctx, name: str, amount: int):
-        v = self._ensure_entry(ctx, name)
-        old = v["stamina"]
-        v["stamina"] = to_int(v["stamina"]) + to_int(amount)
-        self._clamp(v)
-        history.push(ctx, name, "stamina", old, v["stamina"])
-        await ctx.send(f"⚡ {name} memulihkan {amount} Stamina. Sekarang {v['stamina']}/{v['stamina_max']}.")
-
-    @enemy_group.command(name="buff")
-    async def enemy_buff(self, ctx, name: str, text: str, duration: str = "perm"):
-        v = self._ensure_entry(ctx, name)
-        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
-        v["buffs"].append({"text": text, "duration": dur})
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {_format_effect(v['buffs'][-1])}")
-
-    @enemy_group.command(name="debuff")
-    async def enemy_debuff(self, ctx, name: str, text: str, duration: str = "perm"):
-        v = self._ensure_entry(ctx, name)
-        dur = -1 if duration.lower() == "perm" else to_int(duration, -1)
-        v["debuffs"].append({"text": text, "duration": dur})
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {_format_effect(v['debuffs'][-1])}")
-
-    @enemy_group.command(name="clearbuff")
-    async def enemy_clearbuff(self, ctx, name: str):
-        v = self._ensure_entry(ctx, name)
-        v["buffs"] = []
-        await ctx.send(f"✨ Semua buff dihapus dari {name}.")
-
-    @enemy_group.command(name="cleardebuff")
-    async def enemy_cleardebuff(self, ctx, name: str):
-        v = self._ensure_entry(ctx, name)
-        v["debuffs"] = []
-        await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
-
-    @enemy_group.command(name="unbuff")
-    async def enemy_unbuff(self, ctx, name: str, *, text: str):
-        v = self._ensure_entry(ctx, name)
-        before = len(v["buffs"])
-        v["buffs"] = [e for e in v["buffs"] if e["text"] != text]
-        await ctx.send("✨ Buff dihapus." if len(v["buffs"]) < before else "⚠️ Buff tidak ditemukan.")
-
-    @enemy_group.command(name="undebuff")
-    async def enemy_undebuff(self, ctx, name: str, *, text: str):
-        v = self._ensure_entry(ctx, name)
-        before = len(v["debuffs"])
-        v["debuffs"] = [e for e in v["debuffs"] if e["text"] != text]
-        await ctx.send("☠️ Debuff dihapus." if len(v["debuffs"]) < before else "⚠️ Debuff tidak ditemukan.")
-
-    @enemy_group.command(name="show")
-    async def enemy_show(self, ctx, name: str = None):
-        s = self._ensure(ctx)
-        if not s:
-            return await ctx.send("⚠️ Belum ada musuh.")
-        if name:
-            filtered = {n:v for n,v in s.items() if n.lower().startswith(name.lower())}
-            if not filtered:
-                return await ctx.send(f"⚠️ Musuh {name} tidak ditemukan.")
-            for ename, edata in filtered.items():
-                embed = self._make_embed(ctx, {ename: edata})
-                await ctx.send(embed=embed)
-        else:
-            for ename, edata in s.items():
-                embed = self._make_embed(ctx, {ename: edata})
-                await ctx.send(embed=embed)
-
-    @enemy_group.command(name="remove")
-    async def enemy_remove(self, ctx, name: str):
-        s = self._ensure(ctx)
-        if name in s:
-            del s[name]
-            await ctx.send(f"🗑️ Musuh {name} dihapus.")
-        else:
-            await ctx.send("⚠️ Nama musuh tidak ditemukan.")
-
-    @enemy_group.command(name="clear")
-    async def enemy_clear(self, ctx):
-        k = _key(ctx)
-        self.state.pop(k, None)
-        await ctx.send("🧹 Semua musuh di channel ini direset.")
-
-    @enemy_group.command(name="tick")
-    async def enemy_tick(self, ctx):
-        await self.tick_round(ctx)
-
+    @enemy.command(name="loot")
+    async def enemy_loot(self, ctx, name: str):
+        e = self._ensure_entry(ctx, name)
+        loots = e.get("loot", [])
+        if not loots:
+            return await ctx.send("❌ Musuh ini tidak punya loot.")
+        out = [f"- {it['name']} ({it.get('rarity','')})" for it in loots]
+        await ctx.send(f"🎁 Loot dari {name}:\n" + "\n".join(out))
 
 async def setup(bot):
     cog = EnemyStatus(bot)
