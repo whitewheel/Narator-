@@ -45,6 +45,16 @@ class InitiativeMemory(commands.Cog):
     def _sorted(self, arr):
         return sorted(arr, key=lambda x: (-x[1], x[0].lower()))
 
+    def _persist(self, ctx):
+        """Simpan state initiative channel ini ke LTM."""
+        k = _key(ctx)
+        s = self._ensure(ctx)
+        data = {"order": s["order"], "ptr": s["ptr"], "round": s["round"]}
+        gid = str(ctx.guild.id) if ctx.guild else "0"
+        cid = str(ctx.channel.id)
+        uid = str(getattr(ctx.author, "id", 0))
+        save_initiative_to_memory(gid, cid, uid, data)
+
     def _make_embed(self, ctx, title: str, s: dict, highlight: bool = True):
         order = s["order"]
         ptr = s["ptr"]
@@ -94,7 +104,8 @@ class InitiativeMemory(commands.Cog):
         existing[name] = score
         s["order"] = self._sorted(list(existing.items()))
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-        await ctx.send(f"✅ Ditambahkan/diupdate: **{name}** = {score}")
+        self._persist(ctx)
+        await ctx\.send\(f\"✅ Ditambahkan/diupdate: \*\*{name}\*\* = {score}\"\)
 
     @init_group.command(name="addmany")
     async def init_addmany(self, ctx, *, entries: str = None):
@@ -147,7 +158,8 @@ class InitiativeMemory(commands.Cog):
             if len(skipped) > 5:
                 preview += ", ..."
             msg += f" (di-skip: {preview})"
-        await ctx.send(msg)
+        self._persist(ctx)
+        await ctx\.send\(msg\)
 
     @init_group.command(name="remove")
     async def init_remove(self, ctx, name: str):
@@ -156,13 +168,16 @@ class InitiativeMemory(commands.Cog):
         s["order"] = [(n, sc) for (n, sc) in s["order"] if n != name]
         if len(s["order"]) < before:
             s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-            await ctx.send(f"🗑️ Hapus **{name}**")
+            self._persist(ctx)
+        await ctx\.send\(f\"🗑️ Hapus \*\*{name}\*\*\"\)
         else:
             await ctx.send("⚠️ Nama tidak ditemukan.")
 
     @init_group.command(name="show")
     async def init_show(self, ctx):
         s = self._ensure(ctx)
+        self._persist(ctx)
+        self._persist(ctx)
         embed = self._make_embed(ctx, "⚔️ Initiative Order", s)
         await ctx.send(embed=embed)
 
@@ -177,6 +192,7 @@ class InitiativeMemory(commands.Cog):
             s["round"] += 1
             await ctx.send(f"🔄 **Round {s['round']} dimulai!**")
 
+        self._persist(ctx)
         embed = self._make_embed(ctx, "⏭️ Initiative Next", s)
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran", value=f"✨ **{current}**", inline=False)
@@ -189,6 +205,7 @@ class InitiativeMemory(commands.Cog):
             return await ctx.send("⚠️ Belum ada peserta.")
         idx = max(1, min(index, len(s["order"]))) - 1
         s["ptr"] = idx
+        self._persist(ctx)
         embed = self._make_embed(ctx, "📌 Pointer Diset Manual", s)
         await ctx.send(embed=embed)
 
@@ -196,6 +213,7 @@ class InitiativeMemory(commands.Cog):
     async def init_clear(self, ctx):
         k = _key(ctx)
         self.state.pop(k, None)
+        self._persist(ctx)
         await ctx.send("🧹 Initiative channel ini direset.")
 
     @init_group.command(name="round")
@@ -204,6 +222,7 @@ class InitiativeMemory(commands.Cog):
         if value is None:
             return await ctx.send(f"📜 Round saat ini: **{s['round']}**")
         s["round"] = max(1, value)
+        self._persist(ctx)
         await ctx.send(f"📜 Round diset ke **{s['round']}**")
 
     @init_group.command(name="shuffle")
@@ -216,6 +235,7 @@ class InitiativeMemory(commands.Cog):
         if not s["order"]:
             return await ctx.send("⚠️ Belum ada peserta.")
         s["ptr"] = random.randint(0, len(s["order"]) - 1)
+        self._persist(ctx)
         embed = self._make_embed(ctx, "🎲 Shuffle Giliran", s)
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran Pertama", value=f"👉 **{current}**", inline=False)
@@ -235,6 +255,7 @@ class InitiativeMemory(commands.Cog):
         except Exception:
             pass
 
+        self._persist(ctx)
         embed = self._make_embed(ctx, "⚔️ Encounter Dimulai!", s)
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran Pertama", value=f"👉 **{current}**", inline=False)
@@ -322,6 +343,6 @@ async def setup(bot):
             try:
                 restored = load_initiative_from_memory(str(guild.id), str(channel.id))
                 if restored:
-                    cog.state.update(restored)
+                    cog.state[(guild.id, channel.id)] = restored
             except:
                 pass
