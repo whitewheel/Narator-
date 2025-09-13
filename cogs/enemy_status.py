@@ -156,8 +156,8 @@ class EnemyStatus(commands.Cog):
 
         for name, v in data.items():
             hp_text = f"{v['hp']}/{v['hp_max']}" if v['hp_max'] else str(v['hp'])
-            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max"] else str(v['energy'])
-            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max"] else str(v['stamina'])
+            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max'] else str(v['energy'])
+            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max'] else str(v['stamina'])
 
             core = v["core"]
             stats_line = (
