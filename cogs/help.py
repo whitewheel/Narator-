@@ -18,15 +18,10 @@ def embed_overview(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="📖 Bantuan Bot",
         description=(
-            "Selamat datang! Pilih topik bantuan dengan mengetik:
-"
-            f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`
-"
-            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`
-"
-            f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`
-
-"
+            "Selamat datang! Pilih topik bantuan dengan mengetik:\n"
+            f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`\n"
+            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n"
+            f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`\n\n"
             f"Gunakan `{prefix}help <topik>` untuk detail."
         ),
         color=COLOR_OVERVIEW,
@@ -131,7 +126,7 @@ def embed_enemy(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Tambah Banyak",
         value=(
-            f"- Inline: `{prefix}enemy addmany Goblin 15 0 15 x2, Archer 10 5 10 x1`\n"
+            f"- Inline: `{prefix}enemy addmany Goblin 15 0 10 x2, Archer 10 3 10 x1`\n"
             f"- Multiline: gunakan satu baris per entri"
         ),
         inline=False
@@ -211,7 +206,7 @@ def embed_poll(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Contoh",
         value=(
-            f"- `{prefix}poll "Makan apa?" Nasi Mie Roti`"
+            f"- `{prefix}poll \"Makan apa?\" Nasi Mie Roti`"
         ),
         inline=False
     )
@@ -343,4 +338,10 @@ class HelpCog(commands.Cog):
         await ctx.send(embed=embed)
 
 async def setup(bot):
+    # Matikan default help agar tidak bentrok
+    bot.help_command = None
+    try:
+        bot.remove_command("help")
+    except Exception:
+        pass
     await bot.add_cog(HelpCog(bot))
