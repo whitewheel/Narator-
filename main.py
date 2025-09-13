@@ -49,6 +49,11 @@ class MyBot(commands.Bot):
             "cogs.enemy_status",
             "cogs.multi",
             "cogs.image",
+            "cogs.quest",     # ✅ BARU
+            "cogs.item",      # ✅ BARU
+            "cogs.npc",       # ✅ BARU
+            "cogs.favor",     # ✅ BARU
+            "cogs.scene",     # ✅ BARU
             "cogs.status_alias",   # QoL alias: !dmg, !heal, !ene±, !stam±
             "cogs.help",           # Custom help
             "cogs.gm_cog",         # NEW: GM/Narrator mode
