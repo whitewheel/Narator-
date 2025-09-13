@@ -118,7 +118,7 @@ def embed_enemy(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Tambah Banyak",
         value=(
-            f"- Inline: `{prefix}enemy addmany Goblin 15 0 15 x2, Archer 10 5 10 x1`\n"
+            f"- Inline: `{prefix}enemy addmany Goblin 15 0 10 x2, Archer 10 3 10 x1`\n"
             f"- Multiline: gunakan satu baris per entri"
         ),
         inline=False
@@ -198,7 +198,7 @@ def embed_poll(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Contoh",
         value=(
-            f"- `{prefix}poll "Makan apa?" Nasi Mie Roti`"
+            f"- `{prefix}poll \"Makan apa?\" Nasi Mie Roti`"
         ),
         inline=False
     )
@@ -330,4 +330,10 @@ class HelpCog(commands.Cog):
         await ctx.send(embed=embed)
 
 async def setup(bot):
+    # Pastikan default help bawaan discord.py dimatikan agar tidak bentrok
+    try:
+        bot.help_command = None
+        bot.remove_command("help")
+    except Exception:
+        pass
     await bot.add_cog(HelpCog(bot))
