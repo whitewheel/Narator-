@@ -48,6 +48,7 @@ class MyBot(commands.Bot):
             "cogs.karakter_status",
             "cogs.enemy_status",
             "cogs.multi",
+            "cogs.history",
             "cogs.image",
             "cogs.quest",     # ✅ BARU
             "cogs.item",      # ✅ BARU
