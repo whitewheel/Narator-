@@ -38,6 +38,26 @@ def _normalize_effects_list(lst):
             out.append({"text": x.get("text",""), "duration": to_int(x.get("duration",-1), -1)})
     return out
 
+
+from memory import save_memory, get_recent, template_for
+import json
+
+def save_char_to_memory(guild_id, channel_id, user_id, name, data):
+    save_memory(guild_id, channel_id, user_id, "character", json.dumps(data), {"name": name})
+
+def load_all_characters(guild_id, channel_id):
+    rows = get_recent(guild_id, channel_id, "character", 100)
+    state = {}
+    for (_id, cat, content, meta, ts) in rows:
+        try:
+            c = json.loads(content)
+            name = meta.get("name", c.get("name"))
+            state[name] = c
+        except:
+            continue
+    return state
+
+
 class CharacterStatus(commands.Cog):
     """
     In-memory tracker:
@@ -346,5 +366,13 @@ class CharacterStatus(commands.Cog):
     async def quick_party(self, ctx):
         await self.status_show(ctx)
 
+
 async def setup(bot):
-    await bot.add_cog(CharacterStatus(bot))
+    cog = CharacterStatus(bot)
+    bot.add_cog(cog)
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                cog.state.update(load_all_characters(str(guild.id), str(channel.id)))
+            except:
+                pass

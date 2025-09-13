@@ -39,6 +39,26 @@ def _normalize_effects_list(lst):
             out.append({"text": x.get("text",""), "duration": to_int(x.get("duration",-1), -1)})
     return out
 
+
+from memory import save_memory, get_recent, template_for
+import json
+
+def save_enemy_to_memory(guild_id, channel_id, user_id, name, data):
+    save_memory(guild_id, channel_id, user_id, "enemy", json.dumps(data), {"name": name})
+
+def load_all_enemies(guild_id, channel_id):
+    rows = get_recent(guild_id, channel_id, "enemy", 100)
+    state = {}
+    for (_id, cat, content, meta, ts) in rows:
+        try:
+            e = json.loads(content)
+            name = meta.get("name", e.get("name"))
+            state[name] = e
+        except:
+            continue
+    return state
+
+
 class EnemyStatus(commands.Cog):
     """
     In-memory tracker untuk musuh
@@ -453,5 +473,13 @@ class EnemyStatus(commands.Cog):
     async def enemy_tick(self, ctx):
         await self.tick_round(ctx)
 
+
 async def setup(bot):
-    await bot.add_cog(EnemyStatus(bot))
+    cog = EnemyStatus(bot)
+    bot.add_cog(cog)
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                cog.state.update(load_all_enemies(str(guild.id), str(channel.id)))
+            except:
+                pass

@@ -8,6 +8,23 @@ def _key(ctx):
     """Key unik per-guild per-channel."""
     return (ctx.guild.id if ctx.guild else 0, ctx.channel.id)
 
+
+from memory import save_memory, get_recent
+import json
+
+def save_initiative_to_memory(guild_id, channel_id, user_id, data):
+    save_memory(guild_id, channel_id, user_id, "initiative", json.dumps(data))
+
+def load_initiative_from_memory(guild_id, channel_id):
+    rows = get_recent(guild_id, channel_id, "initiative", 1)
+    for (_id, cat, content, meta, ts) in rows:
+        try:
+            return json.loads(content)
+        except:
+            continue
+    return None
+
+
 class InitiativeMemory(commands.Cog):
     """
     Initiative tracker in-memory (tanpa DB).
@@ -296,5 +313,15 @@ class InitiativeMemory(commands.Cog):
     async def alias_order(self, ctx):
         await self.init_show(ctx)
 
+
 async def setup(bot):
-    await bot.add_cog(InitiativeMemory(bot))
+    cog = InitiativeMemory(bot)
+    bot.add_cog(cog)
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                restored = load_initiative_from_memory(str(guild.id), str(channel.id))
+                if restored:
+                    cog.state.update(restored)
+            except:
+                pass
