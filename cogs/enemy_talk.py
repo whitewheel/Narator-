@@ -1,8 +1,7 @@
-
 import discord
 from discord.ext import commands
 from openai import OpenAI
-from talk_memory import append_chat, load_chat_history
+from .talk_memory import append_chat, load_chat_history
 from memory import get_recent, save_memory
 
 client = OpenAI()
@@ -27,7 +26,6 @@ def classify_enemy(guild_id: str, channel_id: str, name: str) -> str:
     for (_id, cat, content, meta, ts) in rows:
         nm = (meta or {}).get("name", "").lower()
         if nm == name_l or name_l in (content or "").lower():
-            # heuristics from content/meta
             role = (meta or {}).get("role", "").lower()
             if (meta or {}).get("boss", False) or "boss" in role or "elite" in role:
                 return "boss"
@@ -50,7 +48,6 @@ class EnemyTalk(commands.Cog):
         kind = classify_enemy(g, c, name)
         append_chat(g, c, ctx.author.id, "enemy_chat", "enemy", name, "user", message)
 
-        # choose style
         system_style = STYLE_MONSTER if kind == "monster" else STYLE_BOSS if kind == "boss" else STYLE_HUMAN
         history = load_chat_history(g, c, "enemy_chat", "enemy", name, limit=20)
 
@@ -90,7 +87,6 @@ class EnemyTalk(commands.Cog):
     async def enemy_promote(self, ctx, name: str, *, npc_name: str):
         """Promote enemy jadi NPC dengan nama baru (atau sama)."""
         g, c = _key(ctx)
-        # Create a marker in memory
         save_memory(g, c, ctx.author.id, "npc", f"Promoted from enemy: {name}", {"name": npc_name})
         append_chat(g, c, ctx.author.id, "enemy_chat", "enemy", name, "system", f"-- promoted to NPC {npc_name} --")
         await ctx.send(f"Enemy **{name}** dipromosikan jadi NPC **{npc_name}**.")
