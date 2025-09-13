@@ -476,7 +476,7 @@ class EnemyStatus(commands.Cog):
 
 async def setup(bot):
     cog = EnemyStatus(bot)
-    bot.add_cog(cog)
+    await bot.add_cog(cog)
     for guild in bot.guilds:
         for channel in guild.text_channels:
             try:
