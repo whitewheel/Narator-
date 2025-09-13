@@ -13,23 +13,25 @@ COLOR_GPT       = discord.Color.purple()
 COLOR_QUICK     = discord.Color.orange()
 
 # ========= EMBED BUILDERS =========
+
 def embed_overview(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="📖 Bantuan Bot",
         description=(
             "Selamat datang! Pilih topik bantuan dengan mengetik:\n"
             f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`\n"
-            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n\n"
+            f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n"
+            f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`\n\n"
             f"Gunakan `{prefix}help <topik>` untuk detail."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
     )
-    e.add_field(name="⚔️ Initiative", value="Kelola urutan giliran, mulai (`engage`) & akhiri (`victory`).", inline=False)
-    e.add_field(name="🧍 Karakter Status", value="HP / Energy / Stamina, Core Stats, Buff/Debuff, tampilkan status.", inline=False)
-    e.add_field(name="👾 Enemy Status", value="Tracker musuh: tambah satu/banyak, dmg/heal (AoE prefix), buff/debuff.", inline=False)
-    e.add_field(name="🎲 Dice Roller", value="Roll dadu fleksibel, dukung `+str` dkk, `as <Nama>`, dan `dc`/`vs`.", inline=False)
-    e.add_field(name="⚡ Quick & Utility", value="Alias cepat: `dmg`, `heal`, `ene±`, `stam±`, `stat`, `party`, `undo`, `multi`.", inline=False)
+    e.add_field(name="⚔️ Initiative", value="Kelola urutan giliran & ronde.", inline=False)
+    e.add_field(name="🧍 Karakter Status", value="HP / Energy / Stamina, Core, Buff/Debuff, tampilkan status.", inline=False)
+    e.add_field(name="👾 Enemy Status", value="Tracker musuh: tambah satu/banyak, dmg/heal (bisa AoE), buff/debuff.", inline=False)
+    e.add_field(name="🎲 Dice Roller", value="Roll fleksibel, dukung `+str` dkk, `as <Nama>`, dan `dc`/`vs`.", inline=False)
+    e.add_field(name="⚡ Quick & Utility", value="Alias: `dmg`, `heal`, `ene±`, `stam±`, `party`, `undo`, `multi`.", inline=False)
     e.add_field(name="📊 Polling", value="Buat voting cepat dengan reaction angka.", inline=False)
     e.add_field(name="🧠 GPT", value="Tanya, definisi, ringkas, cerita.", inline=False)
     e.set_footer(text=f"Contoh: {prefix}help enemy • {prefix}help quick")
@@ -37,47 +39,25 @@ def embed_overview(prefix: str) -> discord.Embed:
 
 def embed_init(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="⚔️ Initiative Tracker",
-        description="Urutan giliran pertarungan (per channel, in-memory).",
+        title="⚔️ Bantuan: Initiative",
+        description="Kelola urutan giliran, pointer, dan ronde.",
         color=COLOR_INIT,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="🔹 Dasar",
         value=(
-            f"- `{prefix}init add <Nama> <Skor>`\n"
-            f"- `{prefix}init show` (alias: `{prefix}order`)\n"
-            f"- `{prefix}init next` (alias: `{prefix}next` / `{prefix}n`)\n"
-            f"- `{prefix}init setptr <index>` (mulai dari 1)\n"
-            f"- `{prefix}init remove <Nama>` • `{prefix}init clear`\n"
-            f"- `{prefix}init round` / `{prefix}init round <angka>`\n"
-            f"- `{prefix}init shuffle` (acak pointer awal)"
+            f"- `{prefix}init add <Nama> <initiative>` • `{prefix}init remove <Nama>`\n"
+            f"- `{prefix}init show` • `{prefix}init clear`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Tambah Banyak",
+        name="🔹 Lanjutan",
         value=(
-            f"- Inline: `{prefix}init addmany \"Alice 18, Goblin 12, Mage 16\"`\n"
-            "- Multi-line:\n"
-            f"```txt\n{prefix}init addmany\nAlice 18\nGoblin 12\nMage 16\n```"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Mulai & Akhiri",
-        value=(
-            f"- Mulai: `{prefix}engage` (alias: `{prefix}start`, `{prefix}begin`)\n"
-            f"- Akhiri: `{prefix}victory` (alias: `{prefix}end`, `{prefix}finish`, `{prefix}win`)\n"
-            "  Opsi `victory`: `keep` (jangan hapus musuh), `clear` (hapus musuh, default), `force` (paksa selesai).\n"
-            "_Saat semua musuh 0 HP, bot akan menyarankan pakai `victory`._"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Contoh Alur",
-        value=(
-            f"```txt\n{prefix}init add Alice 18\n{prefix}init add Goblin 12\n{prefix}order\n{prefix}engage\n{prefix}next\n{prefix}victory\n```"
+            f"- `{prefix}init addmany` *(multiline/inline tambah banyak)*\n"
+            f"- `{prefix}init setptr <index>` • `{prefix}init next`\n"
+            f"- `{prefix}init round` *(lihat/set)* • `{prefix}init shuffle`"
         ),
         inline=False
     )
@@ -85,8 +65,8 @@ def embed_init(prefix: str) -> discord.Embed:
 
 def embed_status(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="🧍 Karakter Status",
-        description="Kelola karakter: HP, Energy, Stamina, Core Stats, Buff/Debuff.",
+        title="🧍 Bantuan: Status",
+        description="Kelola karakter: HP, Energy, Stamina, Core, Buff/Debuff.",
         color=COLOR_STATUS,
         timestamp=datetime.datetime.utcnow()
     )
@@ -94,48 +74,36 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Dasar",
         value=(
             f"- `{prefix}status set <Nama> <HP> <Energy> <Stamina>`\n"
-            f"- `{prefix}status show [Nama]` • `{prefix}status remove <Nama>` • `{prefix}status clear`"
+            f"- `{prefix}status show [Nama]` • `{prefix}status remove <Nama>` • `{prefix}status clear`\n"
+            f"- `!party` *(ringkasan party)*"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Core & Resource",
+        name="🔹 Core & Efek",
         value=(
-            f"- Core: `{prefix}status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
-            f"- Energy: `{prefix}status useenergy/regenenergy <Nama> <jumlah>`\n"
-            f"- Stamina: `{prefix}status usestam/regenstam <Nama> <jumlah>`"
+            f"- `{prefix}status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
+            f"- `{prefix}status buff|debuff <Nama> <teks> [durasi|perm]`\n"
+            f"- `{prefix}status clearbuff|cleardebuff <Nama>` • `{prefix}status unbuff|undebuff <Nama> <teks>`\n"
+            f"- `{prefix}status tick` *(kurangi durasi efek 1 ronde)*"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 HP & Efek",
+        name="🔹 Resource",
         value=(
-            f"- HP: `{prefix}status dmg/heal <Nama> <jumlah>`\n"
-            f"- Buff/Debuff: `{prefix}status buff/debuff <Nama> <teks> [durasi|perm]`\n"
-            f"- Hapus: `{prefix}status clearbuff/cleardebuff <Nama>` • `unbuff/undebuff <Nama> <teks>`\n"
-            f"- Durasi: `{prefix}status tick` (kurangi 1 pada semua efek berdurasi)"
+            f"- `{prefix}status dmg|heal <Nama> <jumlah>`\n"
+            f"- `{prefix}status useenergy|regenenergy <Nama> <jumlah>`\n"
+            f"- `{prefix}status usestam|regenstam <Nama> <jumlah>`"
         ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Contoh",
-        value=(
-            f"```txt\n{prefix}status set Alice 20 5 3\n{prefix}status setcore Alice 14 12 12 10 8 13\n"
-            f"{prefix}status buff Alice \"+2 STR\" 3\n{prefix}status dmg Alice 4\n{prefix}status show Alice\n{prefix}status tick\n```"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="ℹ️ Tips",
-        value=f"Gunakan alias cepat di `{prefix}help quick` untuk operasi umum.",
         inline=False
     )
     return e
 
 def embed_enemy(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="👾 Enemy Status",
-        description="Kelola musuh/NPC: HP, Energy, Stamina, Buff/Debuff, tampilkan status.",
+        title="👾 Bantuan: Enemy",
+        description="Kelola musuh: daftar, core, buff/debuff, dan AoE.",
         color=COLOR_ENEMY,
         timestamp=datetime.datetime.utcnow()
     )
@@ -151,73 +119,51 @@ def embed_enemy(prefix: str) -> discord.Embed:
         name="🔹 Tambah Banyak",
         value=(
             f"- Inline: `{prefix}enemy addmany Goblin 15 0 15 x2, Archer 10 5 10 x1`\n"
-            "- Multi-line:\n"
-            f"```txt\n{prefix}enemy addmany\nGoblin 15 0 15 x2\nArcher 10 5 10 x1\n```"
+            f"- Multiline: gunakan satu baris per entri"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Pertarungan",
+        name="🔹 Core & Efek",
         value=(
-            f"- HP: `{prefix}enemy dmg/heal <Nama> <jumlah>` • tambahkan `all` untuk AoE (prefix nama)\n"
-            f"- Energy: `{prefix}enemy useenergy/regenenergy <Nama> <jumlah>`\n"
-            f"- Stamina: `{prefix}enemy usestam/regenstam <Nama> <jumlah>`\n"
-            f"- Buff/Debuff: `{prefix}enemy buff/debuff <Nama> <teks> [durasi|perm]` • `clearbuff/cleardebuff` • `unbuff/undebuff`"
+            f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
+            f"- `{prefix}enemy buff|debuff <Nama> <teks> [durasi|perm]`\n"
+            f"- `{prefix}enemy clearbuff|cleardebuff <Nama>` • `{prefix}enemy unbuff|undebuff <Nama> <teks>`\n"
+            f"- `{prefix}enemy tick`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Contoh",
+        name="🔹 Resource & AoE",
         value=(
-            f"```txt\n{prefix}enemy addmany\nGoblin 15 0 15 x2\nArcher 10 5 10 x1\n"
-            f"{prefix}enemy dmg Goblin 3 all\n{prefix}enemy show\n```"
+            f"- `{prefix}enemy dmg|heal <Nama> <jumlah> [all]`\n"
+            f"- `{prefix}enemy useenergy|regenenergy <Nama> <jumlah>`\n"
+            f"- `{prefix}enemy usestam|regenstam <Nama> <jumlah>`"
         ),
-        inline=False
-    )
-    e.add_field(
-        name="ℹ️ Catatan",
-        value="AoE `all` menerapkan ke semua musuh yang **diawali** nama tersebut (mis. `Goblin` → `Goblin`, `Goblin_1`, ...).",
         inline=False
     )
     return e
 
 def embed_dice(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="🎲 Dice Roller",
-        description="Roll dadu dengan modifier, DC check, integrasi core & buff.",
+        title="🎲 Bantuan: Dice",
+        description="Roll dadu fleksibel, dukung stat & DC.",
         color=COLOR_DICE,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="🔹 Dasar",
         value=(
-            f"- `{prefix}roll 2d6 +1` (alias: `{prefix}r`)\n"
-            f"- Dukung beberapa dadu: `1d20 + 2d6 - 1`"
+            f"- `{prefix}roll 2d20+2` • `{prefix}r 1d8+3`\n"
+            f"- `{prefix}roll 1d20 +2 vs 14` *(bandingkan ke target)*"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 DC / Versus",
+        name="🔹 Dengan Karakter",
         value=(
-            f"- Tambah target: `dc 15` / `vs 15` → hasil dibandingkan otomatis\n"
-            f"  Contoh: `{prefix}roll 1d20 +2 dc 14`"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Core & Buff",
-        value=(
-            f"- Pakai core seorang karakter: `as <Nama>` + `+str/+dex/...`\n"
-            f"  Contoh: `{prefix}roll as Alice 1d20 +str +2 dc 12`\n"
-            f"- Buff/debuff yang match (mis. `+2 STR`, `-1 DEX`, `+1 ALL`) ikut dihitung."
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Contoh Lengkap",
-        value=(
-            f"```txt\n{prefix}status set Alice 20 5 3\n{prefix}status setcore Alice 14 12 12 10 8 13\n"
-            f"{prefix}status buff Alice \"+2 STR\" 3\n{prefix}roll as Alice 1d20 +str +2 dc 12\n```"
+            f"- `{prefix}roll as <Nama> 1d20 +str +dex dc 16`\n"
+            f"- Mendukung `+str|dex|con|int|wis|cha` & buff/debuff aktif"
         ),
         inline=False
     )
@@ -225,35 +171,18 @@ def embed_dice(prefix: str) -> discord.Embed:
 
 def embed_quick(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="⚡ Quick Commands & Utility",
-        description="Alias singkat untuk operasi umum + utilitas.",
+        title="⚡ Bantuan: Quick",
+        description="Alias cepat untuk aksi status/enemy.",
         color=COLOR_QUICK,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
-        name="🔹 Alias Pertarungan",
+        name="🔹 Alias",
         value=(
-            f"- `{prefix}dmg <Nama> <jumlah> [all]` • `{prefix}heal <Nama> <jumlah> [all]`\n"
-            f"- `{prefix}ene- <Nama> <jumlah>` • `{prefix}ene+ <Nama> <jumlah>`\n"
-            f"- `{prefix}stam- <Nama> <jumlah>` • `{prefix}stam+ <Nama> <jumlah>`"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Lihat Status Cepat",
-        value=(f"- `{prefix}stat <Nama>` = `{prefix}status show <Nama>`\n- `{prefix}party` = `{prefix}status show` semua karakter"),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Undo & Multi",
-        value=(f"- `{prefix}undo` → batalkan perubahan terakhir (HP/EN/ST)\n- `{prefix}multi` → jalankan beberapa command dalam satu pesan"),
-        inline=False
-    )
-    e.add_field(
-        name="🔹 Contoh",
-        value=(
-            f"```txt\n{prefix}dmg Alice 4\n{prefix}heal Goblin 2\n{prefix}ene- Alice 1\n{prefix}stam+ Goblin 1\n"
-            f"{prefix}stat Alice\n{prefix}party\n{prefix}undo\n```"
+            f"- `!dmg <Nama> <jumlah> [all]` • `!heal <Nama> <jumlah> [all]`\n"
+            f"- `!ene- <Nama> <jumlah>` • `!ene+ <Nama> <jumlah>`\n"
+            f"- `!stam- <Nama> <jumlah>` • `!stam+ <Nama> <jumlah>`\n"
+            f"- `!party` • `!undo` • `!multi`"
         ),
         inline=False
     )
@@ -261,54 +190,107 @@ def embed_quick(prefix: str) -> discord.Embed:
 
 def embed_poll(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="📊 Polling",
-        description="Buat voting cepat dengan reaction angka.",
+        title="📊 Bantuan: Poll",
+        description="Buat voting cepat dengan reaction angka (1–10).",
         color=COLOR_POLL,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
-        name="🔹 Cara pakai",
-        value=(
-            f"- `{prefix}poll \"Pertanyaan?\" opsi1 opsi2 opsi3 ...`\n"
-            f"  Contoh: `{prefix}poll \"Masuk dungeon?\" Ya Tidak Nanti`"
-        ),
-        inline=False
-    )
-    e.add_field(
         name="🔹 Contoh",
-        value=f"```txt\n{prefix}poll \"Pilih arah?\" Kanan Kiri Mundur\n```",
+        value=(
+            f"- `{prefix}poll "Makan apa?" Nasi Mie Roti`"
+        ),
         inline=False
     )
     return e
 
 def embed_gpt(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="🧠 GPT",
-        description="Tanya, definisi, ringkas, dan cerita.",
+        title="🧠 Bantuan: GPT",
+        description="Akses GPT untuk definisi, ringkas, dan cerita.",
         color=COLOR_GPT,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="🔹 Perintah",
         value=(
-            f"- `{prefix}ask <pertanyaan>`\n"
             f"- `{prefix}define <kata>`\n"
             f"- `{prefix}summarize <teks>`\n"
             f"- `{prefix}story <prompt>`"
         ),
         inline=False
     )
-    e.add_field(
-        name="🔹 Contoh",
-        value=(
-            f"```txt\n{prefix}ask Apa itu advantage di d20?\n{prefix}define parry\n"
-            f"{prefix}summarize \"Teks panjang lore...\"\n{prefix}story \"Pembuka one-shot fantasi gelap\"\n```"
+    return e
+
+def embed_quest(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="📜 Bantuan: Quest",
+        description=(
+            f"`{prefix}quest add <judul> | <objective> | <reward> | [deadline] [--hidden]`\n"
+            f"`{prefix}quest show [all|done|failed|hidden]`\n"
+            f"`{prefix}quest detail <judul>`\n"
+            f"`{prefix}quest done|fail|reveal|remove <judul>`"
         ),
-        inline=False
+        color=COLOR_STATUS,
+        timestamp=datetime.datetime.utcnow()
     )
     return e
 
-# ========= HELP COG =========
+def embed_item(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="🧰 Bantuan: Item",
+        description=(
+            f"`{prefix}item add <nama> | <tipe> | <efek> | [rarity]`\n"
+            f"`{prefix}item show`\n"
+            f"`{prefix}item detail <nama>`\n"
+            f"`{prefix}item remove <nama>`"
+        ),
+        color=COLOR_QUICK,
+        timestamp=datetime.datetime.utcnow()
+    )
+    return e
+
+def embed_npc(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="👤 Bantuan: NPC",
+        description=(
+            f"`{prefix}npc add <nama> | <peran> | [sikap] | [catatan] [--hidden]`\n"
+            f"`{prefix}npc show`\n"
+            f"`{prefix}npc detail <nama>`\n"
+            f"`{prefix}npc reveal|remove <nama>`"
+        ),
+        color=COLOR_GPT,
+        timestamp=datetime.datetime.utcnow()
+    )
+    return e
+
+def embed_favor(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="🪙 Bantuan: Favor",
+        description=(
+            f"`{prefix}favor add|set <faksi> | <nilai> | [catatan]`\n"
+            f"`{prefix}favor show`\n"
+            f"`{prefix}favor detail <faksi>`\n"
+            f"`{prefix}favor remove <faksi>`"
+        ),
+        color=COLOR_POLL,
+        timestamp=datetime.datetime.utcnow()
+    )
+    return e
+
+def embed_scene(prefix: str) -> discord.Embed:
+    e = discord.Embed(
+        title="📍 Bantuan: Scene",
+        description=(
+            f"`{prefix}scene pin` • `{prefix}scene show` • `{prefix}scene unpin` • `{prefix}scene now`"
+        ),
+        color=COLOR_INIT,
+        timestamp=datetime.datetime.utcnow()
+    )
+    return e
+
+# ========= COG =========
+
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -318,7 +300,7 @@ class HelpCog(commands.Cog):
         prefix = ctx.prefix or "!"
         key = (topic or "").strip().lower()
 
-        if key in ("init", "initiative", "engage", "victory"):
+        if key in ("init", "initiative"):
             embed = embed_init(prefix)
         elif key in ("status", "char", "character"):
             embed = embed_status(prefix)
@@ -326,14 +308,22 @@ class HelpCog(commands.Cog):
             embed = embed_enemy(prefix)
         elif key in ("dice", "roll", "r"):
             embed = embed_dice(prefix)
-        elif key in ("quick", "alias", "aliases", "utility", "utils"):
+        elif key in ("quick", "alias", "utility"):
             embed = embed_quick(prefix)
-        elif key in ("poll", "polling", "vote"):
+        elif key in ("poll", "vote"):
             embed = embed_poll(prefix)
         elif key in ("gpt", "ai"):
             embed = embed_gpt(prefix)
-        elif key in ("overview", "detail", "menu", "home"):  # alias resmi untuk Overview
-            embed = embed_overview(prefix)
+        elif key in ("quest",):
+            embed = embed_quest(prefix)
+        elif key in ("item",):
+            embed = embed_item(prefix)
+        elif key in ("npc",):
+            embed = embed_npc(prefix)
+        elif key in ("favor", "rep", "reputation"):
+            embed = embed_favor(prefix)
+        elif key in ("scene", "zone"):
+            embed = embed_scene(prefix)
         else:
             embed = embed_overview(prefix)
 
