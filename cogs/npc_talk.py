@@ -1,8 +1,7 @@
-
 import discord
 from discord.ext import commands
 from openai import OpenAI
-from talk_memory import append_chat, load_chat_history
+from .talk_memory import append_chat, load_chat_history
 from memory import get_recent
 
 client = OpenAI()
@@ -27,10 +26,8 @@ class NPCTalk(commands.Cog):
     @npc.command(name="talk")
     async def npc_talk(self, ctx, name: str, *, message: str):
         g, c = _key(ctx)
-        # append user turn
         append_chat(g, c, ctx.author.id, "npc_chat", "npc", name, "user", message)
 
-        # build context (recent npc info if any)
         history = load_chat_history(g, c, "npc_chat", "npc", name, limit=25)
         recent_npc_notes = []
         rows = get_recent(g, c, "npc", 50)
@@ -39,11 +36,9 @@ class NPCTalk(commands.Cog):
                 recent_npc_notes.append(content[:200])
 
         messages = [{"role": "system", "content": STYLE_SYSTEM}]
-        # inject short profile snippet if exists
         if recent_npc_notes:
             messages.append({"role": "system", "content": f"Profil singkat NPC {name}: " + " | ".join(recent_npc_notes[-2:])})
-        # add history
-        for (role, text) in history[-12:]:  # last 12 turns
+        for (role, text) in history[-12:]:
             mapped = "assistant" if role in ("npc", "assistant") else "user" if role == "user" else "system"
             messages.append({"role": mapped, "content": text})
         messages.append({"role": "user", "content": message})
@@ -60,7 +55,6 @@ class NPCTalk(commands.Cog):
         except Exception:
             reply = f"(NPC {name} terlihat bingung.)"
 
-        # append npc turn
         append_chat(g, c, ctx.author.id, "npc_chat", "npc", name, "npc", reply)
         embed = discord.Embed(title=f"🗣️ {name}", description=reply, color=discord.Color.blurple())
         await ctx.send(embed=embed)
@@ -76,7 +70,6 @@ class NPCTalk(commands.Cog):
 
     @npc.command(name="wipe")
     async def npc_wipe(self, ctx, *, name: str):
-        # Soft-wipe by appending a system marker; full purge could be implemented in memory tool later.
         g, c = _key(ctx)
         append_chat(g, c, ctx.author.id, "npc_chat", "npc", name, "system", "-- reset context --")
         await ctx.send(f"Riwayat percakapan NPC **{name}** ditandai reset.")
