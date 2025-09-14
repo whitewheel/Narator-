@@ -19,11 +19,11 @@ class NPCTalk(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="npc", invoke_without_command=True)
-    async def npc(self, ctx):
-        await ctx.send("Gunakan: `!npc talk <NamaNPC> <pesan>`, `!npc recall <NamaNPC>`, `!npc wipe <NamaNPC>`")
+    @commands.group(name="npctalk", invoke_without_command=True)
+    async def npctalk(self, ctx):
+        await ctx.send("Gunakan: `!npctalk talk <NamaNPC> <pesan>`, `!npctalk recall <NamaNPC>`, `!npctalk wipe <NamaNPC>`")
 
-    @npc.command(name="talk")
+    @npctalk.command(name="talk")
     async def npc_talk(self, ctx, name: str, *, message: str):
         g, c = _key(ctx)
         append_chat(g, c, ctx.author.id, "npc_chat", "npc", name, "user", message)
@@ -59,7 +59,7 @@ class NPCTalk(commands.Cog):
         embed = discord.Embed(title=f"🗣️ {name}", description=reply, color=discord.Color.blurple())
         await ctx.send(embed=embed)
 
-    @npc.command(name="recall")
+    @npctalk.command(name="recall")
     async def npc_recall(self, ctx, *, name: str):
         g, c = _key(ctx)
         history = load_chat_history(g, c, "npc_chat", "npc", name, limit=20)
@@ -68,7 +68,7 @@ class NPCTalk(commands.Cog):
         text = "\n".join([f"- {r}: {t}" for (r, t) in history[-10:]])
         await ctx.send(f"**Riwayat {name} (10 terbaru):**\n{text}")
 
-    @npc.command(name="wipe")
+    @npctalk.command(name="wipe")
     async def npc_wipe(self, ctx, *, name: str):
         g, c = _key(ctx)
         append_chat(g, c, ctx.author.id, "npc_chat", "npc", name, "system", "-- reset context --")
