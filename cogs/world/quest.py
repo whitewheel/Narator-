@@ -4,7 +4,7 @@ from memory import save_memory, get_recent, template_for
 import json
 import re
 
-from cogs.world.timeline import log_event  # ✅ tambahkan hook timeline
+from cogs.world.timeline import log_event  # ✅ hook timeline
 
 def _key(ctx):
     return (str(ctx.guild.id), str(ctx.channel.id))
@@ -67,11 +67,8 @@ def get_item(guild_id, channel_id, name):
 # Parsing helpers
 # --------------------
 def parse_kv_pairs(s: str):
-    """Parse simple pairs like 'xp=100 gold=50 favor=ArthaDyne:10' (favor optional).
-    Items can be specified with items="Potion x2; Dagger".
-    """
     items_spec = None
-    m = re.search(r'items\s*=\s*"(.*?)"', s)
+    m = re.search(r'items\s*=\s*\"(.*?)\"', s)
     if m:
         items_spec = m.group(1)
         s = s[:m.start()] + s[m.end():]
@@ -86,7 +83,6 @@ def parse_kv_pairs(s: str):
     return kv
 
 def parse_items_list(spec: str):
-    """'Potion x2; Rusty Dagger; Gold Coin x10' -> [{"name":"Potion","qty":2}, ...]"""
     items = []
     for chunk in [c.strip() for c in spec.split(";")]:
         if not chunk:
@@ -122,7 +118,6 @@ class Quest(commands.Cog):
         })
         return data
 
-    # ---------- Commands ----------
     @commands.group(name="quest", invoke_without_command=True)
     async def quest(self, ctx):
         await ctx.send("Gunakan: `!quest add`, `!quest show`, `!quest detail`, `!quest assign`, `!quest reward`, `!quest reveal`, `!quest complete`, `!quest fail`")
@@ -138,7 +133,6 @@ class Quest(commands.Cog):
         k = _key(ctx)
         save_quest(k[0], k[1], ctx.author.id, name, q)
 
-        # ✅ log ke timeline
         code = f"Q{len(get_recent(k[0], k[1], 'quest', 9999)):03d}"
         log_event(k[0], k[1], ctx.author.id,
                   code=code,
@@ -193,6 +187,18 @@ class Quest(commands.Cog):
         chars = [c.strip() for c in chars_csv.split(",") if c.strip()]
         q["assigned_to"] = list(dict.fromkeys(chars))
         save_quest(k[0], k[1], ctx.author.id, name, q)
+
+        log_event(
+            k[0], k[1], ctx.author.id,
+            code=f"Q_ASSIGN_{name.upper()}",
+            title=f"Quest assign: {name}",
+            details=f"Ditugaskan ke: {', '.join(q['assigned_to'])}",
+            etype="quest_assign",
+            quest=name,
+            actors=q["assigned_to"],
+            tags=["quest","assign"]
+        )
+
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
     @quest.command(name="reward")
@@ -221,6 +227,15 @@ class Quest(commands.Cog):
             q["favor"] = fav
         q["rewards"] = r
         save_quest(k[0], k[1], ctx.author.id, name, q)
+
+        log_event(k[0], k[1], ctx.author.id,
+                  code=f"Q_REWARD_{name.upper()}",
+                  title=f"Quest reward set: {name}",
+                  details=spec,
+                  etype="quest_reward",
+                  quest=name,
+                  tags=["quest","reward"])
+
         await ctx.send(f"🎁 Reward quest **{name}** diset. XP {r.get('xp',0)}, Gold {r.get('gold',0)}, Items {len(r.get('items',[]))}.")
 
     @quest.command(name="reveal")
@@ -232,7 +247,6 @@ class Quest(commands.Cog):
         q["status"] = "active"
         save_quest(k[0], k[1], ctx.author.id, name, q)
 
-        # ✅ log ke timeline
         log_event(k[0], k[1], ctx.author.id,
                   code=f"Q_REVEAL_{name.upper()}",
                   title=f"Quest reveal: {name}",
@@ -285,7 +299,6 @@ class Quest(commands.Cog):
             save_char(k[0], k[1], ctx.author.id, ch, c)
             applied.append(ch)
 
-        # ✅ log ke timeline
         log_event(k[0], k[1], ctx.author.id,
                   code=f"Q_COMPLETE_{name.upper()}",
                   title=f"Quest selesai: {name}",
@@ -321,7 +334,6 @@ class Quest(commands.Cog):
         q["status"] = "failed"
         save_quest(k[0], k[1], ctx.author.id, name, q)
 
-        # ✅ log ke timeline
         log_event(k[0], k[1], ctx.author.id,
                   code=f"Q_FAIL_{name.upper()}",
                   title=f"Quest gagal: {name}",
