@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from .history import history
 from memory import save_memory, get_recent
-from cogs.world.timeline import log_event  # ✅ timeline hook, template_for
+from cogs.world.timeline import log_event  # ✅ timeline hook
 import json
 
 def _key(ctx):
@@ -120,21 +120,79 @@ class CharacterStatus(commands.Cog):
                     if "+" in r:
                         v["hp"] = min(v["hp_max"], v["hp"] + amount)
                         lines.append(f"❤️ {charname} pulih {amount} HP.")
+                        try:
+                            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                                      code=None,
+                                      title=f"{charname} healed",
+                                      details=f"+{amount} HP (now {v['hp']}/{v['hp_max']})",
+                                      etype="combat_action",
+                                      actors=[charname],
+                                      tags=["hp","heal"])
+                        except Exception: pass
                     else:
                         v["hp"] = max(0, v["hp"] - abs(amount))
                         lines.append(f"💥 {charname} kena {abs(amount)} damage.")
+                        try:
+                            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                                      code=None,
+                                      title=f"{charname} damaged",
+                                      details=f"-{abs(amount)} HP (now {v['hp']}/{v['hp_max']})",
+                                      etype="combat_action",
+                                      actors=[charname],
+                                      tags=["hp","damage"])
+                        except Exception: pass
             elif r.lower().startswith("gold:"):
                 val = int(r.split(":")[1])
                 v["gold"] += val
                 lines.append(f"💰 {charname} gold berubah {val:+d}. Sekarang {v['gold']}.")
+                try:
+                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                              code=None,
+                              title=f"{charname} gold change",
+                              details=f"{val:+d} Gold (total {v['gold']})",
+                              etype="gold_change",
+                              actors=[charname],
+                              tags=["gold"])
+                except Exception: pass
             elif r.lower().startswith("xp:"):
                 val = int(r.split(":")[1])
                 v["xp"] += val
                 lines.append(f"⭐ {charname} mendapat {val} XP. Total {v['xp']}.")
+                try:
+                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                              code=None,
+                              title=f"{charname} XP gained",
+                              details=f"+{val} XP (total {v['xp']})",
+                              etype="xp_gain",
+                              actors=[charname],
+                              tags=["xp"])
+                except Exception: pass
             elif r.lower().startswith("buff:"):
-                lines.append(f"✨ Buff ditambahkan: {r.split(':',1)[1]}")
+                btxt = r.split(":",1)[1]
+                v["buffs"].append({"text": btxt,"duration":-1})
+                lines.append(f"✨ Buff ditambahkan: {btxt}")
+                try:
+                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                              code=None,
+                              title=f"Buff added to {charname}",
+                              details=btxt,
+                              etype="buff_add",
+                              actors=[charname],
+                              tags=["buff"])
+                except Exception: pass
             elif r.lower().startswith("debuff:"):
-                lines.append(f"☠️ Debuff ditambahkan: {r.split(':',1)[1]}")
+                dtxt = r.split(":",1)[1]
+                v["debuffs"].append({"text": dtxt,"duration":-1})
+                lines.append(f"☠️ Debuff ditambahkan: {dtxt}")
+                try:
+                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                              code=None,
+                              title=f"Debuff added to {charname}",
+                              details=dtxt,
+                              etype="debuff_add",
+                              actors=[charname],
+                              tags=["debuff"])
+                except Exception: pass
         save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, charname, v)
         return lines
 
@@ -178,6 +236,14 @@ class CharacterStatus(commands.Cog):
                 f"🐾 Companions:\n{comp_line}"
             )
             embed.add_field(name=name, value=value, inline=False)
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title="Status viewed",
+                      details=f"{len(data)} characters",
+                      etype="status_view",
+                      tags=["status","view"])
+        except Exception: pass
         return embed
 
 async def setup(bot):

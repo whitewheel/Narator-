@@ -2,7 +2,7 @@ import math
 import discord
 from discord.ext import commands
 from memory import save_memory, get_recent
-from cogs.world.timeline import log_event  # ✅ timeline hook, template_for
+from cogs.world.timeline import log_event  # ✅ timeline hook
 import json
 
 def _key(ctx):
@@ -155,12 +155,76 @@ class EnemyStatus(commands.Cog):
                 except: pass
         save_enemy_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, e)
         await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title=f"Enemy added: {name}",
+                      details=f"HP {hp}/{hp}",
+                      etype="enemy_add",
+                      actors=[name],
+                      tags=["enemy","add"])
+        except Exception:
+            pass
 
     @enemy.command(name="show")
     async def enemy_show(self, ctx):
         s = self._ensure(ctx)
         embed = self._make_embed(ctx, s)
         await ctx.send(embed=embed)
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title="Enemy status viewed",
+                      details=f"{len(s)} enemies shown",
+                      etype="enemy_show",
+                      tags=["enemy","show"])
+        except Exception:
+            pass
+
+    @enemy.command(name="dmg")
+    async def enemy_dmg(self, ctx, name: str, amount: int):
+        e = self._ensure_entry(ctx, name)
+        e["hp"] = max(0, e["hp"] - amount)
+        save_enemy_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, e)
+        await ctx.send(f"💥 Enemy {name} menerima {amount} damage. Sisa {e['hp']}/{e['hp_max']}")
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title=f"Enemy {name} damaged",
+                      details=f"-{amount} HP (now {e['hp']}/{e['hp_max']})",
+                      etype="combat_action",
+                      actors=[name],
+                      tags=["enemy","damage"])
+        except Exception:
+            pass
+        if e["hp"] <= 0:
+            try:
+                log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                          code=None,
+                          title=f"Enemy {name} defeated",
+                          details=f"0/{e['hp_max']}",
+                          etype="enemy_dead",
+                          actors=[name],
+                          tags=["enemy","dead"])
+            except Exception:
+                pass
+
+    @enemy.command(name="heal")
+    async def enemy_heal(self, ctx, name: str, amount: int):
+        e = self._ensure_entry(ctx, name)
+        e["hp"] = min(e["hp_max"], e["hp"] + amount)
+        save_enemy_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, e)
+        await ctx.send(f"✨ Enemy {name} pulih {amount} HP. Sekarang {e['hp']}/{e['hp_max']}")
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title=f"Enemy {name} healed",
+                      details=f"+{amount} HP (now {e['hp']}/{e['hp_max']})",
+                      etype="combat_action",
+                      actors=[name],
+                      tags=["enemy","heal"])
+        except Exception:
+            pass
 
     @enemy.command(name="loot")
     async def enemy_loot(self, ctx, name: str):
