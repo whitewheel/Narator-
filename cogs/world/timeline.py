@@ -21,7 +21,7 @@ def _fmt_ts(ts_str: str) -> str:
     except Exception:
         return ts_str
 
-def _fmt_event_row(row, ctx: commands.Context) -> str:
+def _fmt_event_row(row, ctx: commands.Context | None = None) -> str:
     _id, _cat, content, meta, ts = row
     try:
         data = json.loads(content) if isinstance(content, str) else (content or {})
@@ -98,11 +98,7 @@ class Timeline(commands.Cog):
 
     @timeline.command(name="add")
     async def timeline_add(self, ctx: commands.Context, *, payload: str):
-        """
-        Tambahkan event manual.
-        Format: CODE | Judul | detail
-        Contoh: !timeline add Q001 | Quest dimulai: Relic Hilang | Cari artefak kuno.
-        """
+        """Tambah event manual ke timeline."""
         parts = [s.strip() for s in payload.split("|")]
         if len(parts) == 3:
             code, title, details = parts
@@ -114,6 +110,42 @@ class Timeline(commands.Cog):
         log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
                   code=code, title=title, details=details, etype="note")
         await ctx.send(f"✅ Ditambahkan ke timeline: **{title}** (code: {code})")
+
+    @timeline.command(name="full")
+    async def timeline_full(self, ctx: commands.Context):
+        """Tampilkan semua event timeline (hati-hati kalau ribuan)."""
+        rows = get_recent(str(ctx.guild.id), str(ctx.channel.id), TIMELINE_CATEGORY, 5000)
+        if not rows:
+            return await ctx.send("ℹ️ Timeline kosong.")
+
+        lines = [_fmt_event_row(r, ctx) for r in rows]
+        text = "\n\n".join(reversed(lines))
+
+        if len(text) < DISCORD_LIMIT:
+            await ctx.send("**Timeline Lengkap**\n```" + text + "```")
+        else:
+            data = io.StringIO(text)
+            await ctx.send("📜 Timeline lengkap terlalu panjang, dikirim sebagai file:", file=discord.File(data, "timeline_full.txt"))
+
+    @timeline.command(name="search")
+    async def timeline_search(self, ctx: commands.Context, *, keyword: str):
+        """Cari event di timeline berdasarkan kata kunci."""
+        rows = get_recent(str(ctx.guild.id), str(ctx.channel.id), TIMELINE_CATEGORY, 5000)
+        if not rows:
+            return await ctx.send("ℹ️ Timeline kosong.")
+
+        matches = [r for r in rows if keyword.lower() in json.dumps(r).lower()]
+        if not matches:
+            return await ctx.send(f"🔎 Tidak ada event mengandung: `{keyword}`")
+
+        lines = [_fmt_event_row(r, ctx) for r in matches]
+        text = "\n\n".join(reversed(lines))
+
+        if len(text) < DISCORD_LIMIT:
+            await ctx.send(f"**Hasil Pencarian '{keyword}'**\n```" + text + "```")
+        else:
+            data = io.StringIO(text)
+            await ctx.send(f"📜 Hasil pencarian '{keyword}' terlalu panjang, dikirim sebagai file:", file=discord.File(data, f"timeline_search_{keyword}.txt"))
 
 async def setup(bot):
     await bot.add_cog(Timeline(bot))
