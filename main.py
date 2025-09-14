@@ -47,6 +47,7 @@ class MyBot(commands.Bot):
             "cogs.core.enemy_status",
             "cogs.core.status_alias",
             "cogs.core.history",
+            "cogs.core.race_manager",
 
             # WORLD SYSTEM
             "cogs.world.quest",
