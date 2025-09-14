@@ -1,9 +1,10 @@
-
 import discord
 from discord.ext import commands
 from memory import save_memory, get_recent, template_for
 import json
 import re
+
+from cogs.world.timeline import log_event  # ✅ tambahkan hook timeline
 
 def _key(ctx):
     return (str(ctx.guild.id), str(ctx.channel.id))
@@ -69,7 +70,6 @@ def parse_kv_pairs(s: str):
     """Parse simple pairs like 'xp=100 gold=50 favor=ArthaDyne:10' (favor optional).
     Items can be specified with items="Potion x2; Dagger".
     """
-    # Extract items="..."
     items_spec = None
     m = re.search(r'items\s*=\s*"(.*?)"', s)
     if m:
@@ -110,19 +110,14 @@ class Quest(commands.Cog):
 
     def _quest_template(self, name: str, desc: str, hidden: bool = False):
         data = template_for("quest")
-        # Ensure baseline fields
         data.update({
             "name": name,
             "desc": desc,
             "status": "hidden" if hidden else "active",
             "objectives": [],
-            "assigned_to": [],            # list of character names
-            "rewards": {                  # xp per char, gold per char, items per char
-                "xp": 0,
-                "gold": 0,
-                "items": []               # [{"name":"Potion","qty":1}, ...]
-            },
-            "favor": {},                  # {"Faction": +10}
+            "assigned_to": [],
+            "rewards": {"xp": 0, "gold": 0, "items": []},
+            "favor": {},
             "tags": {},
         })
         return data
@@ -134,7 +129,6 @@ class Quest(commands.Cog):
 
     @quest.command(name="add")
     async def quest_add(self, ctx, *, entry: str):
-        """Format: !quest add Nama | Deskripsi | [--hidden]"""
         parts = [p.strip() for p in entry.split("|")]
         if len(parts) < 2:
             return await ctx.send("⚠️ Format: `!quest add Nama | Deskripsi | [--hidden]`")
@@ -143,11 +137,21 @@ class Quest(commands.Cog):
         q = self._quest_template(name, desc, hidden)
         k = _key(ctx)
         save_quest(k[0], k[1], ctx.author.id, name, q)
+
+        # ✅ log ke timeline
+        code = f"Q{len(get_recent(k[0], k[1], 'quest', 9999)):03d}"
+        log_event(k[0], k[1], ctx.author.id,
+                  code=code,
+                  title=f"Quest dibuat: {name}",
+                  details=desc,
+                  etype="quest_start",
+                  quest=name,
+                  tags=["quest","start"])
+
         await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'active'}.")
 
     @quest.command(name="show")
     async def quest_show(self, ctx, status: str = "active"):
-        """!quest show [active|hidden|all|complete|failed]"""
         k = _key(ctx)
         allq = load_all_quests(k[0], k[1])
         filt = status.lower()
@@ -182,19 +186,17 @@ class Quest(commands.Cog):
 
     @quest.command(name="assign")
     async def quest_assign(self, ctx, name: str, *, chars_csv: str):
-        """!quest assign <QuestName> <Char1,Char2,...>"""
         k = _key(ctx)
         q = load_quest(k[0], k[1], name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         chars = [c.strip() for c in chars_csv.split(",") if c.strip()]
-        q["assigned_to"] = list(dict.fromkeys(chars))  # unique, keep order
+        q["assigned_to"] = list(dict.fromkeys(chars))
         save_quest(k[0], k[1], ctx.author.id, name, q)
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
     @quest.command(name="reward")
     async def quest_reward(self, ctx, name: str, *, spec: str):
-        """!quest reward <QuestName> xp=100 gold=50 items="Potion x2; Rusty Dagger" favor=ArthaDyne:+10"""
         k = _key(ctx)
         q = load_quest(k[0], k[1], name)
         if not q:
@@ -202,30 +204,20 @@ class Quest(commands.Cog):
         kv = parse_kv_pairs(spec)
         r = q.get("rewards", {"xp": 0, "gold": 0, "items": []})
         if "xp" in kv:
-            try:
-                r["xp"] = int(kv["xp"])
-            except Exception:
-                pass
+            try: r["xp"] = int(kv["xp"])
+            except: pass
         if "gold" in kv:
-            try:
-                r["gold"] = int(kv["gold"])
-            except Exception:
-                pass
+            try: r["gold"] = int(kv["gold"])
+            except: pass
         if "items" in kv:
             r["items"] = parse_items_list(kv["items"])
-        # favor optional
         if "favor" in kv:
             fav = {}
             for part in kv["favor"].split(","):
-                part = part.strip()
-                if not part:
-                    continue
                 if ":" in part:
                     fac, val = part.split(":", 1)
-                    try:
-                        fav[fac.strip()] = int(val.strip())
-                    except Exception:
-                        continue
+                    try: fav[fac.strip()] = int(val.strip())
+                    except: continue
             q["favor"] = fav
         q["rewards"] = r
         save_quest(k[0], k[1], ctx.author.id, name, q)
@@ -239,25 +231,31 @@ class Quest(commands.Cog):
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "active"
         save_quest(k[0], k[1], ctx.author.id, name, q)
+
+        # ✅ log ke timeline
+        log_event(k[0], k[1], ctx.author.id,
+                  code=f"Q_REVEAL_{name.upper()}",
+                  title=f"Quest reveal: {name}",
+                  details=q.get("desc","-"),
+                  etype="quest_reveal",
+                  quest=name,
+                  tags=["quest","reveal"])
+
         await ctx.send(f"🔔 Quest **{name}** sekarang **ACTIVE**.")
 
     @quest.command(name="complete")
     async def quest_complete(self, ctx, name: str, *, targets: str = None):
-        """!quest complete <QuestName> [to=Aima,Zarek]
-        - Jika 'to' tidak diberikan, gunakan assigned_to.
-        - Jika assigned_to kosong, hanya tandai complete tanpa auto-reward."""
         k = _key(ctx)
         q = load_quest(k[0], k[1], name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
-        # resolve targets
+
         to_chars = []
         if targets and "to=" in targets:
             to_chars = [c.strip() for c in targets.split("to=", 1)[1].split(",") if c.strip()]
         elif q.get("assigned_to"):
             to_chars = q["assigned_to"]
 
-        # mark complete
         q["status"] = "complete"
         save_quest(k[0], k[1], ctx.author.id, name, q)
 
@@ -270,30 +268,33 @@ class Quest(commands.Cog):
         applied = []
         for ch in to_chars:
             c = load_char(k[0], k[1], ch)
-            if not c:
-                continue
-            # apply xp/gold
+            if not c: continue
             c["xp"] = int(c.get("xp", 0)) + xp
             c["gold"] = int(c.get("gold", 0)) + gold
-            # apply items
             inv = c.get("inventory", [])
             for it in items:
                 name_i = it.get("name")
                 qty_i = int(it.get("qty", 1))
-                # get from library to add details
                 lib = get_item(k[0], k[1], name_i) or {"name": name_i}
                 exists = next((x for x in inv if x["name"].lower() == name_i.lower()), None)
                 if exists:
                     exists["qty"] = exists.get("qty", 1) + qty_i
                 else:
-                    add = lib.copy()
-                    add["qty"] = qty_i
-                    inv.append(add)
+                    add = lib.copy(); add["qty"] = qty_i; inv.append(add)
             c["inventory"] = inv
             save_char(k[0], k[1], ctx.author.id, ch, c)
             applied.append(ch)
 
-        # favor integration (stub: announce only)
+        # ✅ log ke timeline
+        log_event(k[0], k[1], ctx.author.id,
+                  code=f"Q_COMPLETE_{name.upper()}",
+                  title=f"Quest selesai: {name}",
+                  details=f"Reward: {xp} XP, {gold} gold, items {len(items)}, favor {favor}",
+                  etype="quest_complete",
+                  quest=name,
+                  actors=to_chars,
+                  tags=["quest","complete"])
+
         fav_text = ""
         if favor:
             fav_text = "\n".join([f"{f}: {v:+d}" for f, v in favor.items()])
@@ -319,6 +320,16 @@ class Quest(commands.Cog):
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
         save_quest(k[0], k[1], ctx.author.id, name, q)
+
+        # ✅ log ke timeline
+        log_event(k[0], k[1], ctx.author.id,
+                  code=f"Q_FAIL_{name.upper()}",
+                  title=f"Quest gagal: {name}",
+                  details=q.get("desc","-"),
+                  etype="quest_fail",
+                  quest=name,
+                  tags=["quest","fail"])
+
         await ctx.send(f"❌ Quest **{name}** ditandai **FAILED**.")
 
 async def setup(bot):
