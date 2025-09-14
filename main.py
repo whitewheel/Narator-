@@ -41,26 +41,35 @@ intents.message_content = True
 class MyBot(commands.Bot):
     async def setup_hook(self):
         exts = [
-            "cogs.roll",
-            "cogs.poll",
-            "cogs.gpt",
-            "cogs.initmem",
-            "cogs.karakter_status",
-            "cogs.enemy_status",
-            "cogs.multi",
-            "cogs.history",
-            "cogs.enemy_talk",
-            "cogs.npc_talk",
-            "cogs.loot",
-            "cogs.image",
-            "cogs.help_ui",
-            "cogs.quest",     # ✅ BARU
-            "cogs.item",      # ✅ BARU
-            "cogs.npc",       # ✅ BARU
-            "cogs.favor",     # ✅ BARU
-            "cogs.scene",     # ✅ BARU
-            "cogs.status_alias",   # QoL alias: !dmg, !heal, !ene±, !stam±
-            "cogs.gm_cog",         # NEW: GM/Narrator mode
+            # CORE SYSTEM
+            "cogs.core.initmem",
+            "cogs.core.karakter_status",
+            "cogs.core.enemy_status",
+            "cogs.core.status_alias",
+            "cogs.core.history",
+
+            # WORLD SYSTEM
+            "cogs.world.quest",
+            "cogs.world.npc",
+            "cogs.world.favor",
+            "cogs.world.scene",
+            "cogs.world.item",
+            "cogs.world.loot",
+            "cogs.world.encyclopedia",   # baru
+
+            # AI SYSTEM
+            "cogs.ai.gpt",
+            "cogs.ai.npc_talk",
+            "cogs.ai.enemy_talk",
+            "cogs.ai.gm_cog",
+
+            # UTILITY
+            "cogs.utility.roll",
+            "cogs.utility.poll",
+            "cogs.utility.image",
+            "cogs.utility.multi",
+            "cogs.utility.help",
+            "cogs.utility.help_ui",
         ]
         for ext in exts:
             try:
