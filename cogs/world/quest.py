@@ -304,7 +304,7 @@ class Quest(commands.Cog):
                   quest=name,
                   actors=to_chars,
                   tags=["quest","complete"])
-        fav_text = 
+        fav_text = ""
         if favor:
             fav_text = "\n".join([f"{f}: {v:+d}" for f, v in favor.items()])
 
