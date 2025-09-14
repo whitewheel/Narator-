@@ -1,7 +1,8 @@
 import math
 import discord
 from discord.ext import commands
-from memory import save_memory, get_recent, template_for
+from memory import save_memory, get_recent
+from cogs.world.timeline import log_event  # ✅ timeline hook, template_for
 import json
 
 def _key(ctx):

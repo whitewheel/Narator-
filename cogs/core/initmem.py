@@ -7,6 +7,7 @@ import re
 import json
 
 from memory import save_memory, get_recent
+from cogs.world.timeline import log_event  # ✅ timeline hook
 
 def _key(ctx):
     """Key unik per-guild per-channel."""
@@ -181,6 +182,19 @@ class InitiativeMemory(commands.Cog):
         self._persist(ctx)
         embed = self._make_embed(ctx, "⚔️ Initiative Order", s)
         await ctx.send(embed=embed)
+        # 🔎 log timeline: encounter_start
+        try:
+            code = f"E{len(get_recent(str(ctx.guild.id), str(ctx.channel.id), 'timeline', 9999)):03d}"
+            names = [n for (n, _sc) in s.get("order", [])]
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=code,
+                      title="Encounter dimulai",
+                      details=f"Order: {", ".join(names)}",
+                      etype="encounter_start",
+                      actors=names,
+                      tags=["combat","encounter","start"])
+        except Exception:
+            pass
 
     @init_group.command(name="next")
     async def init_next(self, ctx):
@@ -198,6 +212,18 @@ class InitiativeMemory(commands.Cog):
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran", value=f"✨ **{current}**", inline=False)
         await ctx.send(embed=embed)
+        # 🔎 log timeline: turn advance
+        try:
+            current = s["order"][s["ptr"]][0]
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title=f"Turn: {current}",
+                      details=f"Round {s.get('round',1)}",
+                      etype="turn",
+                      actors=[current],
+                      tags=["combat","turn"])
+        except Exception:
+            pass
 
     @init_group.command(name="setptr")
     async def init_setptr(self, ctx, index: int):
@@ -216,6 +242,16 @@ class InitiativeMemory(commands.Cog):
         self.state.pop(k, None)
         self._persist(ctx)
         await ctx.send("🧹 Initiative channel ini direset.")
+        # 🔎 log timeline: init cleared
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title="Initiative cleared",
+                      details="--",
+                      etype="init_clear",
+                      tags=["combat","init"])
+        except Exception:
+            pass
 
     @init_group.command(name="round")
     async def init_round(self, ctx, value: int = None):
@@ -225,6 +261,16 @@ class InitiativeMemory(commands.Cog):
         s["round"] = max(1, value)
         self._persist(ctx)
         await ctx.send(f"📜 Round diset ke **{s['round']}**")
+        # 🔎 log timeline: round set
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title=f"Round set: {s['round']}",
+                      details="--",
+                      etype="round",
+                      tags=["combat","round"])
+        except Exception:
+            pass
 
     @init_group.command(name="shuffle")
     async def init_shuffle(self, ctx):
@@ -324,6 +370,16 @@ class InitiativeMemory(commands.Cog):
             enemy_cog.state.pop(k, None)
 
         await ctx.send(embed=embed)
+        # 🔎 log timeline: encounter_end
+        try:
+            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
+                      code=None,
+                      title="Encounter berakhir",
+                      details="Victory",
+                      etype="encounter_end",
+                      tags=["combat","encounter","end"])
+        except Exception:
+            pass
 
     # ===== Aliases global =====
     @commands.command(name="next", aliases=["n"])
