@@ -1,9 +1,10 @@
+
 import math
 import discord
 from discord.ext import commands
 from .history import history
 from memory import save_memory, get_recent
-from cogs.world.timeline import log_event  # ✅ timeline hook
+from cogs.world.timeline import log_event
 import json
 
 def _key(ctx):
@@ -81,120 +82,7 @@ class CharacterStatus(commands.Cog):
                 "ac": 10, "initiative": 0, "speed": 30,
                 "companions": []
             }
-        v = s[name]
-        # normalize values
-        v["hp"] = to_int(v.get("hp"))
-        v["hp_max"] = to_int(v.get("hp_max"))
-        v["energy"] = to_int(v.get("energy"))
-        v["energy_max"] = to_int(v.get("energy_max"))
-        v["stamina"] = to_int(v.get("stamina"))
-        v["stamina_max"] = to_int(v.get("stamina_max"))
-        core = v.get("core", {})
-        for k in ("str","dex","con","int","wis","cha"):
-            core[k] = to_int(core.get(k, 1), 1)
-        v["core"] = core
-        v["buffs"]   = _normalize_effects_list(v.get("buffs", []))
-        v["debuffs"] = _normalize_effects_list(v.get("debuffs", []))
-        v["level"] = to_int(v.get("level",1),1)
-        v["xp"] = to_int(v.get("xp",0),0)
-        v["class"] = v.get("class","")
-        v["race"] = v.get("race","")
-        v["gold"] = to_int(v.get("gold",0),0)
-        v["inventory"] = v.get("inventory",[])
-        v["equipment"] = v.get("equipment",{"weapon":None,"armor":None,"accessory":None})
-        v["ac"] = to_int(v.get("ac",10),10)
-        v["initiative"] = to_int(v.get("initiative",0),0)
-        v["speed"] = to_int(v.get("speed",30),30)
-        v["companions"] = v.get("companions",[])
-        return v
-
-    def apply_rules(self, ctx, charname: str, rules: str):
-        v = self._ensure_entry(ctx, charname)
-        lines = []
-        for rule in rules.split(";"):
-            r = rule.strip()
-            if not r: continue
-            if r.startswith("+") or r.startswith("-"):
-                if "HP" in r.upper():
-                    amount = int("".join(ch for ch in r if ch.isdigit() or ch == "-" or ch == "+"))
-                    if "+" in r:
-                        v["hp"] = min(v["hp_max"], v["hp"] + amount)
-                        lines.append(f"❤️ {charname} pulih {amount} HP.")
-                        try:
-                            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                                      code=None,
-                                      title=f"{charname} healed",
-                                      details=f"+{amount} HP (now {v['hp']}/{v['hp_max']})",
-                                      etype="combat_action",
-                                      actors=[charname],
-                                      tags=["hp","heal"])
-                        except Exception: pass
-                    else:
-                        v["hp"] = max(0, v["hp"] - abs(amount))
-                        lines.append(f"💥 {charname} kena {abs(amount)} damage.")
-                        try:
-                            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                                      code=None,
-                                      title=f"{charname} damaged",
-                                      details=f"-{abs(amount)} HP (now {v['hp']}/{v['hp_max']})",
-                                      etype="combat_action",
-                                      actors=[charname],
-                                      tags=["hp","damage"])
-                        except Exception: pass
-            elif r.lower().startswith("gold:"):
-                val = int(r.split(":")[1])
-                v["gold"] += val
-                lines.append(f"💰 {charname} gold berubah {val:+d}. Sekarang {v['gold']}.")
-                try:
-                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                              code=None,
-                              title=f"{charname} gold change",
-                              details=f"{val:+d} Gold (total {v['gold']})",
-                              etype="gold_change",
-                              actors=[charname],
-                              tags=["gold"])
-                except Exception: pass
-            elif r.lower().startswith("xp:"):
-                val = int(r.split(":")[1])
-                v["xp"] += val
-                lines.append(f"⭐ {charname} mendapat {val} XP. Total {v['xp']}.")
-                try:
-                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                              code=None,
-                              title=f"{charname} XP gained",
-                              details=f"+{val} XP (total {v['xp']})",
-                              etype="xp_gain",
-                              actors=[charname],
-                              tags=["xp"])
-                except Exception: pass
-            elif r.lower().startswith("buff:"):
-                btxt = r.split(":",1)[1]
-                v["buffs"].append({"text": btxt,"duration":-1})
-                lines.append(f"✨ Buff ditambahkan: {btxt}")
-                try:
-                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                              code=None,
-                              title=f"Buff added to {charname}",
-                              details=btxt,
-                              etype="buff_add",
-                              actors=[charname],
-                              tags=["buff"])
-                except Exception: pass
-            elif r.lower().startswith("debuff:"):
-                dtxt = r.split(":",1)[1]
-                v["debuffs"].append({"text": dtxt,"duration":-1})
-                lines.append(f"☠️ Debuff ditambahkan: {dtxt}")
-                try:
-                    log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                              code=None,
-                              title=f"Debuff added to {charname}",
-                              details=dtxt,
-                              etype="debuff_add",
-                              actors=[charname],
-                              tags=["debuff"])
-                except Exception: pass
-        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, charname, v)
-        return lines
+        return s[name]
 
     def _make_embed(self, ctx, data: dict, title="🧍 Karakter Status"):
         embed = discord.Embed(title=title, description=f"Channel: **{ctx.channel.name}**", color=discord.Color.blurple())
@@ -236,15 +124,169 @@ class CharacterStatus(commands.Cog):
                 f"🐾 Companions:\n{comp_line}"
             )
             embed.add_field(name=name, value=value, inline=False)
-        try:
-            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                      code=None,
-                      title="Status viewed",
-                      details=f"{len(data)} characters",
-                      etype="status_view",
-                      tags=["status","view"])
-        except Exception: pass
         return embed
+
+    # ===== Group Command =====
+    @commands.group(name="status", invoke_without_command=True)
+    async def status_group(self, ctx):
+        s = self._ensure(ctx)
+        embed = self._make_embed(ctx, s)
+        await ctx.send(embed=embed)
+
+    # ===== Subcommands =====
+    @status_group.command(name="set")
+    async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
+        v = self._ensure_entry(ctx, name)
+        v.update({"hp": hp, "hp_max": hp,
+                  "energy": energy, "energy_max": energy,
+                  "stamina": stamina, "stamina_max": stamina})
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"✅ Karakter **{name}** diupdate.")
+
+    @status_group.command(name="show")
+    async def status_show(self, ctx, name: str = None):
+        s = self._ensure(ctx)
+        data = {name: s.get(name)} if name and name in s else (s if not name else {})
+        embed = self._make_embed(ctx, data)
+        await ctx.send(embed=embed)
+
+    @status_group.command(name="remove")
+    async def status_remove(self, ctx, name: str):
+        s = self._ensure(ctx)
+        if name in s:
+            del s[name]
+            await ctx.send(f"🗑️ Karakter **{name}** dihapus.")
+        else:
+            await ctx.send("⚠️ Nama tidak ditemukan.")
+
+    @status_group.command(name="clear")
+    async def status_clear(self, ctx):
+        k = _key(ctx)
+        self.state.pop(k, None)
+        await ctx.send("🧹 Semua karakter dihapus.")
+
+    @status_group.command(name="setcore")
+    async def status_setcore(self, ctx, name: str, str_: int, dex: int, con: int, int_: int, wis: int, cha: int):
+        v = self._ensure_entry(ctx, name)
+        v["core"] = {"str": str_, "dex": dex, "con": con, "int": int_, "wis": wis, "cha": cha}
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"📊 Core stats {name} diupdate.")
+
+    @status_group.command(name="setclass")
+    async def status_setclass(self, ctx, name: str, *, class_name: str):
+        v = self._ensure_entry(ctx, name)
+        v["class"] = class_name
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"📘 Class {name} → {class_name}")
+
+    @status_group.command(name="setrace")
+    async def status_setrace(self, ctx, name: str, *, race_name: str):
+        v = self._ensure_entry(ctx, name)
+        v["race"] = race_name
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"🌍 Race {name} → {race_name}")
+
+    @status_group.command(name="setlevel")
+    async def status_setlevel(self, ctx, name: str, level: int):
+        v = self._ensure_entry(ctx, name)
+        v["level"] = level
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"⭐ {name} sekarang level {level}.")
+
+    @status_group.command(name="addxp")
+    async def status_addxp(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["xp"] += amount
+        save_char_to_memory(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id, name, v)
+        await ctx.send(f"✨ {name} mendapat {amount} XP (total {v['xp']}).")
+
+    # Buff / Debuff
+    @status_group.command(name="buff")
+    async def status_buff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        v["buffs"].append({"text": text, "duration": -1})
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+
+    @status_group.command(name="debuff")
+    async def status_debuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        v["debuffs"].append({"text": text, "duration": -1})
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+
+    @status_group.command(name="clearbuff")
+    async def status_clearbuff(self, ctx, name: str):
+        v = self._ensure_entry(ctx, name)
+        v["buffs"] = []
+        await ctx.send(f"✨ Semua buff dihapus dari {name}.")
+
+    @status_group.command(name="cleardebuff")
+    async def status_cleardebuff(self, ctx, name: str):
+        v = self._ensure_entry(ctx, name)
+        v["debuffs"] = []
+        await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
+
+    @status_group.command(name="unbuff")
+    async def status_unbuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        v["buffs"] = [b for b in v["buffs"] if b["text"] != text]
+        await ctx.send(f"✨ Buff {text} dihapus dari {name}.")
+
+    @status_group.command(name="undebuff")
+    async def status_undebuff(self, ctx, name: str, *, text: str):
+        v = self._ensure_entry(ctx, name)
+        v["debuffs"] = [d for d in v["debuffs"] if d["text"] != text]
+        await ctx.send(f"☠️ Debuff {text} dihapus dari {name}.")
+
+    # HP, Energy, Stamina control
+    @status_group.command(name="dmg")
+    async def status_dmg(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["hp"] = max(0, v["hp"] - amount)
+        await ctx.send(f"💥 {name} menerima {amount} damage.")
+
+    @status_group.command(name="heal")
+    async def status_heal(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["hp"] = min(v["hp_max"], v["hp"] + amount)
+        await ctx.send(f"❤️ {name} pulih {amount} HP.")
+
+    @status_group.command(name="useenergy")
+    async def status_useenergy(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["energy"] = max(0, v["energy"] - amount)
+        await ctx.send(f"🔋 {name} menggunakan {amount} energi.")
+
+    @status_group.command(name="regenenergy")
+    async def status_regenenergy(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["energy"] = min(v["energy_max"], v["energy"] + amount)
+        await ctx.send(f"🔋 {name} memulihkan {amount} energi.")
+
+    @status_group.command(name="usestam")
+    async def status_usestam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["stamina"] = max(0, v["stamina"] - amount)
+        await ctx.send(f"⚡ {name} menggunakan {amount} stamina.")
+
+    @status_group.command(name="regenstam")
+    async def status_regenstam(self, ctx, name: str, amount: int):
+        v = self._ensure_entry(ctx, name)
+        v["stamina"] = min(v["stamina_max"], v["stamina"] + amount)
+        await ctx.send(f"⚡ {name} memulihkan {amount} stamina.")
+
+    # ===== Party Ringkasan =====
+    @commands.command(name="party")
+    async def party(self, ctx):
+        s = self._ensure(ctx)
+        if not s:
+            return await ctx.send("ℹ️ Belum ada karakter.")
+        lines = []
+        for name, v in s.items():
+            hp_text = f"{v['hp']}/{v['hp_max']}" if v['hp_max'] else str(v['hp'])
+            en_text = f"{v['energy']}/{v['energy_max']}" if v['energy_max'] else str(v['energy'])
+            st_text = f"{v['stamina']}/{v['stamina_max']}" if v['stamina_max'] else str(v['stamina'])
+            lines.append(f"**{name}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} | Lv {v['level']} {v['class']} {v['race']}")
+        await ctx.send("\n".join(lines))
 
 async def setup(bot):
     cog = CharacterStatus(bot)
