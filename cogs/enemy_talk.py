@@ -9,15 +9,9 @@ client = OpenAI()
 def _key(ctx):
     return (str(ctx.guild.id), str(ctx.channel.id))
 
-STYLE_MONSTER = (
-    "Kamu adalah suara musuh MONSTER. Kalimat singkat, agresif, primal. Tidak sopan. Tidak perlu panjang."
-)
-STYLE_BOSS = (
-    "Kamu adalah BOSS/ELITE musuh. Bicaralah karismatik, sinis, dan percaya diri. Ingat interaksi sebelumnya."
-)
-STYLE_HUMAN = (
-    "Kamu adalah musuh HUMANOID/Manusia. Berakal, bisa negosiasi, bisa berbohong. Tetap konsisten pada riwayat."
-)
+STYLE_MONSTER = "Kamu adalah suara musuh MONSTER. Kalimat singkat, agresif, primal. Tidak sopan. Tidak perlu panjang."
+STYLE_BOSS = "Kamu adalah BOSS/ELITE musuh. Bicaralah karismatik, sinis, dan percaya diri. Ingat interaksi sebelumnya."
+STYLE_HUMAN = "Kamu adalah musuh HUMANOID/Manusia. Berakal, bisa negosiasi, bisa berbohong. Tetap konsisten pada riwayat."
 
 def classify_enemy(guild_id: str, channel_id: str, name: str) -> str:
     """Try to classify from enemy records; return 'monster' | 'boss' | 'human'"""
@@ -38,11 +32,11 @@ class EnemyTalk(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="enemy", invoke_without_command=True)
-    async def enemy(self, ctx):
-        await ctx.send("Gunakan: `!enemy talk <Nama> <pesan>`, `!enemy recall <Nama>`, `!enemy promote <Nama> <NPCName>`")
+    @commands.group(name="etalk", invoke_without_command=True)
+    async def etalk(self, ctx):
+        await ctx.send("Gunakan: `!etalk talk <Nama> <pesan>`, `!etalk recall <Nama>`, `!etalk promote <Nama> <NPCName>`")
 
-    @enemy.command(name="talk")
+    @etalk.command(name="talk")
     async def enemy_talk(self, ctx, name: str, *, message: str):
         g, c = _key(ctx)
         kind = classify_enemy(g, c, name)
@@ -74,7 +68,7 @@ class EnemyTalk(commands.Cog):
         title = f"☠️ {name}" if kind != "human" else f"🗡️ {name}"
         await ctx.send(embed=discord.Embed(title=title, description=reply, color=color))
 
-    @enemy.command(name="recall")
+    @etalk.command(name="recall")
     async def enemy_recall(self, ctx, *, name: str):
         g, c = _key(ctx)
         history = load_chat_history(g, c, "enemy_chat", "enemy", name, limit=20)
@@ -83,7 +77,7 @@ class EnemyTalk(commands.Cog):
         text = "\n".join([f"- {r}: {t}" for (r, t) in history[-10:]])
         await ctx.send(f"**Riwayat {name} (10 terbaru):**\n{text}")
 
-    @enemy.command(name="promote")
+    @etalk.command(name="promote")
     async def enemy_promote(self, ctx, name: str, *, npc_name: str):
         """Promote enemy jadi NPC dengan nama baru (atau sama)."""
         g, c = _key(ctx)
