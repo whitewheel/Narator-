@@ -261,13 +261,14 @@ class GMCog(commands.Cog):
             await ctx.send("Gunakan: `!gm encounter suggest` atau `!gm encounter apply`")
 
     # ---------- cutscenes / immersion ----------
+    # ---------- cutscenes / immersion ----------
     @commands.command(name="cutscene")
     async def cutscene(self, ctx, *, topic: str):
         """Manual trigger cutscene pendek sesuai style/depth."""
         await self._narrate(ctx, topic)
 
-    @commands.command(name="victory")
-    async def victory(self, ctx):
+    @commands.command(name="victoryscene")
+    async def victoryscene(self, ctx):
         """Epilog singkat setelah menang."""
         await self._narrate(ctx, "Kemenangan party dan suasana sesudah pertempuran", extra=self._latest_scene_text(ctx))
 
