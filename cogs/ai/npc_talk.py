@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from openai import OpenAI
-from .talk_memory import append_chat, load_chat_history
+from cogs.talk_memory import append_chat, load_chat_history
 from memory import get_recent
 
 client = OpenAI()
