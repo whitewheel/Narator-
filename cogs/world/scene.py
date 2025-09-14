@@ -4,6 +4,8 @@ from memory import save_memory, get_recent, template_for
 
 import json
 
+from cogs.world.timeline import log_event  # ✅ hook timeline
+
 class Scene(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
