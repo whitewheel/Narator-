@@ -1,5 +1,4 @@
 import os
-import io
 import logging
 from dotenv import load_dotenv
 import discord
@@ -7,8 +6,10 @@ from discord.ext import commands
 from openai import OpenAI
 
 # === DB (SQLite) ===
-# pastikan file memory.py sudah ada (yang tadi kita buat)
-from memory import init_db, DB_PATH  # NEW
+from memory import init_db, DB_PATH
+
+# === Utils ===
+from utils.discord_tools import send_long
 
 # ====== LOGGING ======
 logging.basicConfig(
@@ -27,9 +28,9 @@ if not DISCORD_TOKEN:
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ ENV OPENAI_API_KEY kosong.")
 
-# Inisialisasi DB (akan membuat / membuka memory.db di volume)
-init_db()  # NEW
-logger.info(f"📦 SQLite DB path: {DB_PATH}")  # NEW
+# Inisialisasi DB
+init_db()
+logger.info(f"📦 SQLite DB path: {DB_PATH}")
 
 # ====== GPT CLIENT ======
 client_gpt = OpenAI(api_key=OPENAI_API_KEY)
@@ -57,7 +58,7 @@ class MyBot(commands.Bot):
             "cogs.world.scene",
             "cogs.world.item",
             "cogs.world.loot",
-            "cogs.world.encyclopedia",  
+            "cogs.world.encyclopedia",
             "cogs.wiki",
 
             # UTILITY
@@ -74,35 +75,13 @@ class MyBot(commands.Bot):
             except Exception as e:
                 logger.error(f"❌ Gagal load {ext}: {e}")
 
-# ✅ Matikan help bawaan supaya tidak bentrok dengan cogs.help
-bot = MyBot(command_prefix="!", intents=intents, help_command=None)
+# ✅ Matikan help bawaan supaya tidak bentrok
+bot = MyBot(command_prefix=commands.when_mentioned_or("!", "/"),
+            intents=intents, help_command=None)
 try:
     bot.remove_command("help")
 except Exception:
     pass
-
-DISCORD_LIMIT = 2000
-FALLBACK_FILE_LIMIT = 10000
-
-def split_message(text, limit=DISCORD_LIMIT):
-    if len(text) <= limit:
-        return [text]
-    return [text[i:i+limit] for i in range(0, len(text), limit)]
-
-async def send_long(ctx, content: str):
-    if len(content) <= DISCORD_LIMIT:
-        await ctx.send(f"```{content}```")
-        return
-    if len(content) <= FALLBACK_FILE_LIMIT:
-        parts = split_message(content, DISCORD_LIMIT)
-        for idx, part in enumerate(parts, start=1):
-            await ctx.send(f"**Bagian {idx}/{len(parts)}**\n```{part}```")
-        return
-    data = io.StringIO(content)
-    await ctx.send(
-        "📄 Jawaban panjang banget, aku kirim dalam file ya 👇",
-        file=discord.File(fp=data, filename="jawaban.txt"),
-    )
 
 @bot.event
 async def on_ready():
@@ -133,13 +112,17 @@ async def ask(ctx, *, prompt: str = None):
             max_tokens=1500,
         )
         answer = response.choices[0].message.content
+        logger.info(f"💬 GPT Prompt: {prompt}")
+        logger.info(f"📝 GPT Answer (first 100 chars): {answer[:100]}...")
         await send_long(ctx, answer)
     except Exception as e:
-        logging.getLogger("bot").error(f"❌ Error GPT: {e}")
+        logger.error(f"❌ Error GPT: {e}")
         await send_long(ctx, f"❌ Error: {str(e)}")
     finally:
-        try: await msg.delete()
-        except Exception: pass
+        try:
+            await msg.delete()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
