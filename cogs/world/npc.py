@@ -1,112 +1,80 @@
 import discord
 from discord.ext import commands
-from memory import save_memory, get_recent, category_icon, template_for
-
-import json
+from services import npc_service
 
 class NPC(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def _key(self, ctx):
-        return (str(ctx.guild.id), str(ctx.channel.id))
-
-    def _parse_entry(self, raw: str):
-        parts = [p.strip() for p in raw.split("|")]
-        if len(parts) < 2:
-            return None
-        data = template_for("npc")
-        data["name"] = parts[0]
-        data["role"] = parts[1]
-        if len(parts) > 2:
-            data["attitude"] = parts[2].lower()
-        if len(parts) > 3:
-            data["notes"] = parts[3]
-        data["hidden"] = "--hidden" in raw.lower()
-        return data
-
     @commands.group(name="npc", invoke_without_command=True)
     async def npc(self, ctx):
-        await ctx.send("Gunakan: `!npc add`, `!npc show`, `!npc remove`, `!npc reveal`, `!npc detail`")
+        await ctx.send("Gunakan: `!npc add`, `!npc list`, `!npc remove`, `!npc favor`, `!npc reveal`, `!npc detail`, `!npc sync`")
 
+    # === Tambah NPC ===
     @npc.command(name="add")
-    async def npc_add(self, ctx, *, entry: str):
-        data = self._parse_entry(entry)
-        if not data:
-            return await ctx.send("⚠️ Format: `!npc add Nama | Peran | [Sikap] | [Catatan] [--hidden]`")
-        key = self._key(ctx)
-        save_memory(key[0], key[1], ctx.author.id, "npc", json.dumps(data), {"name": data["name"]})
-        await ctx.send(f"👤 NPC **{data['name']}** ditambahkan.")
+    async def npc_add(self, ctx, name: str, *, role: str = ""):
+        await npc_service.add_npc(ctx.guild.id, ctx.channel.id, name, role)
+        await ctx.send(f"🧑‍🤝‍🧑 NPC **{name}** ditambahkan dengan role: {role}")
 
-    @npc.command(name="show")
-    async def npc_show(self, ctx, filter: str = None):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "npc", 50)
-        out = []
-        for (_id, cat, content, meta, ts) in rows:
-            try:
-                n = json.loads(content)
-                if n.get("hidden", False) and not ctx.author.guild_permissions.manage_guild:
-                    continue
-                line = f"👤 **{n['name']}** ({n['role']})"
-                if n.get("attitude"): line += f" • {n['attitude']}"
-                out.append(line)
-            except:
-                continue
-        if not out:
-            return await ctx.send("Tidak ada NPC.")
-        await ctx.send("\n".join(out[:10]))
+    # === List NPC ===
+    @npc.command(name="list")
+    async def npc_list(self, ctx):
+        msg = await npc_service.list_npc(ctx.guild.id, ctx.channel.id)
+        await ctx.send(msg)
 
+    # === Update Favor ===
+    @npc.command(name="favor")
+    async def npc_favor(self, ctx, name: str, amount: int):
+        msg = await npc_service.update_favor(ctx.guild.id, ctx.channel.id, name, amount)
+        await ctx.send(msg)
+
+    # === Reveal Trait ===
     @npc.command(name="reveal")
-    async def npc_reveal(self, ctx, *, name: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "npc", 50)
-        for (_id, cat, content, meta, ts) in rows:
-            try:
-                n = json.loads(content)
-                if n["name"].lower() == name.lower():
-                    n["hidden"] = False
-                    save_memory(key[0], key[1], ctx.author.id, "npc", json.dumps(n), {"name": n["name"]})
-                    return await ctx.send(f"🔍 NPC **{n['name']}** kini terlihat.")
-            except:
-                continue
-        await ctx.send("❌ NPC tidak ditemukan.")
+    async def npc_reveal(self, ctx, name: str, trait_key: str):
+        msg = await npc_service.reveal_trait(ctx.guild.id, ctx.channel.id, name, trait_key)
+        await ctx.send(msg)
 
-    @npc.command(name="remove")
-    async def npc_remove(self, ctx, *, name: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "npc", 50)
-        for (_id, cat, content, meta, ts) in rows:
-            try:
-                n = json.loads(content)
-                if n["name"].lower() == name.lower():
-                    n["notes"] = "(deleted)"
-                    save_memory(key[0], key[1], ctx.author.id, "npc", json.dumps(n), {"name": n["name"]})
-                    return await ctx.send(f"🗑️ NPC **{n['name']}** dihapus.")
-            except:
-                continue
-        await ctx.send("❌ NPC tidak ditemukan.")
-
+    # === Detail NPC (embed cantik) ===
     @npc.command(name="detail")
     async def npc_detail(self, ctx, *, name: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "npc", 50)
-        for (_id, cat, content, meta, ts) in rows:
-            try:
-                n = json.loads(content)
-                if n["name"].lower() == name.lower():
-                    embed = discord.Embed(
-                        title=f"👤 {n['name']}",
-                        description=f"Peran: **{n['role']}**",
-                        color=discord.Color.greyple()
-                    )
-                    embed.add_field(name="🤝 Sikap", value=n.get("attitude","neutral"), inline=True)
-                    embed.add_field(name="📝 Catatan", value=n.get("notes","-"), inline=False)
-                    await ctx.send(embed=embed)
-                    return
-            except:
-                continue
-        await ctx.send("❌ NPC tidak ditemukan.")
+        guild_id, channel_id = ctx.guild.id, ctx.channel.id
+        from utils.db import fetchone
+        npc = fetchone("SELECT * FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
+                       (guild_id, channel_id, name))
+        if not npc:
+            return await ctx.send("❌ NPC tidak ditemukan.")
+
+        embed = discord.Embed(
+            title=f"👤 {npc['name']}",
+            description=f"Peran: **{npc['role']}**",
+            color=discord.Color.greyple()
+        )
+        embed.add_field(name="💠 Favor", value=str(npc["favor"]), inline=True)
+
+        traits = npc.get("traits")
+        if traits:
+            traits = json.loads(traits)
+            visible = [f"- {k}: {v}" for k, v in traits.items()]
+            embed.add_field(name="👁️ Traits", value="\n".join(visible) or "-", inline=False)
+        else:
+            embed.add_field(name="👁️ Traits", value="-", inline=False)
+
+        await ctx.send(embed=embed)
+
+    # === Sinkronkan NPC dari lore (wiki kategori npc) ===
+    @npc.command(name="sync")
+    async def npc_sync(self, ctx):
+        msg = await npc_service.sync_from_wiki(ctx.guild.id, ctx.channel.id)
+        await ctx.send(msg)
+
+    # === Hapus NPC (soft delete) ===
+    @npc.command(name="remove")
+    async def npc_remove(self, ctx, *, name: str):
+        from utils.db import execute
+        guild_id, channel_id = ctx.guild.id, ctx.channel.id
+        execute("DELETE FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
+                (guild_id, channel_id, name))
+        await ctx.send(f"🗑️ NPC **{name}** dihapus.")
 
 async def setup(bot):
     await bot.add_cog(NPC(bot))
