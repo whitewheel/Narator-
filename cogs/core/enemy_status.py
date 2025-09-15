@@ -1,3 +1,4 @@
+import math
 import json
 import discord
 from discord.ext import commands
@@ -11,6 +12,28 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     filled = int(round(width * (cur / mx)))
     return "█" * filled + "░" * (width - filled)
 
+def _mod(score: int) -> int:
+    return math.floor(score / 5)
+
+def _apply_effects(base_stats, effects):
+    stats = base_stats.copy()
+    notes = []
+    for eff in effects:
+        text = eff.get("text", "")
+        for key in ["str","dex","con","int","wis","cha","ac"]:
+            if key.upper() in text.upper():
+                try:
+                    val = int(text.replace(key.upper(), "").strip())
+                except:
+                    val = 0
+                stats[key] = stats.get(key, 0) + val
+                notes.append(f"{'+' if val>=0 else ''}{val} {key.upper()}")
+    return stats, notes
+
+def _format_effect(e):
+    d = e.get("duration", -1)
+    return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
+
 def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
     embed = discord.Embed(
         title=title,
@@ -23,22 +46,39 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
 
     for e in enemies:
         hp_text = f"{e['hp']}/{e['hp_max']}" if e['hp_max'] else str(e['hp'])
-        buffs, debuffs = "-", "-"
-        try:
-            effects = json.loads(e.get("effects") or "[]")
-            buffs = "\n".join([f"✅ {b['text']}" for b in effects if "buff" in b.get("text","").lower()]) or "-"
-            debuffs = "\n".join([f"❌ {d['text']}" for d in effects if "debuff" in d.get("text","").lower()]) or "-"
-        except:
-            pass
 
+        # === Effects ===
+        effects = json.loads(e.get("effects") or "[]")
+        buffs = [eff for eff in effects if "buff" in eff.get("type","").lower()]
+        debuffs = [eff for eff in effects if "debuff" in eff.get("type","").lower()]
+        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
+        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in debuffs]) or "-"
+
+        # === Stats with Effects ===
+        base_stats = {
+            "str": e.get("str", 0), "dex": e.get("dex", 0), "con": e.get("con", 0),
+            "int": e.get("int", 0), "wis": e.get("wis", 0), "cha": e.get("cha", 0),
+            "ac": e.get("ac", 10)
+        }
+        final_stats, notes = _apply_effects(base_stats, effects)
+        note_line = f" ({', '.join(notes)})" if notes else ""
+        stats_line = (
+            f"STR {final_stats['str']} ({_mod(final_stats['str']):+d}) | "
+            f"DEX {final_stats['dex']} ({_mod(final_stats['dex']):+d}) | "
+            f"CON {final_stats['con']} ({_mod(final_stats['con']):+d}) | "
+            f"AC {final_stats['ac']}{note_line}"
+        )
+
+        # === Reward & Loot ===
         reward_line = f"XP {e.get('xp_reward',0)} | Gold {e.get('gold_reward',0)}"
         loot_list = json.loads(e.get("loot") or "[]")
         loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in loot_list]) or "-"
 
         value = (
             f"❤️ HP: {hp_text} [{_bar(e['hp'], e['hp_max'])}]\n\n"
-            f"✨ Buffs:\n{buffs}\n\n"
-            f"☠️ Debuffs:\n{debuffs}\n\n"
+            f"📊 Stats: {stats_line}\n\n"
+            f"✨ Buffs:\n{buffs_str}\n\n"
+            f"☠️ Debuffs:\n{debuffs_str}\n\n"
             f"🎁 Reward: {reward_line}\n\n"
             f"🎒 Loot:\n{loot_line}"
         )
@@ -54,11 +94,9 @@ class EnemyStatus(commands.Cog):
     async def enemy(self, ctx):
         await ctx.send("Gunakan: `!enemy add`, `!enemy show`, `!enemy dmg`, `!enemy heal`, `!enemy loot`, `!enemy buff`, `!enemy debuff`")
 
-    # === Tambah musuh ===
     @enemy.command(name="add")
     async def enemy_add(self, ctx, name: str, hp: int, *, opts: str = None):
         xp_reward, gold_reward, loots = 0, 0, []
-
         if opts:
             if "--xp" in opts:
                 try: xp_reward = int(opts.split("--xp")[1].split()[0])
@@ -89,7 +127,6 @@ class EnemyStatus(commands.Cog):
 
         await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
 
-    # === Tampilkan status musuh ===
     @enemy.command(name="show")
     async def enemy_show(self, ctx):
         rows = fetchall("SELECT * FROM enemies WHERE guild_id=? AND channel_id=?",
@@ -97,7 +134,6 @@ class EnemyStatus(commands.Cog):
         embed = make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
-    # === Damage ===
     @enemy.command(name="dmg")
     async def enemy_dmg(self, ctx, name: str, amount: int):
         new_hp = await status_service.damage(ctx.guild.id, ctx.channel.id, "enemy", name, amount)
@@ -105,7 +141,6 @@ class EnemyStatus(commands.Cog):
             return await ctx.send("❌ Enemy tidak ditemukan.")
         await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
 
-    # === Heal ===
     @enemy.command(name="heal")
     async def enemy_heal(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, ctx.channel.id, "enemy", name, amount)
@@ -113,7 +148,6 @@ class EnemyStatus(commands.Cog):
             return await ctx.send("❌ Enemy tidak ditemukan.")
         await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
 
-    # === Loot ===
     @enemy.command(name="loot")
     async def enemy_loot(self, ctx, name: str):
         row = fetchone("SELECT * FROM enemies WHERE guild_id=? AND channel_id=? AND name=?",
@@ -126,34 +160,25 @@ class EnemyStatus(commands.Cog):
         out = [f"- {it['name']} ({it.get('rarity','')})" for it in loots]
         await ctx.send(f"🎁 Loot dari {name}:\n" + "\n".join(out))
 
-    # === Tambah Buff ===
     @enemy.command(name="buff")
     async def enemy_buff(self, ctx, name: str, *, text: str):
-        effects = await status_service.add_effect(ctx.guild.id, ctx.channel.id, "enemy", name, text, is_buff=True)
-        if effects is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await status_service.add_effect(ctx.guild.id, ctx.channel.id, "enemy", name, text, is_buff=True)
         await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
 
-    # === Tambah Debuff ===
     @enemy.command(name="debuff")
     async def enemy_debuff(self, ctx, name: str, *, text: str):
-        effects = await status_service.add_effect(ctx.guild.id, ctx.channel.id, "enemy", name, text, is_buff=False)
-        if effects is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await status_service.add_effect(ctx.guild.id, ctx.channel.id, "enemy", name, text, is_buff=False)
         await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
 
-    # === Clear Buffs ===
     @enemy.command(name="clearbuff")
     async def enemy_clearbuff(self, ctx, name: str):
         await status_service.clear_effects(ctx.guild.id, ctx.channel.id, "enemy", name, is_buff=True)
         await ctx.send(f"✨ Semua buff dihapus dari {name}.")
 
-    # === Clear Debuffs ===
     @enemy.command(name="cleardebuff")
     async def enemy_cleardebuff(self, ctx, name: str):
         await status_service.clear_effects(ctx.guild.id, ctx.channel.id, "enemy", name, is_buff=False)
         await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
-
 
 async def setup(bot):
     await bot.add_cog(EnemyStatus(bot))
