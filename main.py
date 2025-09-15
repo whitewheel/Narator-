@@ -6,7 +6,7 @@ from discord.ext import commands
 from openai import OpenAI
 
 # === DB (SQLite) ===
-from memory import init_db, DB_PATH
+from utils.db import init_db, DB_PATH   # FIXED
 
 # === Utils ===
 from utils.discord_tools import send_long
