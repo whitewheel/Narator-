@@ -182,3 +182,14 @@ CREATE TABLE IF NOT EXISTS wiki (
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS initiative (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT,
+    channel_id TEXT,
+    order_json TEXT,   -- simpan list (name, score)
+    ptr INTEGER,
+    round INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
