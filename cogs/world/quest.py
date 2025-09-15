@@ -1,7 +1,7 @@
 
 import discord
 from discord.ext import commands
-from memory import save_memory, get_recent, template_for
+from utils.db import save_memory, get_recent, template_for   # ✅ arahkan ke utils.db
 import json
 import re
 
