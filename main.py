@@ -46,10 +46,12 @@ class MyBot(commands.Bot):
             "cogs.core.initmem",
             "cogs.core.karakter_status",
             "cogs.core.enemy_status",
+            "cogs.core.inventory",
             "cogs.core.status_alias",
             "cogs.core.history",
             "cogs.core.race_manager",
             "cogs.core.class_manager",
+            "cogs.core.tick",
 
             # WORLD SYSTEM
             "cogs.world.quest",
@@ -59,7 +61,8 @@ class MyBot(commands.Bot):
             "cogs.world.item",
             "cogs.world.loot",
             "cogs.world.encyclopedia",
-            "cogs.wiki",
+            "cogs.world.timeline",
+            "cogs.world.wiki",
 
             # UTILITY
             "cogs.utility.roll",
@@ -74,6 +77,8 @@ class MyBot(commands.Bot):
                 logger.info(f"✅ Loaded {ext}")
             except Exception as e:
                 logger.error(f"❌ Gagal load {ext}: {e}")
+                import traceback
+                traceback.print_exc()
 
 # ✅ Matikan help bawaan supaya tidak bentrok
 bot = MyBot(command_prefix=commands.when_mentioned_or("!", "/"),
