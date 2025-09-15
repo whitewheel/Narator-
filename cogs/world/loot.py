@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from memory import save_memory, get_recent
+from utils.db import save_memory, get_recent   # ✅ ganti ke utils.db
 import json
 
 def _key(ctx):
