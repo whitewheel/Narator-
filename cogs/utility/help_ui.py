@@ -135,18 +135,23 @@ class HelpUICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="help_ui")
-    async def help_ui(self, ctx: commands.Context, topic: str | None = None):
-        """
-        Bantuan interaktif dengan dropdown menu.
-        Opsional: !help_ui <topik> langsung buka embed kategori itu.
-        """
+    async def _send_help(self, ctx: commands.Context, topic: str | None = None):
         prefix = ctx.prefix or "!"
         key = (topic or "overview").lower()
         embed = _get_embed(prefix, key if key in EMBED_MAP else "overview")
         view = HelpView(prefix=prefix, current=(key if key in EMBED_MAP else "overview"))
         msg = await ctx.send(embed=embed, view=view)
-        view.message = msg  # simpan message untuk cleanup saat timeout
+        view.message = msg
+
+    @commands.command(name="help")
+    async def help_cmd(self, ctx: commands.Context, topic: str | None = None):
+        """Help interaktif (UI dropdown)."""
+        await self._send_help(ctx, topic)
+
+    @commands.command(name="helpui")
+    async def help_ui_cmd(self, ctx: commands.Context, topic: str | None = None):
+        """Alias untuk help interaktif (UI dropdown)."""
+        await self._send_help(ctx, topic)
 
 async def setup(bot: commands.Bot):
     bot.help_command = None
