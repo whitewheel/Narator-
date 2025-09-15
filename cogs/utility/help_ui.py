@@ -1,24 +1,16 @@
-
 import discord
 from discord.ext import commands
 
-# Import embed builders from help.py (desain/ikon tetap)
+# Import embed builders dari help.py
 from .help import (
-    embed_overview,
-    embed_init,
-    embed_status,
-    embed_enemy,
-    embed_dice,
-    embed_quick,
-    embed_poll,
-    embed_gpt,
-    embed_quest,
-    embed_item,
-    embed_npc,
-    embed_favor,
-    embed_scene,
+    embed_overview, embed_init, embed_status, embed_enemy,
+    embed_dice, embed_quick, embed_poll, embed_gpt,
+    embed_quest, embed_item, embed_loot, embed_npc,
+    embed_favor, embed_scene, embed_timeline, embed_wiki,
+    embed_classrace
 )
 
+# Mapping kategori -> embed function
 EMBED_MAP = {
     "overview": embed_overview,
     "init": embed_init,
@@ -30,11 +22,16 @@ EMBED_MAP = {
     "gpt": embed_gpt,
     "quest": embed_quest,
     "item": embed_item,
+    "loot": embed_loot,
     "npc": embed_npc,
     "favor": embed_favor,
     "scene": embed_scene,
+    "timeline": embed_timeline,
+    "wiki": embed_wiki,
+    "classrace": embed_classrace,
 }
 
+# List opsi dropdown (label, value)
 OPTIONS = [
     ("🧍 Status", "status"),
     ("👹 Enemy", "enemy"),
@@ -42,31 +39,41 @@ OPTIONS = [
     ("🎲 Dice", "dice"),
     ("⚡ Quick", "quick"),
     ("📜 Quest", "quest"),
-    ("👤 NPC", "npc"),
     ("🧰 Item", "item"),
+    ("🎁 Loot", "loot"),
+    ("👤 NPC", "npc"),
     ("🪙 Favor", "favor"),
     ("📍 Scene", "scene"),
+    ("⏳ Timeline", "timeline"),
+    ("📚 Wiki", "wiki"),
+    ("🧑‍🎓 Class & Race", "classrace"),
     ("📊 Poll", "poll"),
     ("🧠 GPT", "gpt"),
     ("📖 Overview", "overview"),
 ]
 
-
 def _get_embed(prefix: str, key: str) -> discord.Embed:
+    """Ambil embed sesuai kategori (default: overview)."""
     key = (key or "overview").lower()
     fn = EMBED_MAP.get(key, embed_overview)
     return fn(prefix)
 
+# ==================== UI Components ====================
 
 class HelpSelect(discord.ui.Select):
     def __init__(self, prefix: str, current: str = "overview"):
         self.prefix = prefix
         options = [
-            discord.SelectOption(label=label, value=value, default=(value == current))
+            discord.SelectOption(
+                label=label,
+                value=value,
+                default=(value == current),
+                emoji=label.split()[0]  # ambil emoji pertama
+            )
             for (label, value) in OPTIONS
         ]
         super().__init__(
-            placeholder="Pilih kategori bantuan…",
+            placeholder="📖 Pilih kategori bantuan…",
             min_values=1,
             max_values=1,
             options=options,
@@ -76,8 +83,10 @@ class HelpSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         value = self.values[0]
         embed = _get_embed(self.prefix, value)
+        # Reset default pilihan dropdown
+        for opt in self.options:
+            opt.default = (opt.value == value)
         await interaction.response.edit_message(embed=embed, view=self.view)
-
 
 class HelpView(discord.ui.View):
     def __init__(self, prefix: str, current: str = "overview", timeout: float = 120.0):
@@ -85,14 +94,14 @@ class HelpView(discord.ui.View):
         self.prefix = prefix
         self.current = current
         self.message: discord.Message | None = None
-        # Select
+        # Tambahkan dropdown ke view
         self.add_item(HelpSelect(prefix=self.prefix, current=current))
 
     async def on_timeout(self) -> None:
         for child in self.children:
             if hasattr(child, "disabled"):
                 child.disabled = True
-        # Gracefully disable controls
+        # Disable view saat timeout
         try:
             if self.message:
                 await self.message.edit(view=self)
@@ -102,7 +111,7 @@ class HelpView(discord.ui.View):
     @discord.ui.button(label="Overview", style=discord.ButtonStyle.secondary, custom_id="help_overview")
     async def to_overview(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = _get_embed(self.prefix, "overview")
-        # Reset default selected option
+        # Reset dropdown ke overview
         for child in self.children:
             if isinstance(child, HelpSelect):
                 for opt in child.options:
@@ -114,29 +123,32 @@ class HelpView(discord.ui.View):
         try:
             await interaction.message.delete()
         except Exception:
-            # Fallback: disable the view
+            # Fallback: disable view kalau gagal hapus pesan
             for child in self.children:
                 if hasattr(child, "disabled"):
                     child.disabled = True
             await interaction.response.edit_message(content="(help ditutup)", view=self)
 
+# ==================== Cog ====================
 
 class HelpUICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="help")
-    async def help_cmd(self, ctx: commands.Context, topic: str | None = None):
-        """Help interaktif. Opsional: !help <topik> langsung menampilkan embed topik itu, tetap dengan UI."""
+    @commands.command(name="help_ui")
+    async def help_ui(self, ctx: commands.Context, topic: str | None = None):
+        """
+        Bantuan interaktif dengan dropdown menu.
+        Opsional: !help_ui <topik> langsung buka embed kategori itu.
+        """
         prefix = ctx.prefix or "!"
         key = (topic or "overview").lower()
         embed = _get_embed(prefix, key if key in EMBED_MAP else "overview")
         view = HelpView(prefix=prefix, current=(key if key in EMBED_MAP else "overview"))
         msg = await ctx.send(embed=embed, view=view)
-        view.message = msg  # untuk cleanup saat timeout
+        view.message = msg  # simpan message untuk cleanup saat timeout
 
 async def setup(bot: commands.Bot):
-    # Pastikan default help bawaan discord.py tidak bentrok
     bot.help_command = None
     try:
         bot.remove_command("help")
