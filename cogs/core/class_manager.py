@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from cogs.world.encyclopedia import CLASSES
-from memory import get_recent, save_memory
+from utils.db import get_recent, save_memory   # ✅ ganti dari memory ke utils.db
 import json
 
 # ===== Helper =====
