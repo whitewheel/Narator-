@@ -7,20 +7,39 @@ CREATE TABLE IF NOT EXISTS characters (
     channel_id TEXT,              -- channel id
     name TEXT NOT NULL,           -- nama karakter
     player_id TEXT DEFAULT NULL,  -- optional: discord user id
-    class TEXT DEFAULT NULL,
-    race TEXT DEFAULT NULL,
+    class TEXT DEFAULT '',
+    race TEXT DEFAULT '',
+    level INTEGER DEFAULT 1,
+    xp INTEGER DEFAULT 0,
+    gold INTEGER DEFAULT 0,
+
+    -- Vitals
     hp INTEGER DEFAULT 0,
     hp_max INTEGER DEFAULT 0,
-    mp INTEGER DEFAULT 0,
-    mp_max INTEGER DEFAULT 0,
+    energy INTEGER DEFAULT 0,
+    energy_max INTEGER DEFAULT 0,
+    stamina INTEGER DEFAULT 0,
+    stamina_max INTEGER DEFAULT 0,
+
+    -- Core stats
+    str INTEGER DEFAULT 1,
+    dex INTEGER DEFAULT 1,
+    con INTEGER DEFAULT 1,
+    int INTEGER DEFAULT 1,
+    wis INTEGER DEFAULT 1,
+    cha INTEGER DEFAULT 1,
+
+    -- Combat
     ac INTEGER DEFAULT 10,
     init_mod INTEGER DEFAULT 0,
-    str INTEGER DEFAULT 0,
-    dex INTEGER DEFAULT 0,
-    int INTEGER DEFAULT 0,
-    wit INTEGER DEFAULT 0,
-    cha INTEGER DEFAULT 0,
-    effects TEXT DEFAULT '[]',    -- JSON list buff/debuff
+    speed INTEGER DEFAULT 30,
+
+    -- JSON fields
+    buffs TEXT DEFAULT '[]',       -- JSON list
+    debuffs TEXT DEFAULT '[]',     -- JSON list
+    equipment TEXT DEFAULT '{}',   -- JSON {weapon, armor, accessory}
+    companions TEXT DEFAULT '[]',  -- JSON list
+
     notes TEXT DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -37,6 +56,9 @@ CREATE TABLE IF NOT EXISTS enemies (
     hp INTEGER DEFAULT 0,
     hp_max INTEGER DEFAULT 0,
     ac INTEGER DEFAULT 10,
+    init_mod INTEGER DEFAULT 0,
+    xp_reward INTEGER DEFAULT 0,
+    loot TEXT DEFAULT '[]',       -- JSON list item drops
     effects TEXT DEFAULT '[]',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -52,7 +74,7 @@ CREATE TABLE IF NOT EXISTS quests (
     title TEXT NOT NULL,
     detail TEXT DEFAULT '',
     status TEXT DEFAULT 'open', -- open/completed/failed
-    items_required TEXT DEFAULT '[]', -- JSON list item requirement
+    items_required TEXT DEFAULT '[]', -- JSON list
     rewards TEXT DEFAULT '{}',        -- JSON {loot, favor, xp}
     created_by TEXT DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +92,21 @@ CREATE TABLE IF NOT EXISTS inventory (
     item TEXT NOT NULL,
     qty INTEGER DEFAULT 1,
     metadata TEXT DEFAULT '{}',  -- JSON {rarity, type, notes}
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===============================
+-- NPC
+-- ===============================
+CREATE TABLE IF NOT EXISTS npc (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT,
+    channel_id TEXT,
+    name TEXT NOT NULL,
+    role TEXT DEFAULT '',
+    favor INTEGER DEFAULT 0,
+    traits TEXT DEFAULT '{}', -- JSON: {"hidden1": "rahasia"}
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
