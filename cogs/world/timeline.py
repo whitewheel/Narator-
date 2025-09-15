@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 import discord
 from discord.ext import commands
-from memory import save_memory, get_recent
+from utils.db import save_memory, get_recent 
 
 TIMELINE_CATEGORY = "timeline"
 DEFAULT_LIMIT = 15
