@@ -2,7 +2,7 @@ import math
 import json
 import discord
 from discord.ext import commands
-from services import status_service
+from services import status_service, inventory_service
 from utils.db import fetchall, execute
 
 def _bar(cur: int, mx: int, width: int = 12) -> str:
@@ -19,7 +19,7 @@ def _format_effect(e):
     d = e.get("duration", -1)
     return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
 
-def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
+async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
     embed = discord.Embed(
         title=title,
         description=f"Channel: **{ctx.channel.name}**",
@@ -61,9 +61,9 @@ def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         eq = json.loads(c.get("equipment") or "{}")
         equip_line = f"Weapon: {eq.get('weapon') or '-'} | Armor: {eq.get('armor') or '-'} | Accessory: {eq.get('accessory') or '-'}"
 
-        # ===== Inventory =====
-        inv_list = json.loads(c.get("inventory") or "[]")
-        inv_line = "\n".join([f"{it['name']} x{it.get('qty',1)}" for it in inv_list]) or "-"
+        # ===== Inventory (ambil dari DB) =====
+        items = await inventory_service.get_inventory(str(ctx.guild.id), str(ctx.channel.id), c["name"])
+        inv_line = "\n".join([f"{it['item']} x{it['qty']}" for it in items]) or "-"
 
         # ===== Companions =====
         comp_list = json.loads(c.get("companions") or "[]")
@@ -97,7 +97,7 @@ class CharacterStatus(commands.Cog):
     async def status_group(self, ctx):
         rows = fetchall("SELECT * FROM characters WHERE guild_id=? AND channel_id=?",
                         (str(ctx.guild.id), str(ctx.channel.id)))
-        embed = make_embed(rows, ctx)
+        embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     # === Set karakter baru (HP/Energy/Stamina) ===
@@ -121,7 +121,7 @@ class CharacterStatus(commands.Cog):
         else:
             rows = fetchall("SELECT * FROM characters WHERE guild_id=? AND channel_id=?",
                             (str(ctx.guild.id), str(ctx.channel.id)))
-        embed = make_embed(rows, ctx)
+        embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     # === Remove karakter ===
