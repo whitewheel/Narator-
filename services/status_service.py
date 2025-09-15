@@ -1,5 +1,5 @@
 import json
-from utils.db import execute, fetchone
+from utils.db import execute, fetchone, fetchall
 
 # ===============================
 # STATUS SERVICE
@@ -9,6 +9,12 @@ from utils.db import execute, fetchone
 
 def _table(target_type: str) -> str:
     return "enemies" if target_type == "enemy" else "characters"
+
+ICONS = {
+    "buff": "✨",
+    "debuff": "☠️",
+    "expired": "⌛"
+}
 
 # ===============================
 # HP / VITALS
@@ -109,24 +115,31 @@ async def clear_effects(guild_id, channel_id, target_type, name, is_buff=True):
 async def tick_all_effects(guild_id, channel_id):
     """Kurangi durasi semua efek (char & enemy) di channel."""
     results = {"char": {}, "enemy": {}}
-    for ttype in ["characters", "enemies"]:
-        rows = fetchall(f"SELECT * FROM {ttype} WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
+    for ttype, table in [("char", "characters"), ("enemy", "enemies")]:
+        rows = fetchall(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
         for r in rows:
             effects = json.loads(r.get("effects") or "[]")
             new_effects = []
             expired = []
             for e in effects:
                 dur = e.get("duration", -1)
-                if dur == -1:
+                if dur == -1:   # permanent
                     new_effects.append(e)
-                elif dur > 1:
+                elif dur > 1:   # masih sisa
                     e["duration"] = dur - 1
                     new_effects.append(e)
-                else:
+                else:           # habis
                     expired.append(e)
-            execute(f"UPDATE {ttype} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+
+            execute(f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (json.dumps(new_effects), r["id"]))
-            results["enemy" if ttype=="enemies" else "char"][r["name"]] = {
+
+            # log ke timeline
+            for e in expired:
+                execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
+                        (guild_id, channel_id, f"{ICONS['expired']} {r['name']} kehilangan efek: {e['text']}"))
+
+            results[ttype][r["name"]] = {
                 "remaining": new_effects,
                 "expired": expired
             }
