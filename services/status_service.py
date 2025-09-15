@@ -106,6 +106,32 @@ async def clear_effects(guild_id, channel_id, target_type, name, is_buff=True):
     execute(f"UPDATE {table} SET {col}='[]', updated_at=CURRENT_TIMESTAMP WHERE id=?", (row["id"],))
     return []
 
+async def tick_all_effects(guild_id, channel_id):
+    """Kurangi durasi semua efek (char & enemy) di channel."""
+    results = {"char": {}, "enemy": {}}
+    for ttype in ["characters", "enemies"]:
+        rows = fetchall(f"SELECT * FROM {ttype} WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
+        for r in rows:
+            effects = json.loads(r.get("effects") or "[]")
+            new_effects = []
+            expired = []
+            for e in effects:
+                dur = e.get("duration", -1)
+                if dur == -1:
+                    new_effects.append(e)
+                elif dur > 1:
+                    e["duration"] = dur - 1
+                    new_effects.append(e)
+                else:
+                    expired.append(e)
+            execute(f"UPDATE {ttype} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (json.dumps(new_effects), r["id"]))
+            results["enemy" if ttype=="enemies" else "char"][r["name"]] = {
+                "remaining": new_effects,
+                "expired": expired
+            }
+    return results
+
 # ===============================
 # EQUIPMENT
 # ===============================
