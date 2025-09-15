@@ -57,13 +57,8 @@ class MyBot(commands.Bot):
             "cogs.world.scene",
             "cogs.world.item",
             "cogs.world.loot",
-            "cogs.world.encyclopedia",   # baru
-
-            # AI SYSTEM
-            "cogs.ai.gpt",
-            "cogs.ai.npc_talk",
-            "cogs.ai.enemy_talk",
-            "cogs.ai.gm_cog",
+            "cogs.world.encyclopedia",  
+            "cogs.wiki",
 
             # UTILITY
             "cogs.utility.roll",
