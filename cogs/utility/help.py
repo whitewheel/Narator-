@@ -88,7 +88,7 @@ def embed_init(prefix: str) -> discord.Embed:
 def embed_status(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🧍 Bantuan: Status",
-        description="Kelola karakter: HP, Energy, Stamina, core stat, buff/debuff.",
+        description="Kelola karakter: HP, Energy, Stamina, core stat, buff/debuff, equipment.",
         color=COLOR_STATUS,
         timestamp=datetime.datetime.utcnow()
     )
@@ -96,7 +96,7 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Dasar",
         value=(
             f"- `{prefix}status set <Nama> <HP> <Energy> <Stamina>`\n"
-            f"- `{prefix}status show [Nama]` • `{prefix}status remove <Nama>` • `{prefix}status clear`\n"
+            f"- `{prefix}status show [Nama]` • `{prefix}status remove <Nama>`\n"
             f"- `!party` *(ringkasan party)*"
         ),
         inline=False
@@ -107,16 +107,33 @@ def embed_status(prefix: str) -> discord.Embed:
             f"- `{prefix}status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
             f"- `{prefix}status buff|debuff <Nama> <efek> [durasi|perm]`\n"
             f"- `{prefix}status unbuff|undebuff <Nama> <efek>`\n"
-            f"- `{prefix}status clearbuff|cleardebuff <Nama>` • `{prefix}status tick` *(kurangi durasi efek 1 ronde)*"
+            f"- `{prefix}status clearbuff|cleardebuff <Nama>` • `{prefix}status tick` *(kurangi durasi efek)*"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Resource",
+        name="🔹 Level & Progression",
         value=(
-            f"- `{prefix}status dmg|heal <Nama> <jumlah>`\n"
-            f"- `{prefix}status useenergy|regenenergy <Nama> <jumlah>`\n"
-            f"- `{prefix}status usestam|regenstam <Nama> <jumlah>`"
+            f"- `{prefix}status setlevel <Nama> <Level>`\n"
+            f"- `{prefix}status addxp <Nama> <jumlah>`\n"
+            f"- `{prefix}status addgold <Nama> <jumlah>`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Combat",
+        value=(
+            f"- `{prefix}status setac <Nama> <AC>`\n"
+            f"- `{prefix}status dmg <Nama> <jumlah>`\n"
+            f"- `{prefix}status heal <Nama> <jumlah>`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="🔹 Equipment",
+        value=(
+            f"- `{prefix}status equip <Nama> <slot> <item>`\n"
+            f"Slot: main_hand, off_hand, armor_inner, armor_outer, accessory1, accessory2"
         ),
         inline=False
     )
