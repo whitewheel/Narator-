@@ -1,25 +1,18 @@
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent, template_for   # ✅ arahkan ke utils.db
-
+from utils.db import get_recent
 import json
-
-from cogs.world.timeline import log_event  # ✅ hook timeline
 
 class Scene(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.scene_pin = {}  # key: (guild, channel) → pinned scene
+        self.scene_pin = None  # global pinned scene
 
-    def _key(self, ctx):
-        return (str(ctx.guild.id), str(ctx.channel.id))
-
-    def _get_latest_scene(self, ctx):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "zone", 10)
-        for (_id, cat, content, meta, ts) in rows:
+    def _get_latest_scene(self):
+        rows = get_recent("zone", 10)
+        for r in rows:
             try:
-                d = json.loads(content)
+                d = json.loads(r["value"])
                 return d
             except:
                 continue
@@ -31,26 +24,23 @@ class Scene(commands.Cog):
 
     @scene.command(name="pin")
     async def scene_pin_cmd(self, ctx):
-        scene = self._get_latest_scene(ctx)
+        scene = self._get_latest_scene()
         if not scene:
             return await ctx.send("⚠️ Tidak ada scene/zone terakhir yang ditemukan.")
-        key = self._key(ctx)
-        self.scene_pin[key] = scene
+        self.scene_pin = scene
         await ctx.send(f"📌 Scene **{scene.get('name','(tanpa nama)')}** dipin.")
 
     @scene.command(name="unpin")
     async def scene_unpin_cmd(self, ctx):
-        key = self._key(ctx)
-        if key in self.scene_pin:
-            del self.scene_pin[key]
+        if self.scene_pin:
+            self.scene_pin = None
             await ctx.send("❎ Scene unpinned.")
         else:
             await ctx.send("⚠️ Tidak ada scene yang sedang dipin.")
 
     @scene.command(name="show")
     async def scene_show_cmd(self, ctx):
-        key = self._key(ctx)
-        data = self.scene_pin.get(key)
+        data = self.scene_pin
         if not data:
             return await ctx.send("⚠️ Tidak ada scene yang sedang dipin.")
         embed = discord.Embed(
