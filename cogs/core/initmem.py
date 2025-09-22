@@ -14,55 +14,55 @@ from cogs.world.timeline import log_event  # tetap dipakai untuk narasi/log
 # ===============================
 
 def _ensure_tables():
-    # Tabel penyimpanan initiative per (guild_id, channel_id)
+    # Tabel penyimpanan initiative (global)
     execute("""
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        guild_id TEXT,
-        channel_id TEXT,
         order_json TEXT DEFAULT '[]',  -- list of [name, score]
         ptr INTEGER DEFAULT 0,
         round INTEGER DEFAULT 1,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    # Unique agar bisa UPSERT
-    execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_initiative_gc
-    ON initiative(guild_id, channel_id);
-    """)
 
-def _load_initiative(gid: str, cid: str):
-    row = fetchone("SELECT * FROM initiative WHERE guild_id=? AND channel_id=?", (gid, cid))
+def _load_initiative():
+    row = fetchone("SELECT * FROM initiative LIMIT 1")
     if not row:
         return {"order": [], "ptr": 0, "round": 1}
     try:
         order = json.loads(row.get("order_json") or "[]")
     except Exception:
         order = []
-    return {"order": [(n, int(s)) for (n, s) in order], "ptr": int(row["ptr"] or 0), "round": int(row["round"] or 1)}
+    return {
+        "order": [(n, int(s)) for (n, s) in order],
+        "ptr": int(row["ptr"] or 0),
+        "round": int(row["round"] or 1)
+    }
 
-def _save_initiative(gid: str, cid: str, state: dict):
+def _save_initiative(state: dict):
     order_json = json.dumps(state.get("order", []))
     ptr = int(state.get("ptr", 0))
     rnd = int(state.get("round", 1))
-    # UPSERT (SQLite 3.24+)
     execute("""
-    INSERT INTO initiative (guild_id, channel_id, order_json, ptr, round)
-    VALUES (?,?,?,?,?)
-    ON CONFLICT(guild_id, channel_id)
-    DO UPDATE SET order_json=excluded.order_json, ptr=excluded.ptr, round=excluded.round, updated_at=CURRENT_TIMESTAMP;
-    """, (gid, cid, order_json, ptr, rnd))
+    INSERT INTO initiative (id, order_json, ptr, round)
+    VALUES (1,?,?,?)
+    ON CONFLICT(id)
+    DO UPDATE SET order_json=excluded.order_json,
+                  ptr=excluded.ptr,
+                  round=excluded.round,
+                  updated_at=CURRENT_TIMESTAMP;
+    """, (order_json, ptr, rnd))
 
-def _clear_initiative(gid: str, cid: str):
-    execute("DELETE FROM initiative WHERE guild_id=? AND channel_id=?", (gid, cid))
+def _clear_initiative():
+    execute("DELETE FROM initiative")
 
 # ===============================
 # Utils
 # ===============================
 
 def _key(ctx):
-    return (str(ctx.guild.id) if ctx.guild else "0", str(ctx.channel.id))
+    # Global key
+    return "global"
 
 def _sorted_order(arr):
     # Sort: skor desc, nama asc
@@ -75,7 +75,7 @@ def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
 
     embed = discord.Embed(
         title=title,
-        description=f"📜 Round **{rnd}** • Channel: **{ctx.channel.name}**",
+        description=f"📜 Round **{rnd}**",
         color=discord.Color.red()
     )
 
@@ -99,14 +99,7 @@ def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
 
 class InitiativeMemory(commands.Cog):
     """
-    Initiative tracker tersimpan di DB (persist).
-    State in-memory disinkronkan ke DB pada setiap perubahan.
-    Struktur per-channel:
-    {
-      "order": [(name, score), ...],
-      "ptr": int,
-      "round": int
-    }
+    Initiative tracker global (1 untuk semua channel/server).
     """
     def __init__(self, bot):
         self.bot = bot
@@ -118,12 +111,12 @@ class InitiativeMemory(commands.Cog):
         k = _key(ctx)
         if k not in self.state:
             # lazy load dari DB
-            self.state[k] = _load_initiative(*k)
+            self.state[k] = _load_initiative()
         return self.state[k]
 
     def _persist(self, ctx):
-        gid, cid = _key(ctx)
-        _save_initiative(gid, cid, self.state[(gid, cid)])
+        k = _key(ctx)
+        _save_initiative(self.state[k])
 
     # ---------- group ----------
     @commands.group(name="init", invoke_without_command=True)
@@ -132,7 +125,7 @@ class InitiativeMemory(commands.Cog):
             "```txt\n"
             "Initiative Commands:\n"
             "• !init add <Nama> <Skor>\n"
-            "• !init addmany \"Alice 18, Goblin 12, Borin 14\"  (bisa multi-line)\n"
+            "• !init addmany \"Alice 18, Goblin 12, Borin 14\"\n"
             "• !init show   (alias: !order)\n"
             "• !init next   (alias: !next / !n)\n"
             "• !init setptr <index>  (mulai 1)\n"
@@ -157,18 +150,13 @@ class InitiativeMemory(commands.Cog):
 
     @init_group.command(name="addmany")
     async def init_addmany(self, ctx, *, entries: str = None):
-        """
-        Tambah banyak peserta.
-        Separator: koma (,), titik koma (;), pipe (|), baris baru.
-        Format item: <Nama> <Skor>
-        """
         if entries is None:
             raw = ctx.message.content
             idx = raw.lower().find("addmany")
             entries = raw[idx + len("addmany"):].strip() if idx != -1 else ""
 
         if not entries:
-            return await ctx.send("⚠️ Format: `!init addmany Alice 18, Goblin 12` atau tulis daftar di baris berikutnya.")
+            return await ctx.send("⚠️ Format: `!init addmany Alice 18, Goblin 12`")
 
         s = self._ensure_state(ctx)
         existing = {n: sc for (n, sc) in s["order"]}
@@ -211,50 +199,27 @@ class InitiativeMemory(commands.Cog):
 
     @init_group.command(name="clear")
     async def init_clear(self, ctx):
-        gid, cid = _key(ctx)
-        self.state[(gid, cid)] = {"order": [], "ptr": 0, "round": 1}
+        k = _key(ctx)
+        self.state[k] = {"order": [], "ptr": 0, "round": 1}
         self._persist(ctx)
-        await ctx.send("🧹 Initiative channel ini direset.")
-        # timeline log
-        try:
-            log_event(gid, cid, ctx.author.id,
-                      code=None,
-                      title="Initiative cleared",
-                      details="--",
-                      etype="init_clear",
-                      tags=["combat","init"])
-        except Exception:
-            pass
+        await ctx.send("🧹 Initiative direset.")
 
     # ---------- show / order ----------
     @init_group.command(name="show")
     async def init_show(self, ctx):
-        gid, cid = _key(ctx)
-        # refresh dari DB biar tampilan akurat bila ada proses lain yang menulis
-        self.state[(gid, cid)] = _load_initiative(gid, cid)
+        k = _key(ctx)
+        self.state[k] = _load_initiative()
         s = self._ensure_state(ctx)
         self._persist(ctx)
         embed = _make_embed(ctx, "⚔️ Initiative Order", s)
         await ctx.send(embed=embed)
-        # timeline log (encounter_start jika pertama kali tampilkan)
-        try:
-            names = [n for (n, _sc) in s.get("order", [])]
-            log_event(gid, cid, ctx.author.id,
-                      code=None,
-                      title="Encounter dimulai",
-                      details=f"Order: {', '.join(names)}" if names else "-",
-                      etype="encounter_start",
-                      actors=names,
-                      tags=["combat","encounter","start"])
-        except Exception:
-            pass
 
     # ---------- next / setptr / round / shuffle ----------
     @init_group.command(name="next")
     async def init_next(self, ctx):
         s = self._ensure_state(ctx)
         if not s["order"]:
-            return await ctx.send("⚠️ Belum ada peserta. Tambah dengan `!init add <Nama> <Skor>`")
+            return await ctx.send("⚠️ Belum ada peserta.")
 
         s["ptr"] = (s["ptr"] + 1) % len(s["order"])
         if s["ptr"] == 0:
@@ -266,18 +231,6 @@ class InitiativeMemory(commands.Cog):
         current = s["order"][s["ptr"]][0]
         embed.add_field(name="Giliran", value=f"✨ **{current}**", inline=False)
         await ctx.send(embed=embed)
-
-        # timeline log: turn advance
-        try:
-            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                      code=None,
-                      title=f"Turn: {current}",
-                      details=f"Round {s.get('round',1)}",
-                      etype="turn",
-                      actors=[current],
-                      tags=["combat","turn"])
-        except Exception:
-            pass
 
     @init_group.command(name="setptr")
     async def init_setptr(self, ctx, index: int):
@@ -298,16 +251,6 @@ class InitiativeMemory(commands.Cog):
         s["round"] = max(1, int(value))
         self._persist(ctx)
         await ctx.send(f"📜 Round diset ke **{s['round']}**")
-        # timeline
-        try:
-            log_event(str(ctx.guild.id), str(ctx.channel.id), ctx.author.id,
-                      code=None,
-                      title=f"Round set: {s['round']}",
-                      details="--",
-                      etype="round",
-                      tags=["combat","round"])
-        except Exception:
-            pass
 
     @init_group.command(name="shuffle")
     async def init_shuffle(self, ctx):
@@ -326,7 +269,7 @@ class InitiativeMemory(commands.Cog):
     async def engage(self, ctx):
         s = self._ensure_state(ctx)
         if not s["order"]:
-            return await ctx.send("⚠️ Belum ada data initiative. Tambahkan dulu dengan `!init add <Nama> <Skor>`.")
+            return await ctx.send("⚠️ Belum ada data initiative.")
         drum = await ctx.send("🥁 Mengocok urutan giliran...")
         await asyncio.sleep(2)
         try:
@@ -342,25 +285,18 @@ class InitiativeMemory(commands.Cog):
 
     @commands.command(name="victory", aliases=["end", "finish", "win"])
     async def victory(self, ctx, *flags):
-        """
-        Akhiri encounter.
-          keep  - akhiri tanpa hapus daftar musuh
-          clear - akhiri dan hapus daftar musuh (default)
-          force - paksa selesai walau masih ada musuh > 0 HP
-        """
         flags = {f.lower() for f in flags}
         keep_enemies = "keep" in flags
         force_end = "force" in flags
 
-        gid, cid = _key(ctx)
         s = self._ensure_state(ctx)
         order = s.get("order", [])
         ptr = s.get("ptr", 0)
         rnd = s.get("round", 1)
         current_turn = order[ptr][0] if order else "-"
 
-        # Ambil data musuh dari DB (bukan state cog)
-        enemies = fetchall("SELECT name, hp FROM enemies WHERE guild_id=? AND channel_id=?", (gid, cid))
+        # Ambil data musuh dari DB (global)
+        enemies = fetchall("SELECT name, hp FROM enemies")
         total = len(enemies)
         alive = sum(1 for e in enemies if int(e["hp"] or 0) > 0)
         defeated = total - alive
@@ -368,38 +304,27 @@ class InitiativeMemory(commands.Cog):
         if alive > 0 and not force_end:
             return await ctx.send(
                 f"⚠️ Masih ada **{alive}** musuh hidup. "
-                "Gunakan `!victory force` untuk memaksa, atau `!victory keep` bila tidak ingin menghapus musuh."
+                "Gunakan `!victory force` untuk memaksa."
             )
 
         # Ringkasan
         embed = discord.Embed(
             title="🎉 Victory!",
-            description=f"Channel: **{ctx.channel.name}**",
             color=discord.Color.green()
         )
         embed.add_field(name="👹 Rangkuman Musuh", value=f"Total: {total} • Alive: {alive} • Defeated: {defeated}", inline=False)
         embed.add_field(name="📜 Round Terakhir", value=str(rnd), inline=True)
         embed.add_field(name="✨ Giliran Terakhir", value=current_turn, inline=True)
 
-        # Reset initiative (state + DB)
-        self.state[(gid, cid)] = {"order": [], "ptr": 0, "round": 1}
+        # Reset initiative
+        self.state[_key(ctx)] = {"order": [], "ptr": 0, "round": 1}
         self._persist(ctx)
 
         # Clear musuh bila tidak keep
         if not keep_enemies:
-            execute("DELETE FROM enemies WHERE guild_id=? AND channel_id=?", (gid, cid))
+            execute("DELETE FROM enemies")
 
         await ctx.send(embed=embed)
-        # timeline: encounter_end
-        try:
-            log_event(gid, cid, ctx.author.id,
-                      code=None,
-                      title="Encounter berakhir",
-                      details="Victory",
-                      etype="encounter_end",
-                      tags=["combat","encounter","end"])
-        except Exception:
-            pass
 
     # ---------- Aliases global ----------
     @commands.command(name="next", aliases=["n"])
@@ -416,11 +341,3 @@ class InitiativeMemory(commands.Cog):
 async def setup(bot):
     cog = InitiativeMemory(bot)
     await bot.add_cog(cog)
-    # (Opsional) Muat semua channel ke state saat start — aman untuk dilewati karena lazy load sudah ada
-    # rows = fetchall("SELECT guild_id, channel_id FROM initiative", ())
-    # for r in rows:
-    #     try:
-    #         key = (r["guild_id"], r["channel_id"])
-    #         cog.state[key] = _load_initiative(*key)
-    #     except Exception:
-    #         pass
