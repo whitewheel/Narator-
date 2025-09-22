@@ -47,7 +47,7 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
     for e in enemies:
         hp_text = f"{e['hp']}/{e['hp_max']}" if e['hp_max'] else str(e['hp'])
 
-        effects = json.loads(e.get("effects") or "[]")
+        effects = json.loads(e["effects"] or "[]")
         buffs = [eff for eff in effects if "buff" in eff.get("type","").lower()]
         debuffs = [eff for eff in effects if "debuff" in eff.get("type","").lower()]
         buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
@@ -68,7 +68,7 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
         )
 
         reward_line = f"XP {e.get('xp_reward',0)} | Gold {e.get('gold_reward',0)}"
-        loot_list = json.loads(e.get("loot") or "[]")
+        loot_list = json.loads(e["loot"] or "[]")
         loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in loot_list]) or "-"
 
         value = (
@@ -116,7 +116,6 @@ class EnemyStatus(commands.Cog):
                 except Exception as e:
                     await ctx.send(f"⚠️ Loot parsing gagal: {e}")
 
-        # cek kalau enemy sudah ada → update
         exists = fetchone("SELECT id FROM enemies WHERE name=?", (name,))
         if exists:
             execute("""
@@ -157,7 +156,7 @@ class EnemyStatus(commands.Cog):
         row = fetchone("SELECT * FROM enemies WHERE name=?", (name,))
         if not row:
             return await ctx.send("❌ Enemy tidak ditemukan.")
-        loots = json.loads(row.get("loot") or "[]")
+        loots = json.loads(row["loot"] or "[]")
         if not loots:
             return await ctx.send("❌ Enemy ini tidak punya loot.")
         out = [f"- {it['name']} ({it.get('rarity','')})" for it in loots]
