@@ -1,17 +1,13 @@
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent, template_for   # ✅ arahkan ke utils.db
+from utils.db import save_memory, get_recent, template_for
 
 import json
 import re
-import random
 
 class Item(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    def _key(self, ctx):
-        return (str(ctx.guild.id), str(ctx.channel.id))
 
     def _parse_entry(self, raw: str):
         parts = [p.strip() for p in raw.split("|")]
@@ -32,12 +28,11 @@ class Item(commands.Cog):
         data["rules"]  = parts[8] if len(parts) > 8 else ""
         return data
 
-    def _get_item_by_name(self, ctx, name: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "item", 100)
-        for (_id, cat, content, meta, ts) in rows:
+    def _get_item_by_name(self, name: str):
+        rows = get_recent("item", 100)
+        for r in rows:
             try:
-                i = json.loads(content)
+                i = json.loads(r["value"])
                 if i["name"].lower() == name.lower():
                     return i
             except:
@@ -53,18 +48,16 @@ class Item(commands.Cog):
         data = self._parse_entry(entry)
         if not data:
             return await ctx.send("⚠️ Format: `!item add Nama | Type | Effect | [Rarity] | [Value] | [Weight] | [Slot] | [Notes] | [Rules]`")
-        key = self._key(ctx)
-        save_memory(key[0], key[1], ctx.author.id, "item", json.dumps(data), {"name": data["name"]})
+        save_memory(ctx.author.id, "item", json.dumps(data), {"name": data["name"]})
         await ctx.send(f"🧰 Item **{data['name']}** ditambahkan.")
 
     @item.command(name="show")
     async def item_show(self, ctx):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "item", 50)
+        rows = get_recent("item", 50)
         out = []
-        for (_id, cat, content, meta, ts) in rows:
+        for r in rows:
             try:
-                i = json.loads(content)
+                i = json.loads(r["value"])
                 line = f"🧰 **{i['name']}** ({i['type']})"
                 out.append(line)
             except:
@@ -75,14 +68,13 @@ class Item(commands.Cog):
 
     @item.command(name="remove")
     async def item_remove(self, ctx, *, name: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "item", 50)
-        for (_id, cat, content, meta, ts) in rows:
+        rows = get_recent("item", 50)
+        for r in rows:
             try:
-                i = json.loads(content)
+                i = json.loads(r["value"])
                 if i["name"].lower() == name.lower():
                     i["effect"] = "(deleted)"
-                    save_memory(key[0], key[1], ctx.author.id, "item", json.dumps(i), {"name": i["name"]})
+                    save_memory(ctx.author.id, "item", json.dumps(i), {"name": i["name"]})
                     return await ctx.send(f"🗑️ Item **{i['name']}** dihapus.")
             except:
                 continue
@@ -90,7 +82,7 @@ class Item(commands.Cog):
 
     @item.command(name="detail")
     async def item_detail(self, ctx, *, name: str):
-        i = self._get_item_by_name(ctx, name)
+        i = self._get_item_by_name(name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
         embed = discord.Embed(
@@ -109,21 +101,19 @@ class Item(commands.Cog):
 
     @commands.command(name="use")
     async def use_item(self, ctx, char: str, *, item_name: str):
-        i = self._get_item_by_name(ctx, item_name)
+        i = self._get_item_by_name(item_name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
         rules = i.get("rules","")
         effect = i.get("effect","")
         result_lines = []
 
-        # Basic parsing of rules
         if rules:
             for rule in rules.split(";"):
                 r = rule.strip()
                 if not r:
                     continue
                 if r.startswith("+") or r.startswith("-"):
-                    # HP heal/damage
                     if "HP" in r.upper():
                         amount = int(re.findall(r"[+-]?[0-9]+", r)[0])
                         if "+" in r:
