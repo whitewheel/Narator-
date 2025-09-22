@@ -48,36 +48,35 @@ def query_all(sql: str, params: Iterable[Any] = ()):
 
 
 # ===== Memory-like helper =====
-def save_memory(guild_id, channel_id, user_id, mtype, value, meta=None):
-    """Simpan log memory ke DB."""
+def save_memory(user_id, mtype, value, meta=None):
+    """Simpan log memory ke DB (global, tanpa guild/channel)."""
     meta_json = json.dumps(meta or {})
     execute(
         """
-        INSERT INTO memories (guild_id, channel_id, user_id, type, value, meta, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO memories (user_id, type, value, meta, created_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         """,
-        (guild_id, channel_id, user_id, mtype, value, meta_json)
+        (user_id, mtype, value, meta_json)
     )
 
-def get_recent(guild_id, channel_id, mtype=None, limit=10):
-    """Ambil log terakhir dari DB berdasarkan tipe."""
+def get_recent(mtype=None, limit=10):
+    """Ambil log terakhir dari DB berdasarkan tipe (global)."""
     if mtype:
         rows = fetchall(
             """
             SELECT * FROM memories
-            WHERE guild_id=? AND channel_id=? AND type=?
+            WHERE type=?
             ORDER BY id DESC LIMIT ?
             """,
-            (guild_id, channel_id, mtype, limit)
+            (mtype, limit)
         )
     else:
         rows = fetchall(
             """
             SELECT * FROM memories
-            WHERE guild_id=? AND channel_id=?
             ORDER BY id DESC LIMIT ?
             """,
-            (guild_id, channel_id, limit)
+            (limit,)
         )
     return [dict(r) for r in rows]
 
@@ -153,29 +152,21 @@ def init_db() -> None:
         "hidden": "INTEGER DEFAULT 0",
     })
 
-    # 5) Tabel initiative
+    # 5) Tabel initiative (global)
     _ensure_table("""
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        guild_id TEXT,
-        channel_id TEXT,
         order_json TEXT DEFAULT '[]',
         ptr INTEGER DEFAULT 0,
         round INTEGER DEFAULT 1,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_initiative_gc
-    ON initiative(guild_id, channel_id);
-    """)
 
-    # 6) Tabel memories
+    # 6) Tabel memories (global)
     _ensure_table("""
     CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        guild_id TEXT,
-        channel_id TEXT,
         user_id TEXT,
         type TEXT,
         value TEXT,
@@ -184,10 +175,10 @@ def init_db() -> None:
     );
     """)
 
-    # 7) Indexes
-    execute("CREATE INDEX IF NOT EXISTS idx_char_gcn ON characters(guild_id, channel_id, name);")
-    execute("CREATE INDEX IF NOT EXISTS idx_enemy_gcn ON enemies(guild_id, channel_id, name);")
-    execute("CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(guild_id, channel_id, owner);")
+    # 7) Indexes (global)
+    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
+    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
+    execute("CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(owner);")
 
 
 # ===== Auto-create DB kalau kosong =====
