@@ -13,13 +13,13 @@ class Inventory(commands.Cog):
     # === Tambah item ===
     @inv_group.command(name="add")
     async def inv_add(self, ctx, owner: str, item: str, qty: int = 1):
-        await inventory_service.add_item(ctx.guild.id, ctx.channel.id, owner, item, qty)
+        await inventory_service.add_item(owner, item, qty)
         await ctx.send(f"📦 {qty}x **{item}** ditambahkan ke inventory {owner}.")
 
     # === Hapus item ===
     @inv_group.command(name="remove")
     async def inv_remove(self, ctx, owner: str, item: str, qty: int = 1):
-        ok = await inventory_service.remove_item(ctx.guild.id, ctx.channel.id, owner, item, qty)
+        ok = await inventory_service.remove_item(owner, item, qty)
         if ok:
             await ctx.send(f"🗑️ {qty}x **{item}** dihapus dari inventory {owner}.")
         else:
@@ -28,7 +28,7 @@ class Inventory(commands.Cog):
     # === Lihat inventory ===
     @inv_group.command(name="show")
     async def inv_show(self, ctx, owner: str = "party"):
-        items = await inventory_service.get_inventory(ctx.guild.id, ctx.channel.id, owner)
+        items = await inventory_service.get_inventory(owner)
         if not items:
             return await ctx.send(f"ℹ️ Inventory {owner} kosong.")
 
@@ -49,7 +49,7 @@ class Inventory(commands.Cog):
     # === Transfer item ===
     @inv_group.command(name="transfer")
     async def inv_transfer(self, ctx, from_owner: str, to_owner: str, item: str, qty: int = 1):
-        ok = await inventory_service.transfer_item(ctx.guild.id, ctx.channel.id, from_owner, to_owner, item, qty)
+        ok = await inventory_service.transfer_item(from_owner, to_owner, item, qty)
         if ok:
             await ctx.send(f"🔄 {qty}x **{item}** dipindahkan dari {from_owner} → {to_owner}.")
         else:
@@ -65,7 +65,7 @@ class Inventory(commands.Cog):
                 k, v = p.split("=", 1)
                 metadata[k.strip()] = v.strip()
 
-        ok = await inventory_service.update_metadata(ctx.guild.id, ctx.channel.id, owner, item, metadata)
+        ok = await inventory_service.update_metadata(owner, item, metadata)
         if ok:
             await ctx.send(f"📝 Metadata {item} diupdate: {metadata}")
         else:
