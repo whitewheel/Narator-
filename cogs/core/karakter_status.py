@@ -77,10 +77,17 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         equip_line = f"Weapon: {eq.get('weapon') or '-'} | Armor: {eq.get('armor') or '-'} | Accessory: {eq.get('accessory') or '-'}"
 
         items = await inventory_service.get_inventory(c["name"])
-        inv_line = "\n".join([f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})" if it['meta'] else f"{it['item']} x{it['qty']}" for it in items]) or "-"
+        inv_line = "\n".join([
+            f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})"
+            if it['meta'] else f"{it['item']} x{it['qty']}"
+            for it in items
+        ]) or "-"
 
         comp_list = json.loads(c.get("companions") or "[]")
-        comp_line = "\n".join([f"{comp['name']} ({comp.get('type','')}) HP:{comp.get('hp','-')} - {comp.get('notes','')}" for comp in comp_list]) or "-"
+        comp_line = "\n".join([
+            f"{comp['name']} ({comp.get('type','')}) HP:{comp.get('hp','-')} - {comp.get('notes','')}"
+            for comp in comp_list
+        ]) or "-"
 
         value = (
             f"{profile_line}\n"
@@ -106,14 +113,13 @@ class CharacterStatus(commands.Cog):
 
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
-        rows = fetchall("SELECT * FROM characters")
+        rows = fetchall("SELECT * FROM characters")   # FIX: no await
         embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        # cek apakah karakter sudah ada
-        exists = fetchone("SELECT id FROM characters WHERE name=?", (name,))
+        exists = fetchone("SELECT id FROM characters WHERE name=?", (name,))  # FIX: no await
         if not exists:
             execute("""
                 INSERT INTO characters (name, hp, hp_max, energy, energy_max, stamina, stamina_max)
@@ -156,7 +162,7 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
-        execute("DELETE FROM characters WHERE name=?", (name,))
+        execute("DELETE FROM characters WHERE name=?", (name,))   # FIX: no await
         await ctx.send(f"🗑️ Karakter **{name}** dihapus.")
 
     @status_group.command(name="dmg")
@@ -175,7 +181,7 @@ class CharacterStatus(commands.Cog):
 
     @commands.command(name="party")
     async def party(self, ctx):
-        rows = fetchall("SELECT * FROM characters")
+        rows = fetchall("SELECT * FROM characters")   # FIX: no await
         if not rows:
             return await ctx.send("ℹ️ Belum ada karakter.")
         lines = []
