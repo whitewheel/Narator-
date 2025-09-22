@@ -21,37 +21,28 @@ ICONS = {
 # ===============================
 # DB bootstrap
 # ===============================
-
-def ensure_tables():
+def ensure_table():
     execute("""
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        guild_id TEXT,
-        channel_id TEXT,
         order_json TEXT DEFAULT '[]',  -- list of [name, score]
         ptr INTEGER DEFAULT 0,
         round INTEGER DEFAULT 1,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_initiative_gc
-    ON initiative(guild_id, channel_id);
-    """)
+
+    # pastikan selalu ada minimal 1 record
+    row = fetchone("SELECT * FROM initiative LIMIT 1")
+    if not row:
+        execute("INSERT INTO initiative (order_json, ptr, round) VALUES ('[]', 0, 1)")
 
 # ===============================
 # Low-level helpers
 # ===============================
-
-def _sorted_order(arr: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
-    # Skor desc, nama asc
-    return sorted(arr, key=lambda x: (-int(x[1]), x[0].lower()))
-
-def _load(guild_id: str, channel_id: str) -> Dict:
-    row = fetchone("SELECT * FROM initiative WHERE guild_id=? AND channel_id=?",
-                   (guild_id, channel_id))
-    if not row:
-        return {"order": [], "ptr": 0, "round": 1}
+def _load() -> Dict:
+    ensure_table()
+    row = fetchone("SELECT * FROM initiative LIMIT 1")
     try:
         order = json.loads(row.get("order_json") or "[]")
     except Exception:
@@ -62,132 +53,104 @@ def _load(guild_id: str, channel_id: str) -> Dict:
         "round": int(row.get("round") or 1),
     }
 
-def _save(guild_id: str, channel_id: str, state: Dict):
+def _save(state: Dict):
     order_json = json.dumps(state.get("order", []))
     ptr = int(state.get("ptr", 0))
     rnd = int(state.get("round", 1))
     execute("""
-    INSERT INTO initiative (guild_id, channel_id, order_json, ptr, round)
-    VALUES (?,?,?,?,?)
-    ON CONFLICT(guild_id, channel_id)
-    DO UPDATE SET order_json=excluded.order_json,
-                  ptr=excluded.ptr,
-                  round=excluded.round,
-                  updated_at=CURRENT_TIMESTAMP;
-    """, (guild_id, channel_id, order_json, ptr, rnd))
+    UPDATE initiative
+    SET order_json=?, ptr=?, round=?, updated_at=CURRENT_TIMESTAMP
+    WHERE id=(SELECT id FROM initiative LIMIT 1)
+    """, (order_json, ptr, rnd))
 
-def _clear(guild_id: str, channel_id: str):
-    execute("DELETE FROM initiative WHERE guild_id=? AND channel_id=?",
-            (guild_id, channel_id))
+def _sorted_order(arr: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
+    # Skor desc, nama asc
+    return sorted(arr, key=lambda x: (-int(x[1]), x[0].lower()))
 
 # ===============================
 # Public API
 # ===============================
+def get_state() -> Dict:
+    return _load()
 
-def get_state(guild_id: str, channel_id: str) -> Dict:
-    """Ambil state initiative channel."""
-    ensure_tables()
-    return _load(guild_id, channel_id)
-
-def set_state(guild_id: str, channel_id: str, state: Dict) -> Dict:
-    """Timpa seluruh state initiative channel."""
-    ensure_tables()
-    _save(guild_id, channel_id, state)
+def set_state(state: Dict) -> Dict:
+    _save(state)
     return state
 
-def add_participant(guild_id: str, channel_id: str, name: str, score: int) -> Dict:
-    """Tambah/overwrite 1 peserta."""
-    s = get_state(guild_id, channel_id)
+def add_participant(name: str, score: int) -> Dict:
+    s = get_state()
     mapping = {n: sc for (n, sc) in s["order"]}
     mapping[name] = int(score)
     s["order"] = _sorted_order(list(mapping.items()))
     s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def add_many(guild_id: str, channel_id: str, pairs: List[Tuple[str, int]]) -> Dict:
-    """
-    Tambah banyak peserta.
-    pairs: [(name, score), ...]
-    """
-    s = get_state(guild_id, channel_id)
+def add_many(pairs: List[Tuple[str, int]]) -> Dict:
+    s = get_state()
     mapping = {n: sc for (n, sc) in s["order"]}
     for name, score in pairs:
         mapping[name] = int(score)
     s["order"] = _sorted_order(list(mapping.items()))
     s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def remove_participant(guild_id: str, channel_id: str, name: str) -> Dict:
-    s = get_state(guild_id, channel_id)
+def remove_participant(name: str) -> Dict:
+    s = get_state()
     before = len(s["order"])
     s["order"] = [(n, sc) for (n, sc) in s["order"] if n.lower() != name.lower()]
     if len(s["order"]) < before:
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
-        _save(guild_id, channel_id, s)
+        _save(s)
     return s
 
-def clear(guild_id: str, channel_id: str) -> Dict:
-    """Reset state initiative channel."""
+def clear() -> Dict:
     s = {"order": [], "ptr": 0, "round": 1}
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def next_turn(guild_id: str, channel_id: str) -> Dict:
-    """
-    Maju ke giliran berikutnya.
-    Jika kembali ke indeks 0, round bertambah 1.
-    """
-    s = get_state(guild_id, channel_id)
+def next_turn() -> Dict:
+    s = get_state()
     if not s["order"]:
         return s
     s["ptr"] = (s["ptr"] + 1) % len(s["order"])
     if s["ptr"] == 0:
         s["round"] += 1
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def set_pointer(guild_id: str, channel_id: str, index1: int) -> Dict:
-    """Set pointer giliran (index mulai dari 1)."""
-    s = get_state(guild_id, channel_id)
+def set_pointer(index1: int) -> Dict:
+    s = get_state()
     if not s["order"]:
         return s
     idx0 = max(1, min(index1, len(s["order"]))) - 1
     s["ptr"] = idx0
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def set_round(guild_id: str, channel_id: str, value: int) -> Dict:
-    """Set nilai round (min 1)."""
-    s = get_state(guild_id, channel_id)
+def set_round(value: int) -> Dict:
+    s = get_state()
     s["round"] = max(1, int(value))
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
-def shuffle_first(guild_id: str, channel_id: str) -> Dict:
-    """
-    Acak siapa yang jalan dulu (hanya pointer).
-    Tidak mengubah urutan initiative.
-    """
-    s = get_state(guild_id, channel_id)
+def shuffle_first() -> Dict:
+    s = get_state()
     if not s["order"]:
         return s
     s["ptr"] = random.randint(0, len(s["order"]) - 1)
-    _save(guild_id, channel_id, s)
+    _save(s)
     return s
 
 # ===============================
-# Convenience (string builders)
+# Convenience
 # ===============================
-
 def format_order_lines(state: Dict, highlight: bool = True) -> str:
-    """Bikin teks daftar order yang siap dikirim ke chat."""
     order = state.get("order", [])
     ptr = state.get("ptr", 0)
     if not order:
         return "(kosong)"
-
     lines = []
     for i, (name, score) in enumerate(order):
         marker = "👉" if (highlight and i == ptr) else "  "
