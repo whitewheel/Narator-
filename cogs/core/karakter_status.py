@@ -76,7 +76,8 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         eq = json.loads(c.get("equipment") or "{}")
         equip_line = f"Weapon: {eq.get('weapon') or '-'} | Armor: {eq.get('armor') or '-'} | Accessory: {eq.get('accessory') or '-'}"
 
-        items = await inventory_service.get_inventory(c["name"])
+        # FIX: tidak pakai await lagi
+        items = inventory_service.get_inventory(c["name"])
         inv_line = "\n".join([
             f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})"
             if it['meta'] else f"{it['item']} x{it['qty']}"
@@ -113,13 +114,13 @@ class CharacterStatus(commands.Cog):
 
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
-        rows = fetchall("SELECT * FROM characters")   # FIX: no await
+        rows = fetchall("SELECT * FROM characters")
         embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        exists = fetchone("SELECT id FROM characters WHERE name=?", (name,))  # FIX: no await
+        exists = fetchone("SELECT id FROM characters WHERE name=?", (name,))
         if not exists:
             execute("""
                 INSERT INTO characters (name, hp, hp_max, energy, energy_max, stamina, stamina_max)
@@ -162,7 +163,7 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
-        execute("DELETE FROM characters WHERE name=?", (name,))   # FIX: no await
+        execute("DELETE FROM characters WHERE name=?", (name,))
         await ctx.send(f"🗑️ Karakter **{name}** dihapus.")
 
     @status_group.command(name="dmg")
@@ -181,7 +182,7 @@ class CharacterStatus(commands.Cog):
 
     @commands.command(name="party")
     async def party(self, ctx):
-        rows = fetchall("SELECT * FROM characters")   # FIX: no await
+        rows = fetchall("SELECT * FROM characters")
         if not rows:
             return await ctx.send("ℹ️ Belum ada karakter.")
         lines = []
