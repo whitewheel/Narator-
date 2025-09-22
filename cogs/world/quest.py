@@ -1,63 +1,62 @@
-
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent, template_for   # ✅ arahkan ke utils.db
+from utils.db import save_memory, get_recent, template_for
 import json
 import re
 
-from cogs.world.timeline import log_event  # ✅ hook timeline
-
-def _key(ctx):
-    return (str(ctx.guild.id), str(ctx.channel.id))
+from cogs.world.timeline import log_event  # hook timeline
 
 # --------------------
-# Storage helpers
+# Storage helpers (global)
 # --------------------
-def save_quest(guild_id, channel_id, user_id, name, data):
-    save_memory(guild_id, channel_id, user_id, "quest", json.dumps(data), {"name": name})
+def save_quest(user_id, name, data):
+    save_memory(user_id, "quest", json.dumps(data), {"name": name})
 
-def load_quest(guild_id, channel_id, name):
-    rows = get_recent(guild_id, channel_id, "quest", 200)
-    for (_id, cat, content, meta, ts) in rows:
+def load_quest(name):
+    rows = get_recent("quest", 200)
+    for r in rows:
         try:
-            q = json.loads(content)
+            q = json.loads(r["value"])
+            meta = json.loads(r.get("meta") or "{}")
             if meta.get("name", "").lower() == name.lower() or q.get("name", "").lower() == name.lower():
                 return q
         except Exception:
             continue
     return None
 
-def load_all_quests(guild_id, channel_id):
-    rows = get_recent(guild_id, channel_id, "quest", 200)
+def load_all_quests():
+    rows = get_recent("quest", 200)
     out = {}
-    for (_id, cat, content, meta, ts) in rows:
+    for r in rows:
         try:
-            q = json.loads(content)
+            q = json.loads(r["value"])
+            meta = json.loads(r.get("meta") or "{}")
             nm = meta.get("name", q.get("name"))
             out[nm] = q
         except Exception:
             continue
     return out
 
-def save_char(guild_id, channel_id, user_id, name, data):
-    save_memory(guild_id, channel_id, user_id, "character", json.dumps(data), {"name": name})
+def save_char(user_id, name, data):
+    save_memory(user_id, "character", json.dumps(data), {"name": name})
 
-def load_char(guild_id, channel_id, name):
-    rows = get_recent(guild_id, channel_id, "character", 200)
-    for (_id, cat, content, meta, ts) in rows:
+def load_char(name):
+    rows = get_recent("character", 200)
+    for r in rows:
         try:
-            c = json.loads(content)
+            c = json.loads(r["value"])
+            meta = json.loads(r.get("meta") or "{}")
             if meta.get("name", "").lower() == name.lower() or c.get("name", "").lower() == name.lower():
                 return c
         except Exception:
             continue
     return None
 
-def get_item(guild_id, channel_id, name):
-    rows = get_recent(guild_id, channel_id, "item", 200)
-    for (_id, cat, content, meta, ts) in rows:
+def get_item(name):
+    rows = get_recent("item", 200)
+    for r in rows:
         try:
-            i = json.loads(content)
+            i = json.loads(r["value"])
             if i.get("name", "").lower() == name.lower():
                 return i
         except Exception:
@@ -68,10 +67,6 @@ def get_item(guild_id, channel_id, name):
 # Parsing helpers
 # --------------------
 def parse_kv_pairs(s: str):
-    """Parse simple pairs like 'xp=100 gold=50 favor=ArthaDyne:10' (favor optional).
-    Items can be specified with items="Potion x2; Dagger".
-    """
-    # Extract items="..."
     items_spec = None
     m = re.search(r'items\s*=\s*"(.*?)"', s)
     if m:
@@ -88,7 +83,6 @@ def parse_kv_pairs(s: str):
     return kv
 
 def parse_items_list(spec: str):
-    """'Potion x2; Rusty Dagger; Gold Coin x10' -> [{"name":"Potion","qty":2}, ...]"""
     items = []
     for chunk in [c.strip() for c in spec.split(";")]:
         if not chunk:
@@ -112,19 +106,18 @@ class Quest(commands.Cog):
 
     def _quest_template(self, name: str, desc: str, hidden: bool = False):
         data = template_for("quest")
-        # Ensure baseline fields
         data.update({
             "name": name,
             "desc": desc,
             "status": "hidden" if hidden else "active",
             "objectives": [],
-            "assigned_to": [],            # list of character names
-            "rewards": {                  # xp per char, gold per char, items per char
+            "assigned_to": [],
+            "rewards": {
                 "xp": 0,
                 "gold": 0,
-                "items": []               # [{"name":"Potion","qty":1}, ...]
+                "items": []
             },
-            "favor": {},                  # {"Faction": +10}
+            "favor": {},
             "tags": {},
         })
         return data
@@ -136,22 +129,18 @@ class Quest(commands.Cog):
 
     @quest.command(name="add")
     async def quest_add(self, ctx, *, entry: str):
-        """Format: !quest add Nama | Deskripsi | [--hidden]"""
         parts = [p.strip() for p in entry.split("|")]
         if len(parts) < 2:
             return await ctx.send("⚠️ Format: `!quest add Nama | Deskripsi | [--hidden]`")
         name, desc = parts[0], parts[1]
         hidden = any("--hidden" in p.lower() for p in parts[2:])
         q = self._quest_template(name, desc, hidden)
-        k = _key(ctx)
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        save_quest(ctx.author.id, name, q)
         await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'active'}.")
 
     @quest.command(name="show")
     async def quest_show(self, ctx, status: str = "active"):
-        """!quest show [active|hidden|all|complete|failed]"""
-        k = _key(ctx)
-        allq = load_all_quests(k[0], k[1])
+        allq = load_all_quests()
         filt = status.lower()
         out = []
         for nm, q in allq.items():
@@ -164,8 +153,7 @@ class Quest(commands.Cog):
 
     @quest.command(name="detail")
     async def quest_detail(self, ctx, *, name: str):
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         r = q.get("rewards", {})
@@ -184,84 +172,64 @@ class Quest(commands.Cog):
 
     @quest.command(name="assign")
     async def quest_assign(self, ctx, name: str, *, chars_csv: str):
-        """!quest assign <QuestName> <Char1,Char2,...>"""
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         chars = [c.strip() for c in chars_csv.split(",") if c.strip()]
-        q["assigned_to"] = list(dict.fromkeys(chars))  # unique, keep order
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        q["assigned_to"] = list(dict.fromkeys(chars))
+        save_quest(ctx.author.id, name, q)
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
     @quest.command(name="reward")
     async def quest_reward(self, ctx, name: str, *, spec: str):
-        """!quest reward <QuestName> xp=100 gold=50 items="Potion x2; Rusty Dagger" favor=ArthaDyne:+10"""
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         kv = parse_kv_pairs(spec)
         r = q.get("rewards", {"xp": 0, "gold": 0, "items": []})
         if "xp" in kv:
-            try:
-                r["xp"] = int(kv["xp"])
-            except Exception:
-                pass
+            try: r["xp"] = int(kv["xp"])
+            except: pass
         if "gold" in kv:
-            try:
-                r["gold"] = int(kv["gold"])
-            except Exception:
-                pass
+            try: r["gold"] = int(kv["gold"])
+            except: pass
         if "items" in kv:
             r["items"] = parse_items_list(kv["items"])
-        # favor optional
         if "favor" in kv:
             fav = {}
             for part in kv["favor"].split(","):
-                part = part.strip()
-                if not part:
-                    continue
                 if ":" in part:
                     fac, val = part.split(":", 1)
                     try:
                         fav[fac.strip()] = int(val.strip())
-                    except Exception:
-                        continue
+                    except: continue
             q["favor"] = fav
         q["rewards"] = r
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        save_quest(ctx.author.id, name, q)
         await ctx.send(f"🎁 Reward quest **{name}** diset. XP {r.get('xp',0)}, Gold {r.get('gold',0)}, Items {len(r.get('items',[]))}.")
 
     @quest.command(name="reveal")
     async def quest_reveal(self, ctx, *, name: str):
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "active"
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        save_quest(ctx.author.id, name, q)
         await ctx.send(f"🔔 Quest **{name}** sekarang **ACTIVE**.")
 
     @quest.command(name="complete")
     async def quest_complete(self, ctx, name: str, *, targets: str = None):
-        """!quest complete <QuestName> [to=Aima,Zarek]
-        - Jika 'to' tidak diberikan, gunakan assigned_to.
-        - Jika assigned_to kosong, hanya tandai complete tanpa auto-reward."""
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
-        # resolve targets
         to_chars = []
         if targets and "to=" in targets:
             to_chars = [c.strip() for c in targets.split("to=", 1)[1].split(",") if c.strip()]
         elif q.get("assigned_to"):
             to_chars = q["assigned_to"]
 
-        # mark complete
         q["status"] = "complete"
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        save_quest(ctx.author.id, name, q)
 
         r = q.get("rewards", {})
         xp = int(r.get("xp", 0) or 0)
@@ -271,19 +239,16 @@ class Quest(commands.Cog):
 
         applied = []
         for ch in to_chars:
-            c = load_char(k[0], k[1], ch)
+            c = load_char(ch)
             if not c:
                 continue
-            # apply xp/gold
             c["xp"] = int(c.get("xp", 0)) + xp
             c["gold"] = int(c.get("gold", 0)) + gold
-            # apply items
             inv = c.get("inventory", [])
             for it in items:
                 name_i = it.get("name")
                 qty_i = int(it.get("qty", 1))
-                # get from library to add details
-                lib = get_item(k[0], k[1], name_i) or {"name": name_i}
+                lib = get_item(name_i) or {"name": name_i}
                 exists = next((x for x in inv if x["name"].lower() == name_i.lower()), None)
                 if exists:
                     exists["qty"] = exists.get("qty", 1) + qty_i
@@ -292,11 +257,10 @@ class Quest(commands.Cog):
                     add["qty"] = qty_i
                     inv.append(add)
             c["inventory"] = inv
-            save_char(k[0], k[1], ctx.author.id, ch, c)
+            save_char(ctx.author.id, ch, c)
             applied.append(ch)
 
-        # favor integration (stub: announce only)
-        log_event(k[0], k[1], ctx.author.id,
+        log_event(ctx.author.id,
                   code=f"Q_COMPLETE_{name.upper()}",
                   title=f"Quest selesai: {name}",
                   details=f"Reward: {xp} XP, {gold} gold, items {len(items)}, favor {favor}",
@@ -323,12 +287,11 @@ class Quest(commands.Cog):
 
     @quest.command(name="fail")
     async def quest_fail(self, ctx, *, name: str):
-        k = _key(ctx)
-        q = load_quest(k[0], k[1], name)
+        q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
-        save_quest(k[0], k[1], ctx.author.id, name, q)
+        save_quest(ctx.author.id, name, q)
         await ctx.send(f"❌ Quest **{name}** ditandai **FAILED**.")
 
 async def setup(bot):
