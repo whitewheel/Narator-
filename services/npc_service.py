@@ -2,7 +2,7 @@ import json
 from utils.db import execute, fetchone, fetchall
 
 # ===============================
-# NPC SERVICE
+# NPC SERVICE (Global)
 # ===============================
 
 ICONS = {
@@ -13,21 +13,20 @@ ICONS = {
     "lore": "📚",
 }
 
-async def add_npc(guild_id, channel_id, name, role="", favor=0, traits=None):
-    """Tambah NPC baru ke world."""
+async def add_npc(user_id, name, role="", favor=0, traits=None):
+    """Tambah NPC baru ke world (global)."""
     execute(
-        "INSERT INTO npc (guild_id, channel_id, name, role, favor, traits) VALUES (?,?,?,?,?,?)",
-        (guild_id, channel_id, name, role, favor, json.dumps(traits or {}))
+        "INSERT INTO npc (name, role, favor, traits) VALUES (?,?,?,?)",
+        (name, role, favor, json.dumps(traits or {}))
     )
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{ICONS['npc']} NPC baru: {name} ({role})"))
+    execute("INSERT INTO timeline (event) VALUES (?)",
+            (f"{ICONS['npc']} NPC baru: {name} ({role})",))
     return True
 
 
-async def update_favor(guild_id, channel_id, name, amount):
+async def update_favor(name, amount):
     """Ubah favor NPC (positif / negatif)."""
-    npc = fetchone("SELECT * FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    npc = fetchone("SELECT * FROM npc WHERE name=?", (name,))
     if not npc:
         return f"{ICONS['favor_down']} NPC tidak ditemukan."
 
@@ -36,32 +35,30 @@ async def update_favor(guild_id, channel_id, name, amount):
             (new_favor, npc["id"]))
 
     icon = ICONS["favor_up"] if amount > 0 else ICONS["favor_down"]
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{icon} Favor {name}: {npc['favor']} → {new_favor}"))
+    execute("INSERT INTO timeline (event) VALUES (?)",
+            (f"{icon} Favor {name}: {npc['favor']} → {new_favor}",))
     return f"{icon} Favor {name} sekarang {new_favor}"
 
 
-async def reveal_trait(guild_id, channel_id, name, trait_key):
+async def reveal_trait(name, trait_key):
     """Reveal trait tersembunyi NPC."""
-    npc = fetchone("SELECT * FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    npc = fetchone("SELECT * FROM npc WHERE name=?", (name,))
     if not npc:
         return f"{ICONS['favor_down']} NPC tidak ditemukan."
 
-    traits = json.loads(npc["traits"] or "{}")
+    traits = json.loads(npc.get("traits") or "{}")
     if trait_key not in traits:
         return f"{ICONS['hidden']} Trait tidak ada."
 
     trait = traits[trait_key]
     msg = f"{ICONS['hidden']} {name} ternyata: {trait}"
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, msg))
+    execute("INSERT INTO timeline (event) VALUES (?)", (msg,))
     return msg
 
 
-async def list_npc(guild_id, channel_id):
-    """List semua NPC di channel."""
-    rows = fetchall("SELECT * FROM npc WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
+async def list_npc():
+    """List semua NPC (global)."""
+    rows = fetchall("SELECT * FROM npc")
     if not rows:
         return f"{ICONS['npc']} Tidak ada NPC."
     out = []
@@ -70,18 +67,16 @@ async def list_npc(guild_id, channel_id):
     return "\n".join(out)
 
 
-async def sync_from_wiki(guild_id, channel_id):
+async def sync_from_wiki():
     """Sinkronkan semua NPC dari wiki kategori 'npc'."""
-    rows = fetchall("SELECT * FROM wiki WHERE guild_id=? AND channel_id=? AND category='npc'",
-                    (guild_id, channel_id))
+    rows = fetchall("SELECT * FROM wiki WHERE category='npc'")
     added = []
     for r in rows:
-        npc = fetchone("SELECT * FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
-                       (guild_id, channel_id, r["name"]))
+        npc = fetchone("SELECT * FROM npc WHERE name=?", (r["name"],))
         if not npc:
             execute(
-                "INSERT INTO npc (guild_id, channel_id, name, role, favor, traits) VALUES (?,?,?,?,?,?)",
-                (guild_id, channel_id, r["name"], "Lore NPC", 0, "{}")
+                "INSERT INTO npc (name, role, favor, traits) VALUES (?,?,?,?)",
+                (r["name"], "Lore NPC", 0, "{}")
             )
             added.append(r["name"])
     if not added:
