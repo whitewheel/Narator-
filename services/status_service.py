@@ -2,7 +2,7 @@ import json
 from utils.db import execute, fetchone, fetchall
 
 # ===============================
-# STATUS SERVICE
+# STATUS SERVICE (Global)
 # ===============================
 # Bisa dipakai untuk character & enemy
 # target_type: "char" atau "enemy"
@@ -19,11 +19,9 @@ ICONS = {
 # ===============================
 # HP / VITALS
 # ===============================
-async def damage(guild_id, channel_id, target_type, name, amount: int):
-    """Kurangi HP (damage)."""
+async def damage(target_type, name, amount: int):
     table = _table(target_type)
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
 
@@ -32,19 +30,16 @@ async def damage(guild_id, channel_id, target_type, name, amount: int):
             (new_hp, row["id"]))
 
     # Log
-    execute("INSERT INTO history (guild_id, channel_id, action, data) VALUES (?,?,?,?)",
-            (guild_id, channel_id, "dmg",
-             json.dumps({"target": name, "type": target_type, "old": row["hp"], "new": new_hp, "amount": amount})))
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{name} menerima {amount} damage → {new_hp}/{row['hp_max']} HP"))
+    execute("INSERT INTO history (action, data) VALUES (?,?)",
+            ("dmg", json.dumps({"target": name, "type": target_type,
+                                "old": row["hp"], "new": new_hp, "amount": amount})))
+    execute("INSERT INTO timeline (event) VALUES (?)",
+            (f"{name} menerima {amount} damage → {new_hp}/{row['hp_max']} HP",))
     return new_hp
 
-
-async def heal(guild_id, channel_id, target_type, name, amount: int):
-    """Tambah HP (heal)."""
+async def heal(target_type, name, amount: int):
     table = _table(target_type)
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
 
@@ -52,22 +47,16 @@ async def heal(guild_id, channel_id, target_type, name, amount: int):
     execute(f"UPDATE {table} SET hp=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (new_hp, row["id"]))
 
-    execute("INSERT INTO history (guild_id, channel_id, action, data) VALUES (?,?,?,?)",
-            (guild_id, channel_id, "heal",
-             json.dumps({"target": name, "type": target_type, "old": row["hp"], "new": new_hp, "amount": amount})))
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{name} disembuhkan {amount} HP → {new_hp}/{row['hp_max']} HP"))
+    execute("INSERT INTO history (action, data) VALUES (?,?)",
+            ("heal", json.dumps({"target": name, "type": target_type,
+                                 "old": row["hp"], "new": new_hp, "amount": amount})))
+    execute("INSERT INTO timeline (event) VALUES (?)",
+            (f"{name} disembuhkan {amount} HP → {new_hp}/{row['hp_max']} HP",))
     return new_hp
 
-
-async def use_resource(guild_id, channel_id, target_type, name, field: str, amount: int, regen=False):
-    """
-    Gunakan / pulihkan energy atau stamina.
-    field: "energy" atau "stamina"
-    """
+async def use_resource(target_type, name, field: str, amount: int, regen=False):
     table = _table(target_type)
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
 
@@ -79,20 +68,19 @@ async def use_resource(guild_id, channel_id, target_type, name, field: str, amou
             (new_val, row["id"]))
 
     action = "regen" if regen else "use"
-    execute("INSERT INTO history (guild_id, channel_id, action, data) VALUES (?,?,?,?)",
-            (guild_id, channel_id, f"{field}_{action}",
-             json.dumps({"target": name, "type": target_type, "old": cur, "new": new_val, "amount": amount})))
+    execute("INSERT INTO history (action, data) VALUES (?,?)",
+            (f"{field}_{action}", json.dumps({"target": name, "type": target_type,
+                                              "old": cur, "new": new_val, "amount": amount})))
     return new_val
 
 # ===============================
 # BUFF / DEBUFF
 # ===============================
-async def add_effect(guild_id, channel_id, target_type, name, effect: str, is_buff=True):
+async def add_effect(target_type, name, effect: str, is_buff=True):
     table = _table(target_type)
     col = "buffs" if is_buff else "debuffs"
 
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?", 
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
 
@@ -102,56 +90,49 @@ async def add_effect(guild_id, channel_id, target_type, name, effect: str, is_bu
             (json.dumps(effects), row["id"]))
     return effects
 
-async def clear_effects(guild_id, channel_id, target_type, name, is_buff=True):
+async def clear_effects(target_type, name, is_buff=True):
     table = _table(target_type)
     col = "buffs" if is_buff else "debuffs"
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?", 
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
     execute(f"UPDATE {table} SET {col}='[]', updated_at=CURRENT_TIMESTAMP WHERE id=?", (row["id"],))
     return []
 
-async def tick_all_effects(guild_id, channel_id):
-    """Kurangi durasi semua efek (char & enemy) di channel."""
+async def tick_all_effects():
+    """Kurangi durasi semua efek (char & enemy)."""
     results = {"char": {}, "enemy": {}}
     for ttype, table in [("char", "characters"), ("enemy", "enemies")]:
-        rows = fetchall(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
+        rows = fetchall(f"SELECT * FROM {table}")
         for r in rows:
             effects = json.loads(r.get("effects") or "[]")
             new_effects = []
             expired = []
             for e in effects:
                 dur = e.get("duration", -1)
-                if dur == -1:   # permanent
+                if dur == -1:
                     new_effects.append(e)
-                elif dur > 1:   # masih sisa
+                elif dur > 1:
                     e["duration"] = dur - 1
                     new_effects.append(e)
-                else:           # habis
+                else:
                     expired.append(e)
 
             execute(f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (json.dumps(new_effects), r["id"]))
 
-            # log ke timeline
             for e in expired:
-                execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-                        (guild_id, channel_id, f"{ICONS['expired']} {r['name']} kehilangan efek: {e['text']}"))
+                execute("INSERT INTO timeline (event) VALUES (?)",
+                        (f"{ICONS['expired']} {r['name']} kehilangan efek: {e['text']}",))
 
-            results[ttype][r["name"]] = {
-                "remaining": new_effects,
-                "expired": expired
-            }
+            results[ttype][r["name"]] = {"remaining": new_effects, "expired": expired}
     return results
 
 # ===============================
 # EQUIPMENT
 # ===============================
-async def set_equipment(guild_id, channel_id, name, slot: str, item: str):
-    """slot: weapon/armor/accessory"""
-    row = fetchone("SELECT * FROM characters WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+async def set_equipment(name, slot: str, item: str):
+    row = fetchone("SELECT * FROM characters WHERE name=?", (name,))
     if not row:
         return None
 
@@ -164,9 +145,8 @@ async def set_equipment(guild_id, channel_id, name, slot: str, item: str):
 # ===============================
 # COMPANIONS
 # ===============================
-async def add_companion(guild_id, channel_id, name, comp: dict):
-    row = fetchone("SELECT * FROM characters WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+async def add_companion(name, comp: dict):
+    row = fetchone("SELECT * FROM characters WHERE name=?", (name,))
     if not row:
         return None
 
@@ -176,9 +156,8 @@ async def add_companion(guild_id, channel_id, name, comp: dict):
             (json.dumps(comps), row["id"]))
     return comps
 
-async def remove_companion(guild_id, channel_id, name, comp_name: str):
-    row = fetchone("SELECT * FROM characters WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+async def remove_companion(name, comp_name: str):
+    row = fetchone("SELECT * FROM characters WHERE name=?", (name,))
     if not row:
         return None
 
@@ -191,11 +170,9 @@ async def remove_companion(guild_id, channel_id, name, comp_name: str):
 # ===============================
 # GENERIC FIELD UPDATE
 # ===============================
-async def set_status(guild_id, channel_id, target_type, name, field: str, value):
-    """Update field tertentu (misal AC, MP, dll)."""
+async def set_status(target_type, name, field: str, value):
     table = _table(target_type)
-    row = fetchone(f"SELECT * FROM {table} WHERE guild_id=? AND channel_id=? AND name=?",
-                   (guild_id, channel_id, name))
+    row = fetchone(f"SELECT * FROM {table} WHERE name=?", (name,))
     if not row:
         return None
 
@@ -203,7 +180,7 @@ async def set_status(guild_id, channel_id, target_type, name, field: str, value)
     execute(f"UPDATE {table} SET {field}=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (value, row["id"]))
 
-    execute("INSERT INTO history (guild_id, channel_id, action, data) VALUES (?,?,?,?)",
-            (guild_id, channel_id, "set_status",
-             json.dumps({"target": name, "type": target_type, "field": field, "old": old_value, "new": value})))
+    execute("INSERT INTO history (action, data) VALUES (?,?)",
+            ("set_status", json.dumps({"target": name, "type": target_type,
+                                       "field": field, "old": old_value, "new": value})))
     return value
