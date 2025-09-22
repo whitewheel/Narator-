@@ -1,3 +1,4 @@
+# services/npc_service.py
 import json
 from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # ✅ konsisten pakai timeline
@@ -68,7 +69,6 @@ async def reveal_trait(name, trait_key, user_id=None):
     trait = traits[trait_key]
     msg = f"{ICONS['hidden']} {name} ternyata: {trait}"
 
-    # update log
     log_event("0", "0", user_id or 0,
               code=f"NPC_TRAIT_{name.upper()}",
               title=msg,
