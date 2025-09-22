@@ -66,7 +66,6 @@ async def damage(target_type, name, amount: int):
     table = _table(target_type)
     row = _ensure_exists(table, name)
 
-    # jaga hp_max supaya tidak None
     hp_max = int(row.get("hp_max") or 0)
     cur_hp = int(row.get("hp") or 0)
 
@@ -91,8 +90,7 @@ async def heal(target_type, name, amount: int):
     hp_max = int(row.get("hp_max") or 0)
     cur_hp = int(row.get("hp") or 0)
 
-    # kalau hp_max = 0 dan kita heal, anggap hp_max = cur_hp + amount (biar tidak kunci di 0)
-    if hp_max <= 0:
+    if hp_max <= 0:  # auto set max kalau masih kosong
         hp_max = cur_hp + int(amount)
         execute(f"UPDATE {table} SET hp_max=? WHERE id=?", (hp_max, row["id"]))
 
@@ -119,7 +117,6 @@ async def use_resource(target_type, name, field: str, amount: int, regen=False):
     cur = int(row.get(field) or 0)
     mx = int(row.get(f"{field}_max") or 0)
 
-    # kalau max = 0 dan mau regen, set max = cur + amount biar tidak mentok 0
     if regen and mx <= 0:
         mx = cur + int(amount)
         execute(f"UPDATE {table} SET {field}_max=? WHERE id=?", (mx, row["id"]))
@@ -138,13 +135,9 @@ async def use_resource(target_type, name, field: str, amount: int, regen=False):
     return new_val
 
 # ===============================
-# EFFECTS (single column: effects)
+# EFFECTS
 # ===============================
 async def add_effect(target_type, name, effect: str, is_buff=True):
-    """
-    Semua efek disimpan di kolom 'effects' (JSON array).
-    Item: {"text": "...", "type": "buff"/"debuff", "duration": -1}
-    """
     table = _table(target_type)
     row = _ensure_exists(table, name)
 
@@ -155,9 +148,6 @@ async def add_effect(target_type, name, effect: str, is_buff=True):
     return effects
 
 async def clear_effects(target_type, name, is_buff=True):
-    """
-    Hapus efek berdasarkan tipe (buff/debuff) dari kolom 'effects'.
-    """
     table = _table(target_type)
     row = _ensure_exists(table, name)
 
@@ -168,7 +158,6 @@ async def clear_effects(target_type, name, is_buff=True):
     return keep
 
 async def tick_all_effects():
-    """Kurangi durasi semua efek (char & enemy). Hanya kolom 'effects' yang dipakai."""
     results = {"char": {}, "enemy": {}}
     for ttype, table in [("char", "characters"), ("enemy", "enemies")]:
         rows = fetchall(f"SELECT * FROM {table}")
@@ -177,12 +166,12 @@ async def tick_all_effects():
             new_effects, expired = [], []
             for e in effects:
                 dur = int(e.get("duration", -1))
-                if dur == -1:              # permanent
+                if dur == -1:
                     new_effects.append(e)
-                elif dur > 1:              # masih sisa
+                elif dur > 1:
                     e["duration"] = dur - 1
                     new_effects.append(e)
-                else:                      # habis
+                else:
                     expired.append(e)
 
             execute(f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -226,12 +215,9 @@ async def remove_companion(name, comp_name: str):
     return comps
 
 # ===============================
-# GENERIC FIELD UPDATE (Upsert)
+# GENERIC FIELD UPDATE
 # ===============================
 async def set_status(target_type, name, field: str, value):
-    """
-    Update field tertentu; bila row belum ada → auto INSERT baseline lalu UPDATE.
-    """
     table = _table(target_type)
     row = _ensure_exists(table, name)
 
@@ -245,3 +231,22 @@ async def set_status(target_type, name, field: str, value):
                 "field": field, "old": old_value, "new": value
             })))
     return value
+
+# ===============================
+# GOLD & XP HELPERS
+# ===============================
+async def add_gold(name, amount: int):
+    row = _ensure_exists("characters", name)
+    cur = int(row.get("gold") or 0)
+    new_val = max(0, cur + int(amount))
+    execute("UPDATE characters SET gold=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (new_val, row["id"]))
+    return new_val
+
+async def add_xp(name, amount: int):
+    row = _ensure_exists("characters", name)
+    cur = int(row.get("xp") or 0)
+    new_val = cur + int(amount)
+    execute("UPDATE characters SET xp=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (new_val, row["id"]))
+    return new_val
