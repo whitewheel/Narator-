@@ -1,14 +1,16 @@
 import discord
 from discord.ext import commands
-from utils.db import execute, fetchone, fetchall
+from utils.db import fetchone, fetchall
 import json
 import re
 from cogs.world.timeline import log_event  # hook timeline
+from services import quest_service
 
 # --------------------
 # Storage helpers (global, pakai tabel quests)
 # --------------------
 def save_quest(data: dict):
+    from utils.db import execute
     execute("""
         INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags)
         VALUES (?,?,?,?,?,?,?)
@@ -23,7 +25,7 @@ def save_quest(data: dict):
     """, (
         data["name"],
         data.get("desc", ""),
-        data.get("status", "active"),
+        data.get("status", "open"),
         json.dumps(data.get("assigned_to", [])),
         json.dumps(data.get("rewards", {})),
         json.dumps(data.get("favor", {})),
@@ -104,8 +106,7 @@ class Quest(commands.Cog):
         return {
             "name": name,
             "desc": desc,
-            "status": "hidden" if hidden else "active",
-            "objectives": [],
+            "status": "hidden" if hidden else "open",
             "assigned_to": [],
             "rewards": {"xp": 0, "gold": 0, "items": []},
             "favor": {},
@@ -126,16 +127,16 @@ class Quest(commands.Cog):
         hidden = any("--hidden" in p.lower() for p in parts[2:])
         q = self._quest_template(name, desc, hidden)
         save_quest(q)
-        await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'active'}.")
+        await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'open'}.")
 
     @quest.command(name="show")
-    async def quest_show(self, ctx, status: str = "active"):
+    async def quest_show(self, ctx, status: str = "all"):
         allq = load_all_quests()
         filt = status.lower()
         out = []
         for nm, q in allq.items():
-            st = q.get("status", "active")
-            if filt == "all" or st == filt:
+            st = q.get("status", "open")
+            if filt == "all" or st.lower() == filt:
                 out.append(f"• **{nm}** — _{st}_")
         if not out:
             return await ctx.send("Tidak ada quest yang cocok.")
@@ -151,7 +152,7 @@ class Quest(commands.Cog):
         items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items]) or "-"
         assigned = ", ".join(q.get("assigned_to", [])) or "-"
         embed = discord.Embed(title=f"📜 {q['name']}", description=q.get("desc", "-"), color=discord.Color.gold())
-        embed.add_field(name="Status", value=q.get("status", "active"), inline=True)
+        embed.add_field(name="Status", value=q.get("status", "open"), inline=True)
         embed.add_field(name="Assigned To", value=assigned, inline=True)
         embed.add_field(name="XP/Gold", value=f"{r.get('xp',0)} XP / {r.get('gold',0)} Gold (per karakter)", inline=False)
         embed.add_field(name="Items", value=items_str, inline=False)
@@ -203,43 +204,34 @@ class Quest(commands.Cog):
         q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
-        q["status"] = "active"
+        q["status"] = "open"
         save_quest(q)
-        await ctx.send(f"🔔 Quest **{name}** sekarang **ACTIVE**.")
+        await ctx.send(f"🔔 Quest **{name}** sekarang **OPEN**.")
 
     @quest.command(name="complete")
     async def quest_complete(self, ctx, name: str):
         q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
-        q["status"] = "complete"
+
+        # tandai completed
+        q["status"] = "completed"
         save_quest(q)
 
-        r = q.get("rewards", {})
-        xp = int(r.get("xp", 0) or 0)
-        gold = int(r.get("gold", 0) or 0)
-        items = r.get("items", [])
-        favor = q.get("favor", {})
+        # eksekusi reward lewat quest_service
+        msg = quest_service.complete_quest(name, q.get("assigned_to", []), ctx.author.id)
 
-        # log ke timeline
+        # log timeline
         log_event(ctx.author.id,
                   code=f"Q_COMPLETE_{name.upper()}",
                   title=f"Quest selesai: {name}",
-                  details=f"Reward: {xp} XP, {gold} gold, items {len(items)}, favor {favor}",
+                  details=json.dumps(q.get("rewards", {})),
                   etype="quest_complete",
                   quest=name,
                   actors=q.get("assigned_to", []),
                   tags=["quest","complete"])
 
-        embed = discord.Embed(title=f"✅ Quest Complete: {q['name']}", description=q.get("desc", "-"), color=discord.Color.green())
-        embed.add_field(name="XP/Gold", value=f"{xp} XP / {gold} Gold per karakter", inline=False)
-        if items:
-            items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items])
-            embed.add_field(name="Items", value=items_str, inline=False)
-        if favor:
-            fav_text = "\n".join([f"{f}: {v:+d}" for f, v in favor.items()])
-            embed.add_field(name="Favor", value=fav_text, inline=False)
-        await ctx.send(embed=embed)
+        await ctx.send(f"✅ Quest **{name}** diselesaikan.\n{msg}")
 
     @quest.command(name="fail")
     async def quest_fail(self, ctx, *, name: str):
@@ -248,6 +240,13 @@ class Quest(commands.Cog):
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
         save_quest(q)
+        log_event(ctx.author.id,
+                  code=f"Q_FAIL_{name.upper()}",
+                  title=f"Quest gagal: {name}",
+                  etype="quest_fail",
+                  quest=name,
+                  actors=q.get("assigned_to", []),
+                  tags=["quest","fail"])
         await ctx.send(f"❌ Quest **{name}** ditandai **FAILED**.")
 
 async def setup(bot):
