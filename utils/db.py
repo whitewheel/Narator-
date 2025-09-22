@@ -111,8 +111,8 @@ def _ensure_columns(table: str, columns: Dict[str, str]) -> None:
 def init_db() -> None:
     """
     1) Jalankan schema.sql kalau ada.
-    2) Pastikan kolom-kolom tambahan yang dipakai cogs sudah ada (auto-migrate).
-    3) Pastikan tabel initiative & memories ada.
+    2) Pastikan tabel global ada.
+    3) Pastikan kolom tambahan yang dipakai cogs sudah ada.
     """
     # 1) Load schema.sql (opsional)
     schema_file = os.path.join(os.path.dirname(__file__), "..", "data", "schema.sql")
@@ -121,38 +121,108 @@ def init_db() -> None:
             schema = f.read()
         _exec_script(schema)
 
-    # 2) Auto-migrate kolom characters yang dipakai di cogs
-    _ensure_columns("characters", {
-        "energy": "INTEGER DEFAULT 0",
-        "energy_max": "INTEGER DEFAULT 0",
-        "stamina": "INTEGER DEFAULT 0",
-        "stamina_max": "INTEGER DEFAULT 0",
-        "buffs": "TEXT DEFAULT '[]'",
-        "debuffs": "TEXT DEFAULT '[]'",
-        "level": "INTEGER DEFAULT 1",
-        "xp": "INTEGER DEFAULT 0",
-        "gold": "INTEGER DEFAULT 0",
-        "speed": "INTEGER DEFAULT 30",
-        "equipment": "TEXT DEFAULT '{}'",
-        "companions": "TEXT DEFAULT '[]'",
-        "inventory": "TEXT DEFAULT '[]'",
-    })
+    # 2) Tabel dasar (global)
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS characters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        class TEXT,
+        race TEXT,
+        level INTEGER DEFAULT 1,
+        hp INTEGER DEFAULT 0,
+        hp_max INTEGER DEFAULT 0,
+        energy INTEGER DEFAULT 0,
+        energy_max INTEGER DEFAULT 0,
+        stamina INTEGER DEFAULT 0,
+        stamina_max INTEGER DEFAULT 0,
+        str INTEGER DEFAULT 0,
+        dex INTEGER DEFAULT 0,
+        con INTEGER DEFAULT 0,
+        int INTEGER DEFAULT 0,
+        wis INTEGER DEFAULT 0,
+        cha INTEGER DEFAULT 0,
+        ac INTEGER DEFAULT 10,
+        init_mod INTEGER DEFAULT 0,
+        xp INTEGER DEFAULT 0,
+        gold INTEGER DEFAULT 0,
+        speed INTEGER DEFAULT 30,
+        buffs TEXT DEFAULT '[]',
+        debuffs TEXT DEFAULT '[]',
+        equipment TEXT DEFAULT '{}',
+        companions TEXT DEFAULT '[]',
+        inventory TEXT DEFAULT '[]',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
-    # 3) Pastikan kolom enemies
-    _ensure_columns("enemies", {
-        "effects": "TEXT DEFAULT '[]'",
-        "xp_reward": "INTEGER DEFAULT 0",
-        "gold_reward": "INTEGER DEFAULT 0",
-        "loot": "TEXT DEFAULT '[]'",
-    })
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS enemies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        hp INTEGER DEFAULT 0,
+        hp_max INTEGER DEFAULT 0,
+        ac INTEGER DEFAULT 10,
+        effects TEXT DEFAULT '[]',
+        xp_reward INTEGER DEFAULT 0,
+        gold_reward INTEGER DEFAULT 0,
+        loot TEXT DEFAULT '[]',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
-    # 4) Pastikan kolom quests
-    _ensure_columns("quests", {
-        "assigned_to": "TEXT DEFAULT '[]'",
-        "hidden": "INTEGER DEFAULT 0",
-    })
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS quests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        desc TEXT,
+        status TEXT,
+        assigned_to TEXT DEFAULT '[]',
+        rewards TEXT DEFAULT '{}',
+        favor TEXT DEFAULT '{}',
+        tags TEXT DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
 
-    # 5) Tabel initiative (global)
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS npc (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        role TEXT,
+        favor INTEGER DEFAULT 0,
+        traits TEXT DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS inventory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner TEXT,
+        item TEXT,
+        qty INTEGER DEFAULT 1,
+        metadata TEXT DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action TEXT,
+        data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_table("""
+    CREATE TABLE IF NOT EXISTS timeline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     _ensure_table("""
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,7 +233,6 @@ def init_db() -> None:
     );
     """)
 
-    # 6) Tabel memories (global)
     _ensure_table("""
     CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,9 +244,10 @@ def init_db() -> None:
     );
     """)
 
-    # 7) Indexes (global)
+    # 3) Indexes
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
+    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_name ON npc(name);")
     execute("CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(owner);")
 
 
