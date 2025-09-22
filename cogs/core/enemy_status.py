@@ -113,15 +113,24 @@ class EnemyStatus(commands.Cog):
                         if len(segs) > 2: item["effect"] = segs[2]
                         if len(segs) > 3: item["rarity"] = segs[3]
                         loots.append(item)
-                except: pass
+                except Exception as e:
+                    await ctx.send(f"⚠️ Loot parsing gagal: {e}")
 
-        execute("""
-            INSERT INTO enemies (name, hp, hp_max, ac, xp_reward, gold_reward, loot)
-            VALUES (?,?,?,?,?,?,?)
-            """, (name, hp, hp, 10, xp_reward, gold_reward, json.dumps(loots))
-        )
-
-        await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
+        # cek kalau enemy sudah ada → update
+        exists = fetchone("SELECT id FROM enemies WHERE name=?", (name,))
+        if exists:
+            execute("""
+                UPDATE enemies
+                SET hp=?, hp_max=?, ac=?, xp_reward=?, gold_reward=?, loot=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+            """, (hp, hp, 10, xp_reward, gold_reward, json.dumps(loots), exists["id"]))
+            await ctx.send(f"♻️ Enemy **{name}** diperbarui jadi {hp} HP.")
+        else:
+            execute("""
+                INSERT INTO enemies (name, hp, hp_max, ac, xp_reward, gold_reward, loot)
+                VALUES (?,?,?,?,?,?,?)
+            """, (name, hp, hp, 10, xp_reward, gold_reward, json.dumps(loots)))
+            await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
 
     @enemy.command(name="show")
     async def enemy_show(self, ctx):
