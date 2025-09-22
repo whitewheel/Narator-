@@ -1,6 +1,6 @@
 import json
 from utils.db import execute, fetchone, fetchall
-from cogs.world.timeline import log_event   # ✅ pakai log_event konsisten
+from cogs.world.timeline import log_event   # ✅ konsisten pakai timeline
 
 # ===============================
 # NPC SERVICE (Global)
@@ -16,6 +16,10 @@ ICONS = {
 
 async def add_npc(user_id, name, role="", favor=0, traits=None):
     """Tambah NPC baru ke world (global)."""
+    exists = fetchone("SELECT id FROM npc WHERE name=?", (name,))
+    if exists:
+        return f"⚠️ NPC **{name}** sudah ada."
+
     execute(
         "INSERT INTO npc (name, role, favor, traits) VALUES (?,?,?,?)",
         (name, role, favor, json.dumps(traits or {}))
@@ -27,7 +31,7 @@ async def add_npc(user_id, name, role="", favor=0, traits=None):
               etype="npc_add",
               actors=[name],
               tags=["npc","add"])
-    return True
+    return f"{ICONS['npc']} NPC **{name}** berhasil ditambahkan."
 
 
 async def update_favor(name, amount, user_id=None):
@@ -64,6 +68,7 @@ async def reveal_trait(name, trait_key, user_id=None):
     trait = traits[trait_key]
     msg = f"{ICONS['hidden']} {name} ternyata: {trait}"
 
+    # update log
     log_event("0", "0", user_id or 0,
               code=f"NPC_TRAIT_{name.upper()}",
               title=msg,
@@ -97,7 +102,15 @@ async def sync_from_wiki(user_id=None):
                 (r["name"], "Lore NPC", 0, "{}")
             )
             added.append(r["name"])
+
     if not added:
+        log_event("0", "0", user_id or 0,
+                  code="NPC_SYNC_EMPTY",
+                  title=f"{ICONS['lore']} Sinkronisasi NPC (kosong)",
+                  details="Tidak ada NPC baru dari wiki.",
+                  etype="npc_sync",
+                  actors=[],
+                  tags=["npc","lore","sync"])
         return f"{ICONS['lore']} Tidak ada NPC baru dari lore."
 
     log_event("0", "0", user_id or 0,
