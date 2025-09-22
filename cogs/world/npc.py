@@ -27,13 +27,13 @@ class NPC(commands.Cog):
     # === Update Favor ===
     @npc.command(name="favor")
     async def npc_favor(self, ctx, name: str, amount: int):
-        msg = await npc_service.update_favor(name, amount)
+        msg = await npc_service.update_favor(name, amount, ctx.author.id)
         await ctx.send(msg)
 
     # === Reveal Trait ===
     @npc.command(name="reveal")
     async def npc_reveal(self, ctx, name: str, trait_key: str):
-        msg = await npc_service.reveal_trait(name, trait_key)
+        msg = await npc_service.reveal_trait(name, trait_key, ctx.author.id)
         await ctx.send(msg)
 
     # === Detail NPC (embed cantik) ===
@@ -63,7 +63,7 @@ class NPC(commands.Cog):
     # === Sinkronkan NPC dari lore (wiki kategori npc) ===
     @npc.command(name="sync")
     async def npc_sync(self, ctx):
-        msg = await npc_service.sync_from_wiki()
+        msg = await npc_service.sync_from_wiki(ctx.author.id)
         await ctx.send(msg)
 
     # === Hapus NPC (soft delete) ===
