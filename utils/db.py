@@ -112,7 +112,7 @@ def init_db() -> None:
     """
     1) Jalankan schema.sql kalau ada.
     2) Pastikan tabel global ada.
-    3) Pastikan kolom tambahan yang dipakai cogs sudah ada.
+    3) Pastikan kolom tambahan yang dipakai cogs sudah ada (auto-migrate).
     """
     # 1) Load schema.sql (opsional)
     schema_file = os.path.join(os.path.dirname(__file__), "..", "data", "schema.sql")
@@ -148,6 +148,7 @@ def init_db() -> None:
         speed INTEGER DEFAULT 30,
         buffs TEXT DEFAULT '[]',
         debuffs TEXT DEFAULT '[]',
+        effects TEXT DEFAULT '[]',
         equipment TEXT DEFAULT '{}',
         companions TEXT DEFAULT '[]',
         inventory TEXT DEFAULT '[]',
@@ -244,7 +245,38 @@ def init_db() -> None:
     );
     """)
 
-    # 3) Indexes
+    # 3) Auto-migrate kolom tambahan
+    _ensure_columns("characters", {
+        "effects": "TEXT DEFAULT '[]'",
+        "equipment": "TEXT DEFAULT '{}'",
+        "companions": "TEXT DEFAULT '[]'",
+        "inventory": "TEXT DEFAULT '[]'",
+        "xp": "INTEGER DEFAULT 0",
+        "gold": "INTEGER DEFAULT 0",
+        "speed": "INTEGER DEFAULT 30"
+    })
+
+    _ensure_columns("enemies", {
+        "effects": "TEXT DEFAULT '[]'",
+        "xp_reward": "INTEGER DEFAULT 0",
+        "gold_reward": "INTEGER DEFAULT 0",
+        "loot": "TEXT DEFAULT '[]'"
+    })
+
+    _ensure_columns("quests", {
+        "assigned_to": "TEXT DEFAULT '[]'",
+        "rewards": "TEXT DEFAULT '{}'",
+        "favor": "TEXT DEFAULT '{}'",
+        "tags": "TEXT DEFAULT '{}'"
+    })
+
+    _ensure_columns("npc", {
+        "role": "TEXT",
+        "favor": "INTEGER DEFAULT 0",
+        "traits": "TEXT DEFAULT '{}'"
+    })
+
+    # 4) Indexes
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_name ON npc(name);")
