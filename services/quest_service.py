@@ -17,7 +17,7 @@ ICONS = {
 }
 
 # ---------- CRUD ----------
-def add_quest(title, detail="", items_required=None, rewards=None, created_by=None, hidden=False, user_id="0"):
+def add_quest(title, detail="", items_required=None, rewards=None, created_by=None, hidden=False, user_id=0):
     """Tambah quest baru (global)."""
     status = "hidden" if hidden else "open"
     execute(
@@ -32,13 +32,15 @@ def add_quest(title, detail="", items_required=None, rewards=None, created_by=No
             json.dumps({}),
         ),
     )
-    log_event("0", "0", user_id,
-              code=f"QUEST_ADD_{title.upper()}",
-              title=f"{ICONS['quest']} Quest baru ditambahkan: {title}",
-              details=detail,
-              etype="quest_add",
-              actors=[title],
-              tags=["quest","add"])
+    log_event(
+        user_id,
+        code=f"QUEST_ADD_{title.upper()}",
+        title=f"{ICONS['quest']} Quest baru ditambahkan: {title}",
+        details=detail,
+        etype="quest_add",
+        actors=[title],
+        tags=["quest","add"]
+    )
     return True
 
 
@@ -86,7 +88,7 @@ def assign_characters(title, chars: list):
 
 
 # ---------- Penyelesaian Quest ----------
-def complete_quest(title, targets: list = None, user_id="0"):
+async def complete_quest(title, targets: list = None, user_id=0):
     """Selesaikan quest, kasih reward ke target characters."""
     quest = get_quest(title)
     if not quest:
@@ -114,7 +116,7 @@ def complete_quest(title, targets: list = None, user_id="0"):
             old = fetchone("SELECT xp FROM characters WHERE name=?", (ch,))
             if old:
                 new_val = old["xp"] + rewards["xp"]
-                status_service.set_status("char", ch, "xp", new_val)
+                await status_service.set_status("char", ch, "xp", new_val)
         msg_parts.append(f"{ICONS['xp']} {rewards['xp']} XP")
 
     # Gold
@@ -123,14 +125,14 @@ def complete_quest(title, targets: list = None, user_id="0"):
             old = fetchone("SELECT gold FROM characters WHERE name=?", (ch,))
             if old:
                 new_val = old["gold"] + rewards["gold"]
-                status_service.set_status("char", ch, "gold", new_val)
+                await status_service.set_status("char", ch, "gold", new_val)
         msg_parts.append(f"💰 {rewards['gold']} Gold")
 
     # Loot
     if "loot" in rewards:
         for item, qty in rewards["loot"].items():
             for ch in targets:
-                inventory_service.add_item(ch, item, qty)
+                await inventory_service.add_item(ch, item, qty)
             msg_parts.append(f"{ICONS['loot']} {qty}x {item}")
 
     # Favor
@@ -141,27 +143,31 @@ def complete_quest(title, targets: list = None, user_id="0"):
         msg_parts.append(f"{ICONS['favor']} Favor → " + ", ".join(fav_txt))
 
     # log timeline
-    log_event("0", "0", user_id,
-              code=f"QUEST_COMPLETE_{title.upper()}",
-              title=f"{ICONS['check']} Quest {title} selesai.",
-              details=json.dumps(rewards),
-              etype="quest_complete",
-              actors=targets,
-              tags=["quest","complete"])
+    log_event(
+        user_id,
+        code=f"QUEST_COMPLETE_{title.upper()}",
+        title=f"{ICONS['check']} Quest {title} selesai.",
+        details=json.dumps(rewards),
+        etype="quest_complete",
+        actors=targets,
+        tags=["quest","complete"]
+    )
 
     return "\n".join(msg_parts)
 
 
-def fail_quest(title, user_id="0"):
+def fail_quest(title, user_id=0):
     """Tandai quest gagal."""
     update_status(title, "failed")
-    log_event("0", "0", user_id,
-              code=f"QUEST_FAIL_{title.upper()}",
-              title=f"{ICONS['fail']} Quest {title} gagal.",
-              details="",
-              etype="quest_fail",
-              actors=[title],
-              tags=["quest","fail"])
+    log_event(
+        user_id,
+        code=f"QUEST_FAIL_{title.upper()}",
+        title=f"{ICONS['fail']} Quest {title} gagal.",
+        details="",
+        etype="quest_fail",
+        actors=[title],
+        tags=["quest","fail"]
+    )
     return True
 
 
