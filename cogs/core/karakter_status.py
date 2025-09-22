@@ -73,10 +73,19 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         profile_line = f"Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')} | XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
 
+        # equipment slot fix
         eq = json.loads(c.get("equipment") or "{}")
-        equip_line = f"Weapon: {eq.get('weapon') or '-'} | Armor: {eq.get('armor') or '-'} | Accessory: {eq.get('accessory') or '-'}"
+        equip_lines = [
+            f"🗡️ Main Hand: {eq.get('main_hand') or '-'}",
+            f"🗡️ Off Hand: {eq.get('off_hand') or '-'}",
+            f"👕 Armor Inner: {eq.get('armor_inner') or '-'}",
+            f"🛡️ Armor Outer: {eq.get('armor_outer') or '-'}",
+            f"💍 Accessory 1: {eq.get('accessory1') or '-'}",
+            f"💍 Accessory 2: {eq.get('accessory2') or '-'}",
+        ]
+        equip_block = "\n".join(equip_lines)
 
-        # FIX: tidak pakai await lagi
+        # inventory
         items = inventory_service.get_inventory(c["name"])
         inv_line = "\n".join([
             f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})"
@@ -84,6 +93,7 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             for it in items
         ]) or "-"
 
+        # companions
         comp_list = json.loads(c.get("companions") or "[]")
         comp_line = "\n".join([
             f"{comp['name']} ({comp.get('type','')}) HP:{comp.get('hp','-')} - {comp.get('notes','')}"
@@ -97,7 +107,7 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"⚡ Stamina: {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
             f"📊 Stats:\n{stats_line}\n\n"
             f"🛡️ Combat: {combat_line}\n\n"
-            f"🎒 Equipment: {equip_line}\n\n"
+            f"🎒 Equipment:\n{equip_block}\n\n"
             f"📦 Inventory:\n{inv_line}\n\n"
             f"✨ Buffs:\n{buffs_str}\n\n"
             f"☠️ Debuffs:\n{debuffs_str}\n\n"
@@ -155,6 +165,21 @@ class CharacterStatus(commands.Cog):
     async def status_setlevel(self, ctx, name: str, level: int):
         await status_service.set_status("char", name, "level", level)
         await ctx.send(f"⭐ {name} sekarang level {level}.")
+
+    @status_group.command(name="setac")
+    async def status_setac(self, ctx, name: str, ac: int):
+        await status_service.set_status("char", name, "ac", ac)
+        await ctx.send(f"🛡️ AC {name} sekarang {ac}.")
+
+    @status_group.command(name="equip")
+    async def status_equip(self, ctx, name: str, slot: str, *, item: str):
+        """Update slot equipment. Slot: main_hand, off_hand, armor_inner, armor_outer, accessory1, accessory2"""
+        row = fetchone("SELECT equipment FROM characters WHERE name=?", (name,))
+        eq = json.loads(row["equipment"] or "{}") if row else {}
+        eq[slot.lower()] = item
+        execute("UPDATE characters SET equipment=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+                (json.dumps(eq), name))
+        await ctx.send(f"🎒 {name} → {slot} diisi {item}")
 
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
