@@ -16,7 +16,6 @@ def _mod(score: int) -> int:
     return math.floor(score / 5)
 
 def _apply_effects(base_stats, effects):
-    """Hitung stat final dengan efek buff/debuff."""
     stats = base_stats.copy()
     notes = []
     for eff in effects:
@@ -38,7 +37,7 @@ def _format_effect(e):
 async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
     embed = discord.Embed(
         title=title,
-        description=f"Channel: **{ctx.channel.name}**",
+        description="📜 Status Karakter (Global)",
         color=discord.Color.blurple()
     )
     if not characters:
@@ -46,19 +45,16 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         return embed
 
     for c in characters:
-        # ===== Basic =====
         hp_text = f"{c['hp']}/{c['hp_max']}" if c['hp_max'] else str(c['hp'])
         en_text = f"{c['energy']}/{c['energy_max']}" if c['energy_max'] else str(c['energy'])
         st_text = f"{c['stamina']}/{c['stamina_max']}" if c['stamina_max'] else str(c['stamina'])
 
-        # ===== Effects =====
         effects = json.loads(c.get("effects") or "[]")
         buffs = [e for e in effects if "buff" in e.get("type","").lower()]
         debuffs = [e for e in effects if "debuff" in e.get("type","").lower()]
         buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
         debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in debuffs]) or "-"
 
-        # ===== Stats (apply effects) =====
         base_stats = {
             "str": c["str"], "dex": c["dex"], "con": c["con"],
             "int": c["int"], "wis": c["wis"], "cha": c["cha"]
@@ -74,23 +70,18 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"CHA {final_stats['cha']} ({_mod(final_stats['cha']):+d}){note_line}"
         )
 
-        # ===== Profile =====
         profile_line = f"Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')} | XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
 
-        # ===== Equipment =====
         eq = json.loads(c.get("equipment") or "{}")
         equip_line = f"Weapon: {eq.get('weapon') or '-'} | Armor: {eq.get('armor') or '-'} | Accessory: {eq.get('accessory') or '-'}"
 
-        # ===== Inventory (ambil dari DB) =====
-        items = await inventory_service.get_inventory(str(ctx.guild.id), str(ctx.channel.id), c["name"])
+        items = await inventory_service.get_inventory(c["name"])
         inv_line = "\n".join([f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})" if it['meta'] else f"{it['item']} x{it['qty']}" for it in items]) or "-"
 
-        # ===== Companions =====
         comp_list = json.loads(c.get("companions") or "[]")
         comp_line = "\n".join([f"{comp['name']} ({comp.get('type','')}) HP:{comp.get('hp','-')} - {comp.get('notes','')}" for comp in comp_list]) or "-"
 
-        # ===== Final Value =====
         value = (
             f"{profile_line}\n"
             f"❤️ HP: {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
@@ -115,71 +106,68 @@ class CharacterStatus(commands.Cog):
 
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
-        rows = fetchall("SELECT * FROM characters WHERE guild_id=? AND channel_id=?",
-                        (str(ctx.guild.id), str(ctx.channel.id)))
+        rows = fetchall("SELECT * FROM characters")
         embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "hp", hp)
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "hp_max", hp)
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "energy", energy)
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "energy_max", energy)
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "stamina", stamina)
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "stamina_max", stamina)
+        await status_service.set_status("char", name, "hp", hp)
+        await status_service.set_status("char", name, "hp_max", hp)
+        await status_service.set_status("char", name, "energy", energy)
+        await status_service.set_status("char", name, "energy_max", energy)
+        await status_service.set_status("char", name, "stamina", stamina)
+        await status_service.set_status("char", name, "stamina_max", stamina)
         await ctx.send(f"✅ Karakter **{name}** diupdate.")
 
     @status_group.command(name="setcore")
     async def status_setcore(self, ctx, name: str, str_: int, dex: int, con: int, int_: int, wis: int, cha: int):
         for k, v in zip(["str","dex","con","int","wis","cha"], [str_, dex, con, int_, wis, cha]):
-            await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, k, v)
+            await status_service.set_status("char", name, k, v)
         await ctx.send(f"📊 Core stats {name} diupdate.")
 
     @status_group.command(name="setclass")
     async def status_setclass(self, ctx, name: str, *, class_name: str):
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "class", class_name)
+        await status_service.set_status("char", name, "class", class_name)
         await ctx.send(f"📘 Class {name} → {class_name}")
 
     @status_group.command(name="setrace")
     async def status_setrace(self, ctx, name: str, *, race_name: str):
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "race", race_name)
+        await status_service.set_status("char", name, "race", race_name)
         await ctx.send(f"🌍 Race {name} → {race_name}")
 
     @status_group.command(name="setlevel")
     async def status_setlevel(self, ctx, name: str, level: int):
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "level", level)
+        await status_service.set_status("char", name, "level", level)
         await ctx.send(f"⭐ {name} sekarang level {level}.")
 
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
-        await status_service.set_status(ctx.guild.id, ctx.channel.id, "char", name, "xp", amount)
+        await status_service.set_status("char", name, "xp", amount)
         await ctx.send(f"✨ {name} mendapat {amount} XP.")
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
-        execute("DELETE FROM characters WHERE guild_id=? AND channel_id=? AND name=?",
-                (str(ctx.guild.id), str(ctx.channel.id), name))
+        execute("DELETE FROM characters WHERE name=?", (name,))
         await ctx.send(f"🗑️ Karakter **{name}** dihapus.")
 
     @status_group.command(name="dmg")
     async def status_dmg(self, ctx, name: str, amount: int):
-        new_hp = await status_service.damage(ctx.guild.id, ctx.channel.id, "char", name, amount)
+        new_hp = await status_service.damage("char", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Karakter tidak ditemukan.")
         await ctx.send(f"💥 {name} menerima {amount} damage → {new_hp} HP")
 
     @status_group.command(name="heal")
     async def status_heal(self, ctx, name: str, amount: int):
-        new_hp = await status_service.heal(ctx.guild.id, ctx.channel.id, "char", name, amount)
+        new_hp = await status_service.heal("char", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Karakter tidak ditemukan.")
         await ctx.send(f"❤️ {name} dipulihkan {amount} HP → {new_hp} HP")
 
     @commands.command(name="party")
     async def party(self, ctx):
-        rows = fetchall("SELECT * FROM characters WHERE guild_id=? AND channel_id=?",
-                        (str(ctx.guild.id), str(ctx.channel.id)))
+        rows = fetchall("SELECT * FROM characters")
         if not rows:
             return await ctx.send("ℹ️ Belum ada karakter.")
         lines = []
