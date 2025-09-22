@@ -1,15 +1,11 @@
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent, template_for   # ✅ ganti ke utils.db
-
+from utils.db import save_memory, get_recent
 import json
 
 class Favor(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    def _key(self, ctx):
-        return (str(ctx.guild.id), str(ctx.channel.id))
 
     def _parse_entry(self, raw: str):
         parts = [p.strip() for p in raw.split("|")]
@@ -30,8 +26,7 @@ class Favor(commands.Cog):
         data = self._parse_entry(entry)
         if not data:
             return await ctx.send("⚠️ Format: `!favor add Fraksi | Nilai | [Catatan]`")
-        key = self._key(ctx)
-        save_memory(key[0], key[1], ctx.author.id, "favor", json.dumps(data), {"faction": data["faction"]})
+        save_memory("favor", json.dumps(data), {"faction": data["faction"]})
         await ctx.send(f"🪙 Favor untuk **{data['faction']}** diset ke `{data['favor']}`.")
 
     @favor.command(name="set")
@@ -40,8 +35,7 @@ class Favor(commands.Cog):
 
     @favor.command(name="show")
     async def favor_show(self, ctx):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "favor", 50)
+        rows = get_recent("favor", 50)
         out = []
         for (_id, cat, content, meta, ts) in rows:
             try:
@@ -56,8 +50,7 @@ class Favor(commands.Cog):
 
     @favor.command(name="detail")
     async def favor_detail(self, ctx, *, faction: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "favor", 50)
+        rows = get_recent("favor", 50)
         for (_id, cat, content, meta, ts) in rows:
             try:
                 f = json.loads(content)
@@ -76,14 +69,13 @@ class Favor(commands.Cog):
 
     @favor.command(name="remove")
     async def favor_remove(self, ctx, *, faction: str):
-        key = self._key(ctx)
-        rows = get_recent(key[0], key[1], "favor", 50)
+        rows = get_recent("favor", 50)
         for (_id, cat, content, meta, ts) in rows:
             try:
                 f = json.loads(content)
                 if f["faction"].lower() == faction.lower():
                     f["notes"] = "(deleted)"
-                    save_memory(key[0], key[1], ctx.author.id, "favor", json.dumps(f), {"faction": f["faction"]})
+                    save_memory("favor", json.dumps(f), {"faction": f["faction"]})
                     return await ctx.send(f"🗑️ Favor untuk **{f['faction']}** dihapus.")
             except:
                 continue
