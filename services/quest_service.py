@@ -1,9 +1,10 @@
 import json
 from utils.db import execute, fetchone, fetchall
 from services import inventory_service, status_service
+from cogs.world.timeline import log_event   # konsisten
 
 # ===============================
-# QUEST SERVICE
+# QUEST SERVICE (Global)
 # ===============================
 
 ICONS = {
@@ -16,31 +17,39 @@ ICONS = {
 }
 
 # ---------- CRUD ----------
-async def add_quest(guild_id, channel_id, title, detail="", items_required=None, rewards=None, created_by=None, hidden=False):
-    """Tambah quest baru."""
+def add_quest(title, detail="", items_required=None, rewards=None, created_by=None, hidden=False, user_id="0"):
+    """Tambah quest baru (global)."""
     status = "hidden" if hidden else "open"
     execute(
-        "INSERT INTO quests (guild_id, channel_id, title, detail, status, items_required, rewards, created_by) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (guild_id, channel_id, title, detail, status,
-         json.dumps(items_required or []),
-         json.dumps(rewards or {}),
-         created_by),
+        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags) VALUES (?,?,?,?,?,?,?)",
+        (
+            title,
+            detail,
+            status,
+            json.dumps([]),
+            json.dumps(rewards or {}),
+            json.dumps({}),
+            json.dumps({}),
+        ),
     )
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{ICONS['quest']} Quest baru ditambahkan: **{title}**"))
+    log_event("0", "0", user_id,
+              code=f"QUEST_ADD_{title.upper()}",
+              title=f"{ICONS['quest']} Quest baru ditambahkan: {title}",
+              details=detail,
+              etype="quest_add",
+              actors=[title],
+              tags=["quest","add"])
     return True
 
 
-def get_quest(guild_id, channel_id, title):
-    """Ambil 1 quest berdasarkan judul."""
-    return fetchone("SELECT * FROM quests WHERE guild_id=? AND channel_id=? AND title=?",
-                    (guild_id, channel_id, title))
+def get_quest(title):
+    """Ambil 1 quest berdasarkan nama."""
+    return fetchone("SELECT * FROM quests WHERE name=?", (title,))
 
 
-def list_quests(guild_id, channel_id, status="all"):
-    """Ambil semua quest di channel ini, bisa filter status."""
-    rows = fetchall("SELECT * FROM quests WHERE guild_id=? AND channel_id=?", (guild_id, channel_id))
+def list_quests(status="all"):
+    """Ambil semua quest global, bisa filter status."""
+    rows = fetchall("SELECT * FROM quests")
     if not rows:
         return f"{ICONS['quest']} Tidak ada quest."
 
@@ -51,88 +60,77 @@ def list_quests(guild_id, channel_id, status="all"):
         icon = ICONS["check"] if r["status"] == "completed" else (
             ICONS["fail"] if r["status"] == "failed" else ICONS["quest"]
         )
-        out.append(f"{icon} **{r['title']}** — {r['status']}")
+        out.append(f"{icon} **{r['name']}** — {r['status']}")
     return "\n".join(out)
 
 
-def update_status(guild_id, channel_id, title, new_status):
-    """Update status quest (open/completed/failed/hidden)."""
-    execute(
-        "UPDATE quests SET status=?, updated_at=CURRENT_TIMESTAMP WHERE guild_id=? AND channel_id=? AND title=?",
-        (new_status, guild_id, channel_id, title),
-    )
+def update_status(title, new_status):
+    """Update status quest."""
+    execute("UPDATE quests SET status=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+            (new_status, title))
     return True
 
 
-def set_rewards(guild_id, channel_id, title, rewards: dict):
+def set_rewards(title, rewards: dict):
     """Set rewards quest."""
-    execute(
-        "UPDATE quests SET rewards=?, updated_at=CURRENT_TIMESTAMP WHERE guild_id=? AND channel_id=? AND title=?",
-        (json.dumps(rewards), guild_id, channel_id, title),
-    )
+    execute("UPDATE quests SET rewards=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+            (json.dumps(rewards), title))
     return True
 
 
-def assign_characters(guild_id, channel_id, title, chars: list):
+def assign_characters(title, chars: list):
     """Assign quest ke karakter tertentu."""
-    execute(
-        "UPDATE quests SET assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE guild_id=? AND channel_id=? AND title=?",
-        (json.dumps(chars), guild_id, channel_id, title),
-    )
+    execute("UPDATE quests SET assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+            (json.dumps(chars), title))
     return True
 
 
 # ---------- Penyelesaian Quest ----------
-async def complete_quest(guild_id, channel_id, title, targets: list = None, owner="party"):
-    """Selesaikan quest, cek item, kasih reward ke target characters."""
-    quest = get_quest(guild_id, channel_id, title)
+def complete_quest(title, targets: list = None, user_id="0"):
+    """Selesaikan quest, kasih reward ke target characters."""
+    quest = get_quest(title)
     if not quest:
         return f"{ICONS['fail']} Quest tidak ditemukan."
 
     if quest["status"] != "open":
         return f"{ICONS['fail']} Quest ini sudah {quest['status']}."
 
-    items_required = json.loads(quest["items_required"] or "[]")
     rewards = json.loads(quest["rewards"] or "{}")
     assigned = json.loads(quest.get("assigned_to") or "[]")
 
     # Tentukan target
     if not targets:
-        targets = assigned or [owner]
-
-    # cek item requirement
-    missing = []
-    for item in items_required:
-        rows = await inventory_service.get_inventory(guild_id, channel_id, owner)
-        if not any(r["item"].lower() == item.lower() and r["qty"] > 0 for r in rows):
-            missing.append(item)
-
-    if missing:
-        return f"{ICONS['fail']} Tidak bisa selesaikan quest. Item kurang: {', '.join(missing)}"
+        targets = assigned or []
 
     # update quest status
-    update_status(guild_id, channel_id, title, "completed")
+    update_status(title, "completed")
 
     # berikan reward
-    msg_parts = [f"{ICONS['check']} Quest **{quest['title']}** selesai!"]
+    msg_parts = [f"{ICONS['check']} Quest **{quest['name']}** selesai!"]
 
     # XP
     if "xp" in rewards and rewards["xp"] > 0:
         for ch in targets:
-            await status_service.set_status(guild_id, channel_id, "char", ch, "xp", rewards["xp"])
+            old = fetchone("SELECT xp FROM characters WHERE name=?", (ch,))
+            if old:
+                new_val = old["xp"] + rewards["xp"]
+                status_service.set_status("char", ch, "xp", new_val)
         msg_parts.append(f"{ICONS['xp']} {rewards['xp']} XP")
 
     # Gold
     if "gold" in rewards and rewards["gold"] > 0:
         for ch in targets:
-            await status_service.set_status(guild_id, channel_id, "char", ch, "gold", rewards["gold"])
+            old = fetchone("SELECT gold FROM characters WHERE name=?", (ch,))
+            if old:
+                new_val = old["gold"] + rewards["gold"]
+                status_service.set_status("char", ch, "gold", new_val)
         msg_parts.append(f"💰 {rewards['gold']} Gold")
 
     # Loot
     if "loot" in rewards:
         for item, qty in rewards["loot"].items():
             for ch in targets:
-                await inventory_service.add_item(guild_id, channel_id, ch, item, qty)
+                inventory_service.add_item(ch, item, qty)
             msg_parts.append(f"{ICONS['loot']} {qty}x {item}")
 
     # Favor
@@ -143,34 +141,41 @@ async def complete_quest(guild_id, channel_id, title, targets: list = None, owne
         msg_parts.append(f"{ICONS['favor']} Favor → " + ", ".join(fav_txt))
 
     # log timeline
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{ICONS['check']} Quest **{quest['title']}** selesai."))
+    log_event("0", "0", user_id,
+              code=f"QUEST_COMPLETE_{title.upper()}",
+              title=f"{ICONS['check']} Quest {title} selesai.",
+              details=json.dumps(rewards),
+              etype="quest_complete",
+              actors=targets,
+              tags=["quest","complete"])
 
     return "\n".join(msg_parts)
 
 
-def fail_quest(guild_id, channel_id, title):
+def fail_quest(title, user_id="0"):
     """Tandai quest gagal."""
-    update_status(guild_id, channel_id, title, "failed")
-    execute("INSERT INTO timeline (guild_id, channel_id, event) VALUES (?,?,?)",
-            (guild_id, channel_id, f"{ICONS['fail']} Quest **{title}** gagal."))
+    update_status(title, "failed")
+    log_event("0", "0", user_id,
+              code=f"QUEST_FAIL_{title.upper()}",
+              title=f"{ICONS['fail']} Quest {title} gagal.",
+              details="",
+              etype="quest_fail",
+              actors=[title],
+              tags=["quest","fail"])
     return True
 
 
-def get_detail(guild_id, channel_id, title):
+def get_detail(title):
     """Ambil detail quest untuk embed."""
-    row = get_quest(guild_id, channel_id, title)
+    row = get_quest(title)
     if not row:
         return None
     rewards = json.loads(row["rewards"] or "{}")
-    items_required = json.loads(row["items_required"] or "[]")
     assigned = json.loads(row.get("assigned_to") or "[]")
     return {
-        "title": row["title"],
-        "detail": row["detail"],
+        "name": row["name"],
+        "detail": row.get("desc",""),
         "status": row["status"],
-        "items_required": items_required,
         "rewards": rewards,
         "assigned_to": assigned,
-        "created_by": row.get("created_by"),
     }
