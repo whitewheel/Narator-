@@ -3,7 +3,7 @@ import json
 import discord
 from discord.ext import commands
 from services import status_service, inventory_service
-from utils.db import fetchall, execute
+from utils.db import fetchall, fetchone, execute
 
 def _bar(cur: int, mx: int, width: int = 12) -> str:
     if mx <= 0:
@@ -112,12 +112,20 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
-        await status_service.set_status("char", name, "hp", hp)
-        await status_service.set_status("char", name, "hp_max", hp)
-        await status_service.set_status("char", name, "energy", energy)
-        await status_service.set_status("char", name, "energy_max", energy)
-        await status_service.set_status("char", name, "stamina", stamina)
-        await status_service.set_status("char", name, "stamina_max", stamina)
+        # cek apakah karakter sudah ada
+        exists = fetchone("SELECT id FROM characters WHERE name=?", (name,))
+        if not exists:
+            execute("""
+                INSERT INTO characters (name, hp, hp_max, energy, energy_max, stamina, stamina_max)
+                VALUES (?,?,?,?,?,?,?)
+            """, (name, hp, hp, energy, energy, stamina, stamina))
+        else:
+            await status_service.set_status("char", name, "hp", hp)
+            await status_service.set_status("char", name, "hp_max", hp)
+            await status_service.set_status("char", name, "energy", energy)
+            await status_service.set_status("char", name, "energy_max", energy)
+            await status_service.set_status("char", name, "stamina", stamina)
+            await status_service.set_status("char", name, "stamina_max", stamina)
         await ctx.send(f"✅ Karakter **{name}** diupdate.")
 
     @status_group.command(name="setcore")
