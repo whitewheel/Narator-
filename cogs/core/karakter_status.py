@@ -183,8 +183,19 @@ class CharacterStatus(commands.Cog):
 
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
-        await status_service.set_status("char", name, "xp", amount)
-        await ctx.send(f"✨ {name} mendapat {amount} XP.")
+        """Tambah XP ke karakter."""
+        old = fetchone("SELECT xp FROM characters WHERE name=?", (name,))
+        new_xp = (old["xp"] if old else 0) + amount
+        await status_service.set_status("char", name, "xp", new_xp)
+        await ctx.send(f"✨ {name} mendapat {amount} XP → total {new_xp}.")
+
+    @status_group.command(name="addgold")
+    async def status_addgold(self, ctx, name: str, amount: int):
+        """Tambah Gold ke karakter."""
+        old = fetchone("SELECT gold FROM characters WHERE name=?", (name,))
+        new_gold = (old["gold"] if old else 0) + amount
+        await status_service.set_status("char", name, "gold", new_gold)
+        await ctx.send(f"💰 {name} mendapat {amount} gold → total {new_gold}.")
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
