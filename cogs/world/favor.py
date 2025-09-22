@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from utils.db import save_memory, get_recent
 import json
+from cogs.world.timeline import log_event  # ✅ supaya favor masuk ke timeline
 
 class Favor(commands.Cog):
     def __init__(self, bot):
@@ -26,7 +27,14 @@ class Favor(commands.Cog):
         data = self._parse_entry(entry)
         if not data:
             return await ctx.send("⚠️ Format: `!favor add Fraksi | Nilai | [Catatan]`")
-        save_memory("favor", json.dumps(data), {"faction": data["faction"]})
+        save_memory("0", "0", ctx.author.id, "favor", json.dumps(data), {"faction": data["faction"]})
+        log_event("0", "0", ctx.author.id,
+                  code=f"FAVOR_ADD_{data['faction'].upper()}",
+                  title=f"🪙 Favor ditambahkan: {data['faction']}",
+                  details=f"Set ke {data['favor']} ({data.get('notes','-')})",
+                  etype="favor_set",
+                  actors=[data['faction']],
+                  tags=["favor"])
         await ctx.send(f"🪙 Favor untuk **{data['faction']}** diset ke `{data['favor']}`.")
 
     @favor.command(name="set")
@@ -35,11 +43,11 @@ class Favor(commands.Cog):
 
     @favor.command(name="show")
     async def favor_show(self, ctx):
-        rows = get_recent("favor", 50)
+        rows = get_recent("0", "0", "favor", 50)
         out = []
-        for (_id, cat, content, meta, ts) in rows:
+        for r in rows:
             try:
-                f = json.loads(content)
+                f = json.loads(r["value"])
                 line = f"🪙 **{f['faction']}** → {f['favor']}"
                 out.append(line)
             except:
@@ -50,10 +58,10 @@ class Favor(commands.Cog):
 
     @favor.command(name="detail")
     async def favor_detail(self, ctx, *, faction: str):
-        rows = get_recent("favor", 50)
-        for (_id, cat, content, meta, ts) in rows:
+        rows = get_recent("0", "0", "favor", 50)
+        for r in rows:
             try:
-                f = json.loads(content)
+                f = json.loads(r["value"])
                 if f["faction"].lower() == faction.lower():
                     embed = discord.Embed(
                         title=f"🪙 Favor: {f['faction']}",
@@ -69,13 +77,20 @@ class Favor(commands.Cog):
 
     @favor.command(name="remove")
     async def favor_remove(self, ctx, *, faction: str):
-        rows = get_recent("favor", 50)
-        for (_id, cat, content, meta, ts) in rows:
+        rows = get_recent("0", "0", "favor", 50)
+        for r in rows:
             try:
-                f = json.loads(content)
+                f = json.loads(r["value"])
                 if f["faction"].lower() == faction.lower():
                     f["notes"] = "(deleted)"
-                    save_memory("favor", json.dumps(f), {"faction": f["faction"]})
+                    save_memory("0", "0", ctx.author.id, "favor", json.dumps(f), {"faction": f["faction"]})
+                    log_event("0", "0", ctx.author.id,
+                              code=f"FAVOR_REMOVE_{f['faction'].upper()}",
+                              title=f"🗑️ Favor dihapus: {f['faction']}",
+                              details="Favor entry dihapus",
+                              etype="favor_remove",
+                              actors=[f["faction"]],
+                              tags=["favor","remove"])
                     return await ctx.send(f"🗑️ Favor untuk **{f['faction']}** dihapus.")
             except:
                 continue
