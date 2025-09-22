@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from services import npc_service
+import json
+from utils.db import fetchone, execute
 
 class NPC(commands.Cog):
     def __init__(self, bot):
@@ -13,43 +15,40 @@ class NPC(commands.Cog):
     # === Tambah NPC ===
     @npc.command(name="add")
     async def npc_add(self, ctx, name: str, *, role: str = ""):
-        await npc_service.add_npc(ctx.guild.id, ctx.channel.id, name, role)
-        await ctx.send(f"🧑‍🤝‍🧑 NPC **{name}** ditambahkan dengan role: {role}")
+        msg = await npc_service.add_npc(ctx.author.id, name, role)
+        await ctx.send(f"🧑‍🤝‍🧑 NPC **{name}** ditambahkan dengan role: {role}\n{msg or ''}")
 
     # === List NPC ===
     @npc.command(name="list")
     async def npc_list(self, ctx):
-        msg = await npc_service.list_npc(ctx.guild.id, ctx.channel.id)
+        msg = await npc_service.list_npc()
         await ctx.send(msg)
 
     # === Update Favor ===
     @npc.command(name="favor")
     async def npc_favor(self, ctx, name: str, amount: int):
-        msg = await npc_service.update_favor(ctx.guild.id, ctx.channel.id, name, amount)
+        msg = await npc_service.update_favor(name, amount)
         await ctx.send(msg)
 
     # === Reveal Trait ===
     @npc.command(name="reveal")
     async def npc_reveal(self, ctx, name: str, trait_key: str):
-        msg = await npc_service.reveal_trait(ctx.guild.id, ctx.channel.id, name, trait_key)
+        msg = await npc_service.reveal_trait(name, trait_key)
         await ctx.send(msg)
 
     # === Detail NPC (embed cantik) ===
     @npc.command(name="detail")
     async def npc_detail(self, ctx, *, name: str):
-        guild_id, channel_id = ctx.guild.id, ctx.channel.id
-        from utils.db import fetchone
-        npc = fetchone("SELECT * FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
-                       (guild_id, channel_id, name))
+        npc = fetchone("SELECT * FROM npc WHERE name=?", (name,))
         if not npc:
             return await ctx.send("❌ NPC tidak ditemukan.")
 
         embed = discord.Embed(
             title=f"👤 {npc['name']}",
-            description=f"Peran: **{npc['role']}**",
+            description=f"Peran: **{npc.get('role','-')}**",
             color=discord.Color.greyple()
         )
-        embed.add_field(name="💠 Favor", value=str(npc["favor"]), inline=True)
+        embed.add_field(name="💠 Favor", value=str(npc.get("favor", 0)), inline=True)
 
         traits = npc.get("traits")
         if traits:
@@ -64,16 +63,13 @@ class NPC(commands.Cog):
     # === Sinkronkan NPC dari lore (wiki kategori npc) ===
     @npc.command(name="sync")
     async def npc_sync(self, ctx):
-        msg = await npc_service.sync_from_wiki(ctx.guild.id, ctx.channel.id)
+        msg = await npc_service.sync_from_wiki()
         await ctx.send(msg)
 
     # === Hapus NPC (soft delete) ===
     @npc.command(name="remove")
     async def npc_remove(self, ctx, *, name: str):
-        from utils.db import execute
-        guild_id, channel_id = ctx.guild.id, ctx.channel.id
-        execute("DELETE FROM npc WHERE guild_id=? AND channel_id=? AND name=?",
-                (guild_id, channel_id, name))
+        execute("DELETE FROM npc WHERE name=?", (name,))
         await ctx.send(f"🗑️ NPC **{name}** dihapus.")
 
 async def setup(bot):
