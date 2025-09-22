@@ -1,67 +1,63 @@
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent, template_for
+from utils.db import execute, fetchone, fetchall
 import json
 import re
-
 from cogs.world.timeline import log_event  # hook timeline
 
 # --------------------
-# Storage helpers (global)
+# Storage helpers (global, pakai tabel quests)
 # --------------------
-def save_quest(user_id, name, data):
-    save_memory(user_id, "quest", json.dumps(data), {"name": name})
+def save_quest(data: dict):
+    execute("""
+        INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags)
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(name) DO UPDATE SET
+            desc=excluded.desc,
+            status=excluded.status,
+            assigned_to=excluded.assigned_to,
+            rewards=excluded.rewards,
+            favor=excluded.favor,
+            tags=excluded.tags,
+            updated_at=CURRENT_TIMESTAMP
+    """, (
+        data["name"],
+        data.get("desc", ""),
+        data.get("status", "active"),
+        json.dumps(data.get("assigned_to", [])),
+        json.dumps(data.get("rewards", {})),
+        json.dumps(data.get("favor", {})),
+        json.dumps(data.get("tags", {}))
+    ))
 
-def load_quest(name):
-    rows = get_recent("quest", 200)
-    for r in rows:
-        try:
-            q = json.loads(r["value"])
-            meta = json.loads(r.get("meta") or "{}")
-            if meta.get("name", "").lower() == name.lower() or q.get("name", "").lower() == name.lower():
-                return q
-        except Exception:
-            continue
-    return None
+def load_quest(name: str):
+    row = fetchone("SELECT * FROM quests WHERE name=?", (name,))
+    if not row:
+        return None
+    return {
+        "name": row["name"],
+        "desc": row["desc"],
+        "status": row["status"],
+        "assigned_to": json.loads(row.get("assigned_to") or "[]"),
+        "rewards": json.loads(row.get("rewards") or "{}"),
+        "favor": json.loads(row.get("favor") or "{}"),
+        "tags": json.loads(row.get("tags") or "{}"),
+    }
 
 def load_all_quests():
-    rows = get_recent("quest", 200)
+    rows = fetchall("SELECT * FROM quests")
     out = {}
     for r in rows:
-        try:
-            q = json.loads(r["value"])
-            meta = json.loads(r.get("meta") or "{}")
-            nm = meta.get("name", q.get("name"))
-            out[nm] = q
-        except Exception:
-            continue
+        out[r["name"]] = {
+            "name": r["name"],
+            "desc": r["desc"],
+            "status": r["status"],
+            "assigned_to": json.loads(r.get("assigned_to") or "[]"),
+            "rewards": json.loads(r.get("rewards") or "{}"),
+            "favor": json.loads(r.get("favor") or "{}"),
+            "tags": json.loads(r.get("tags") or "{}"),
+        }
     return out
-
-def save_char(user_id, name, data):
-    save_memory(user_id, "character", json.dumps(data), {"name": name})
-
-def load_char(name):
-    rows = get_recent("character", 200)
-    for r in rows:
-        try:
-            c = json.loads(r["value"])
-            meta = json.loads(r.get("meta") or "{}")
-            if meta.get("name", "").lower() == name.lower() or c.get("name", "").lower() == name.lower():
-                return c
-        except Exception:
-            continue
-    return None
-
-def get_item(name):
-    rows = get_recent("item", 200)
-    for r in rows:
-        try:
-            i = json.loads(r["value"])
-            if i.get("name", "").lower() == name.lower():
-                return i
-        except Exception:
-            continue
-    return None
 
 # --------------------
 # Parsing helpers
@@ -105,22 +101,16 @@ class Quest(commands.Cog):
         self.bot = bot
 
     def _quest_template(self, name: str, desc: str, hidden: bool = False):
-        data = template_for("quest")
-        data.update({
+        return {
             "name": name,
             "desc": desc,
             "status": "hidden" if hidden else "active",
             "objectives": [],
             "assigned_to": [],
-            "rewards": {
-                "xp": 0,
-                "gold": 0,
-                "items": []
-            },
+            "rewards": {"xp": 0, "gold": 0, "items": []},
             "favor": {},
             "tags": {},
-        })
-        return data
+        }
 
     # ---------- Commands ----------
     @commands.group(name="quest", invoke_without_command=True)
@@ -135,7 +125,7 @@ class Quest(commands.Cog):
         name, desc = parts[0], parts[1]
         hidden = any("--hidden" in p.lower() for p in parts[2:])
         q = self._quest_template(name, desc, hidden)
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
         await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'active'}.")
 
     @quest.command(name="show")
@@ -177,7 +167,7 @@ class Quest(commands.Cog):
             return await ctx.send("❌ Quest tidak ditemukan.")
         chars = [c.strip() for c in chars_csv.split(",") if c.strip()]
         q["assigned_to"] = list(dict.fromkeys(chars))
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
     @quest.command(name="reward")
@@ -205,7 +195,7 @@ class Quest(commands.Cog):
                     except: continue
             q["favor"] = fav
         q["rewards"] = r
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
         await ctx.send(f"🎁 Reward quest **{name}** diset. XP {r.get('xp',0)}, Gold {r.get('gold',0)}, Items {len(r.get('items',[]))}.")
 
     @quest.command(name="reveal")
@@ -214,22 +204,16 @@ class Quest(commands.Cog):
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "active"
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
         await ctx.send(f"🔔 Quest **{name}** sekarang **ACTIVE**.")
 
     @quest.command(name="complete")
-    async def quest_complete(self, ctx, name: str, *, targets: str = None):
+    async def quest_complete(self, ctx, name: str):
         q = load_quest(name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
-        to_chars = []
-        if targets and "to=" in targets:
-            to_chars = [c.strip() for c in targets.split("to=", 1)[1].split(",") if c.strip()]
-        elif q.get("assigned_to"):
-            to_chars = q["assigned_to"]
-
         q["status"] = "complete"
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
 
         r = q.get("rewards", {})
         xp = int(r.get("xp", 0) or 0)
@@ -237,51 +221,23 @@ class Quest(commands.Cog):
         items = r.get("items", [])
         favor = q.get("favor", {})
 
-        applied = []
-        for ch in to_chars:
-            c = load_char(ch)
-            if not c:
-                continue
-            c["xp"] = int(c.get("xp", 0)) + xp
-            c["gold"] = int(c.get("gold", 0)) + gold
-            inv = c.get("inventory", [])
-            for it in items:
-                name_i = it.get("name")
-                qty_i = int(it.get("qty", 1))
-                lib = get_item(name_i) or {"name": name_i}
-                exists = next((x for x in inv if x["name"].lower() == name_i.lower()), None)
-                if exists:
-                    exists["qty"] = exists.get("qty", 1) + qty_i
-                else:
-                    add = lib.copy()
-                    add["qty"] = qty_i
-                    inv.append(add)
-            c["inventory"] = inv
-            save_char(ctx.author.id, ch, c)
-            applied.append(ch)
-
+        # log ke timeline
         log_event(ctx.author.id,
                   code=f"Q_COMPLETE_{name.upper()}",
                   title=f"Quest selesai: {name}",
                   details=f"Reward: {xp} XP, {gold} gold, items {len(items)}, favor {favor}",
                   etype="quest_complete",
                   quest=name,
-                  actors=to_chars,
+                  actors=q.get("assigned_to", []),
                   tags=["quest","complete"])
-        fav_text = ""
-        if favor:
-            fav_text = "\n".join([f"{f}: {v:+d}" for f, v in favor.items()])
 
         embed = discord.Embed(title=f"✅ Quest Complete: {q['name']}", description=q.get("desc", "-"), color=discord.Color.green())
-        if applied:
-            embed.add_field(name="Reward Applied To", value=", ".join(applied), inline=False)
-            embed.add_field(name="XP/Gold", value=f"{xp} XP / {gold} Gold per karakter", inline=False)
-            if items:
-                items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items])
-                embed.add_field(name="Items", value=items_str, inline=False)
-        else:
-            embed.add_field(name="Info", value="Tidak ada target karakter. Gunakan `to=<Char1,Char2>` atau assign dulu.", inline=False)
-        if fav_text:
+        embed.add_field(name="XP/Gold", value=f"{xp} XP / {gold} Gold per karakter", inline=False)
+        if items:
+            items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items])
+            embed.add_field(name="Items", value=items_str, inline=False)
+        if favor:
+            fav_text = "\n".join([f"{f}: {v:+d}" for f, v in favor.items()])
             embed.add_field(name="Favor", value=fav_text, inline=False)
         await ctx.send(embed=embed)
 
@@ -291,7 +247,7 @@ class Quest(commands.Cog):
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
-        save_quest(ctx.author.id, name, q)
+        save_quest(q)
         await ctx.send(f"❌ Quest **{name}** ditandai **FAILED**.")
 
 async def setup(bot):
