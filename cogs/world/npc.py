@@ -15,6 +15,9 @@ class NPC(commands.Cog):
     # === Tambah NPC ===
     @npc.command(name="add")
     async def npc_add(self, ctx, name: str, *, role: str = ""):
+        exists = fetchone("SELECT id FROM npc WHERE name=?", (name,))
+        if exists:
+            return await ctx.send(f"⚠️ NPC **{name}** sudah ada.")
         msg = await npc_service.add_npc(ctx.author.id, name, role)
         await ctx.send(f"🧑‍🤝‍🧑 NPC **{name}** ditambahkan dengan role: {role}\n{msg or ''}")
 
@@ -27,12 +30,18 @@ class NPC(commands.Cog):
     # === Update Favor ===
     @npc.command(name="favor")
     async def npc_favor(self, ctx, name: str, amount: int):
+        exists = fetchone("SELECT id FROM npc WHERE name=?", (name,))
+        if not exists:
+            return await ctx.send(f"❌ NPC **{name}** tidak ditemukan.")
         msg = await npc_service.update_favor(name, amount, ctx.author.id)
         await ctx.send(msg)
 
     # === Reveal Trait ===
     @npc.command(name="reveal")
     async def npc_reveal(self, ctx, name: str, trait_key: str):
+        exists = fetchone("SELECT id, traits FROM npc WHERE name=?", (name,))
+        if not exists:
+            return await ctx.send(f"❌ NPC **{name}** tidak ditemukan.")
         msg = await npc_service.reveal_trait(name, trait_key, ctx.author.id)
         await ctx.send(msg)
 
@@ -52,9 +61,12 @@ class NPC(commands.Cog):
 
         traits = npc.get("traits")
         if traits:
-            traits = json.loads(traits)
-            visible = [f"- {k}: {v}" for k, v in traits.items()]
-            embed.add_field(name="👁️ Traits", value="\n".join(visible) or "-", inline=False)
+            try:
+                traits = json.loads(traits)
+                visible = [f"- {k}: {v}" for k, v in traits.items()]
+                embed.add_field(name="👁️ Traits", value="\n".join(visible) or "-", inline=False)
+            except Exception:
+                embed.add_field(name="👁️ Traits", value="-", inline=False)
         else:
             embed.add_field(name="👁️ Traits", value="-", inline=False)
 
@@ -69,6 +81,9 @@ class NPC(commands.Cog):
     # === Hapus NPC (soft delete) ===
     @npc.command(name="remove")
     async def npc_remove(self, ctx, *, name: str):
+        exists = fetchone("SELECT id FROM npc WHERE name=?", (name,))
+        if not exists:
+            return await ctx.send(f"❌ NPC **{name}** tidak ditemukan.")
         execute("DELETE FROM npc WHERE name=?", (name,))
         await ctx.send(f"🗑️ NPC **{name}** dihapus.")
 
