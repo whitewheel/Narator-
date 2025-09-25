@@ -114,8 +114,12 @@ class EnemyStatus(commands.Cog):
 
     @commands.group(name="enemy", invoke_without_command=True)
     async def enemy(self, ctx):
-        await ctx.send("Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, `!enemy dmg`, `!enemy heal`, `!enemy loot`, `!enemy buff`, `!enemy debuff`")
+        await ctx.send(
+            "Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, "
+            "`!edmg`, `!eheal`, `!ebuff`, `!edebuff`"
+        )
 
+    # === Tambah / Update Enemy ===
     @enemy.command(name="add")
     async def enemy_add(self, ctx, name: str, hp: int, *, opts: str = None):
         guild_id = ctx.guild.id
@@ -158,6 +162,7 @@ class EnemyStatus(commands.Cog):
             """, (name, hp, hp, 10, xp_reward, gold_reward, json.dumps(loots)))
             await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
 
+    # === Show Enemy ===
     @enemy.command(name="show")
     async def enemy_show(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
@@ -190,103 +195,30 @@ class EnemyStatus(commands.Cog):
         embed = make_embed(rows, ctx, title=title, mode="gm")
         await ctx.send(embed=embed)
 
-    @enemy.command(name="dmg")
-    async def enemy_dmg(self, ctx, name: str, amount: int):
-        new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
-
-    @enemy.command(name="heal")
-    async def enemy_heal(self, ctx, name: str, amount: int):
-        new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
-
-    @enemy.command(name="loot")
-    async def enemy_loot(self, ctx, name: str):
-        guild_id = ctx.guild.id
-        row = fetchone(guild_id, "SELECT * FROM enemies WHERE name=?", (name,))
-        if not row:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
-        loots = json.loads(row["loot"] or "[]")
-        if not loots:
-            return await ctx.send("❌ Enemy ini tidak punya loot.")
-        out = [f"- {it['name']} ({it.get('rarity','')})" for it in loots]
-        await ctx.send(f"🎁 Loot dari {name}:\n" + "\n".join(out))
-
-    @enemy.command(name="buff")
-    async def enemy_buff(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=True)
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
-
-    @enemy.command(name="debuff")
-    async def enemy_debuff(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
-
-    @enemy.command(name="clearbuff")
-    async def enemy_clearbuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "enemy", name, is_buff=True)
-        await ctx.send(f"✨ Semua buff dihapus dari {name}.")
-
-    @enemy.command(name="cleardebuff")
-    async def enemy_cleardebuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "enemy", name, is_buff=False)
-        await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
-
-    # ===== Short Aliases (global, hati2 bentrok) =====
-
-    @commands.command(name="dmg")
-    async def dmg_short(self, ctx, name: str, amount: int):
-        new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
-
-    @commands.command(name="heal")
-    async def heal_short(self, ctx, name: str, amount: int):
-        new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
-
-    @commands.command(name="buff")
-    async def buff_short(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=True)
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
-
-    @commands.command(name="debuff")
-    async def debuff_short(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
-
-    # ===== GM Short Aliases (prefix e) =====
-
+    # === GM Short Aliases ===
     @commands.command(name="edmg")
     async def enemy_dmg_short(self, ctx, name: str, amount: int):
         new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
+        await ctx.send(f"💥 [GM] {name} menerima {amount} damage → {new_hp} HP")
 
     @commands.command(name="eheal")
     async def enemy_heal_short(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
+        await ctx.send(f"✨ [GM] {name} dipulihkan {amount} HP → {new_hp} HP")
 
     @commands.command(name="ebuff")
     async def enemy_buff_short(self, ctx, name: str, *, text: str):
         await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=True)
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+        await ctx.send(f"✨ [GM] Buff ditambahkan ke {name}: {text}")
 
     @commands.command(name="edebuff")
     async def enemy_debuff_short(self, ctx, name: str, *, text: str):
         await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+        await ctx.send(f"☠️ [GM] Debuff ditambahkan ke {name}: {text}")
 
 async def setup(bot):
     await bot.add_cog(EnemyStatus(bot))
