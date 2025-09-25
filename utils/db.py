@@ -4,54 +4,57 @@ import sqlite3
 import json
 from typing import Any, Iterable, Iterable as Iter, List, Optional, Dict
 
-# ===== Path DB di volume (Railway / Docker) =====
-DB_PATH = os.getenv("DB_PATH", "/data/narator.db")
-
+# ===== Path DB per server =====
+def get_db_path(guild_id: int) -> str:
+    return f"/data/narator_{guild_id}.db"
 
 # ===== Low-level helpers =====
-def get_conn() -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+def get_conn(guild_id: int) -> sqlite3.Connection:
+    path = get_db_path(guild_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
 
-def execute(sql: str, params: Iterable[Any] = ()) -> int:
+def execute(guild_id: int, sql: str, params: Iterable[Any] = ()) -> int:
     """Jalankan 1 statement (INSERT/UPDATE/DELETE). Return lastrowid (kalau ada)."""
-    with get_conn() as conn:
+    with get_conn(guild_id) as conn:
         cur = conn.execute(sql, tuple(params))
+        conn.commit()
         return cur.lastrowid
 
-def executemany(sql: str, seq_of_params: Iter[Iter[Any]]) -> None:
+def executemany(guild_id: int, sql: str, seq_of_params: Iter[Iter[Any]]) -> None:
     """Jalankan banyak statement sekaligus."""
-    with get_conn() as conn:
+    with get_conn(guild_id) as conn:
         conn.executemany(sql, seq_of_params)
+        conn.commit()
 
-def fetchone(sql: str, params: Iterable[Any] = ()) -> Optional[Dict[str, Any]]:
+def fetchone(guild_id: int, sql: str, params: Iterable[Any] = ()) -> Optional[Dict[str, Any]]:
     """Ambil satu row (dict) atau None."""
-    with get_conn() as conn:
+    with get_conn(guild_id) as conn:
         cur = conn.execute(sql, tuple(params))
         row = cur.fetchone()
         return dict(row) if row else None
 
-def fetchall(sql: str, params: Iterable[Any] = ()) -> List[Dict[str, Any]]:
+def fetchall(guild_id: int, sql: str, params: Iterable[Any] = ()) -> List[Dict[str, Any]]:
     """Ambil list row (list of dict)."""
-    with get_conn() as conn:
+    with get_conn(guild_id) as conn:
         cur = conn.execute(sql, tuple(params))
         return [dict(r) for r in cur.fetchall()]
 
 # ===== Aliases untuk kompatibilitas kode lama =====
-def query_one(sql: str, params: Iterable[Any] = ()):
-    return fetchone(sql, params)
+def query_one(guild_id: int, sql: str, params: Iterable[Any] = ()):
+    return fetchone(guild_id, sql, params)
 
-def query_all(sql: str, params: Iterable[Any] = ()):
-    return fetchall(sql, params)
-
+def query_all(guild_id: int, sql: str, params: Iterable[Any] = ()):
+    return fetchall(guild_id, sql, params)
 
 # ===== Memory-like helper =====
-def save_memory(user_id, mtype, value, meta=None):
-    """Simpan log memory ke DB (global, tanpa guild/channel)."""
+def save_memory(guild_id: int, user_id, mtype, value, meta=None):
+    """Simpan log memory ke DB (per server)."""
     meta_json = json.dumps(meta or {})
     execute(
+        guild_id,
         """
         INSERT INTO memories (user_id, type, value, meta, created_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -59,10 +62,11 @@ def save_memory(user_id, mtype, value, meta=None):
         (user_id, mtype, value, meta_json)
     )
 
-def get_recent(mtype=None, limit=10):
-    """Ambil log terakhir dari DB berdasarkan tipe (global)."""
+def get_recent(guild_id: int, mtype=None, limit=10):
+    """Ambil log terakhir dari DB (per server)."""
     if mtype:
         rows = fetchall(
+            guild_id,
             """
             SELECT * FROM memories
             WHERE type=? 
@@ -72,6 +76,7 @@ def get_recent(mtype=None, limit=10):
         )
     else:
         rows = fetchall(
+            guild_id,
             """
             SELECT * FROM memories
             ORDER BY id DESC LIMIT ?
@@ -91,38 +96,36 @@ def template_for(mtype: str) -> dict:
     }
     return templates.get(mtype, {})
 
-
 # ===== Schema bootstrap & auto-migration =====
-def _exec_script(sql: str) -> None:
-    with get_conn() as conn:
+def _exec_script(guild_id: int, sql: str) -> None:
+    with get_conn(guild_id) as conn:
         conn.executescript(sql)
+        conn.commit()
 
-def _ensure_table(create_sql: str) -> None:
-    execute(create_sql)
+def _ensure_table(guild_id: int, create_sql: str) -> None:
+    execute(guild_id, create_sql)
 
-def _ensure_columns(table: str, columns: Dict[str, str]) -> None:
+def _ensure_columns(guild_id: int, table: str, columns: Dict[str, str]) -> None:
     """Tambahkan kolom yang belum ada. columns = { 'col_name': 'SQL_TYPE DEFAULT ...'}"""
-    info = fetchall(f"PRAGMA table_info({table})")
+    info = fetchall(guild_id, f"PRAGMA table_info({table})")
     existing = {c["name"] for c in info}
     for col, decl in columns.items():
         if col not in existing:
-            execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+            execute(guild_id, f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
-def init_db() -> None:
+def init_db(guild_id: int) -> None:
     """
-    1) Jalankan schema.sql kalau ada.
-    2) Pastikan tabel global ada.
-    3) Pastikan kolom tambahan yang dipakai cogs sudah ada (auto-migrate).
+    Buat DB untuk server tertentu jika belum ada, lalu pastikan tabel dan kolom lengkap.
     """
     # 1) Load schema.sql (opsional)
     schema_file = os.path.join(os.path.dirname(__file__), "..", "data", "schema.sql")
     if os.path.exists(schema_file):
         with open(schema_file, "r", encoding="utf-8") as f:
             schema = f.read()
-        _exec_script(schema)
+        _exec_script(guild_id, schema)
 
-    # 2) Tabel dasar (global)
-    _ensure_table("""
+    # 2) Tabel dasar (server-specific)
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS characters (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -156,7 +159,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS enemies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -171,7 +174,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS quests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -186,7 +189,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS npc (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -197,7 +200,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS inventory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         owner TEXT,
@@ -208,7 +211,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         action TEXT,
@@ -217,7 +220,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS timeline (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         event TEXT,
@@ -225,7 +228,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_json TEXT DEFAULT '[]',
@@ -235,7 +238,7 @@ def init_db() -> None:
     );
     """)
 
-    _ensure_table("""
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
@@ -247,7 +250,7 @@ def init_db() -> None:
     """)
 
     # 3) Auto-migrate kolom tambahan
-    _ensure_columns("characters", {
+    _ensure_columns(guild_id, "characters", {
         "effects": "TEXT DEFAULT '[]'",
         "equipment": "TEXT DEFAULT '{}'",
         "companions": "TEXT DEFAULT '[]'",
@@ -257,14 +260,14 @@ def init_db() -> None:
         "speed": "INTEGER DEFAULT 30"
     })
 
-    _ensure_columns("enemies", {
+    _ensure_columns(guild_id, "enemies", {
         "effects": "TEXT DEFAULT '[]'",
         "xp_reward": "INTEGER DEFAULT 0",
         "gold_reward": "INTEGER DEFAULT 0",
         "loot": "TEXT DEFAULT '[]'"
     })
 
-    _ensure_columns("quests", {
+    _ensure_columns(guild_id, "quests", {
         "assigned_to": "TEXT DEFAULT '[]'",
         "rewards": "TEXT DEFAULT '{}'",
         "favor": "TEXT DEFAULT '{}'",
@@ -272,47 +275,15 @@ def init_db() -> None:
         "archived": "INTEGER DEFAULT 0"
     })
 
-    _ensure_columns("npc", {
+    _ensure_columns(guild_id, "npc", {
         "role": "TEXT",
         "favor": "INTEGER DEFAULT 0",
         "traits": "TEXT DEFAULT '{}'"
     })
 
-    # --- MIGRASI QUESTS (lama -> baru) ---
-    info = fetchall("PRAGMA table_info(quests)")
-    cols = {c["name"] for c in info}
-
-    if "name" not in cols:
-        execute("ALTER TABLE quests ADD COLUMN name TEXT")
-        if "title" in cols:
-            execute("UPDATE quests SET name = COALESCE(name, title)")
-
-    if "desc" not in cols:
-        execute("ALTER TABLE quests ADD COLUMN desc TEXT")
-        if "detail" in cols:
-            execute("UPDATE quests SET desc = COALESCE(desc, detail)")
-
-    _ensure_columns("quests", {
-        "assigned_to": "TEXT DEFAULT '[]'",
-        "rewards": "TEXT DEFAULT '{}'",
-        "favor": "TEXT DEFAULT '{}'",
-        "tags": "TEXT DEFAULT '{}'",
-        "archived": "INTEGER DEFAULT 0"
-    })
-
-    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
-
-    # 4) Indexes
-    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
-    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
-    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_name ON npc(name);")
-    execute("CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(owner);")
-
-
-# ===== Auto-create DB kalau kosong =====
-try:
-    if not os.path.exists(DB_PATH) or os.path.getsize(DB_PATH) == 0:
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        init_db()
-except Exception:
-    pass
+    # Indexes
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_name ON npc(name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(owner);")
