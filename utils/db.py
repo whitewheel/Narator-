@@ -181,6 +181,7 @@ def init_db() -> None:
         rewards TEXT DEFAULT '{}',
         favor TEXT DEFAULT '{}',
         tags TEXT DEFAULT '{}',
+        archived INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -267,7 +268,8 @@ def init_db() -> None:
         "assigned_to": "TEXT DEFAULT '[]'",
         "rewards": "TEXT DEFAULT '{}'",
         "favor": "TEXT DEFAULT '{}'",
-        "tags": "TEXT DEFAULT '{}'"
+        "tags": "TEXT DEFAULT '{}'",
+        "archived": "INTEGER DEFAULT 0"
     })
 
     _ensure_columns("npc", {
@@ -294,7 +296,8 @@ def init_db() -> None:
         "assigned_to": "TEXT DEFAULT '[]'",
         "rewards": "TEXT DEFAULT '{}'",
         "favor": "TEXT DEFAULT '{}'",
-        "tags": "TEXT DEFAULT '{}'"
+        "tags": "TEXT DEFAULT '{}'",
+        "archived": "INTEGER DEFAULT 0"
     })
 
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
