@@ -7,10 +7,10 @@ from cogs.world.timeline import log_event  # hook timeline
 from services import quest_service
 
 # --------------------
-# Storage helpers (global, pakai tabel quests)
+# Storage helpers (per server)
 # --------------------
-def save_quest(data: dict):
-    execute("""
+def save_quest(guild_id: int, data: dict):
+    execute(guild_id, """
         INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived)
         VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(name) DO UPDATE SET
@@ -33,8 +33,8 @@ def save_quest(data: dict):
         data.get("archived", 0)
     ))
 
-def load_quest(name: str):
-    row = fetchone("SELECT * FROM quests WHERE name=?", (name,))
+def load_quest(guild_id: int, name: str):
+    row = fetchone(guild_id, "SELECT * FROM quests WHERE name=?", (name,))
     if not row:
         return None
     return {
@@ -48,8 +48,8 @@ def load_quest(name: str):
         "archived": row.get("archived", 0),
     }
 
-def load_all_quests():
-    rows = fetchall("SELECT * FROM quests")
+def load_all_quests(guild_id: int):
+    rows = fetchall(guild_id, "SELECT * FROM quests")
     out = {}
     for r in rows:
         out[r["name"]] = {
@@ -124,23 +124,25 @@ class Quest(commands.Cog):
 
     @quest.command(name="add")
     async def quest_add(self, ctx, *, entry: str):
+        guild_id = ctx.guild.id
         parts = [p.strip() for p in entry.split("|")]
         if len(parts) < 2:
             return await ctx.send("⚠️ Format: `!quest add Nama | Deskripsi | [--hidden]`")
         name, desc = parts[0], parts[1]
         hidden = any("--hidden" in p.lower() for p in parts[2:])
         q = self._quest_template(name, desc, hidden)
-        save_quest(q)
+        save_quest(guild_id, q)
         await ctx.send(f"📜 Quest **{name}** dibuat. Status: {'hidden' if hidden else 'open'}.")
 
     @quest.command(name="show")
     async def quest_show(self, ctx, status: str = "all"):
-        allq = load_all_quests()
+        guild_id = ctx.guild.id
+        allq = load_all_quests(guild_id)
         filt = status.lower()
         out = []
         for nm, q in allq.items():
             if q.get("archived", 0) == 1:
-                continue  # skip archived
+                continue
             st = q.get("status", "open")
             if filt == "all" or st.lower() == filt:
                 out.append(f"• **{nm}** — _{st}_")
@@ -150,7 +152,8 @@ class Quest(commands.Cog):
 
     @quest.command(name="showarchived")
     async def quest_show_archived(self, ctx):
-        allq = load_all_quests()
+        guild_id = ctx.guild.id
+        allq = load_all_quests(guild_id)
         out = []
         for nm, q in allq.items():
             if q.get("archived", 0) == 1:
@@ -162,7 +165,8 @@ class Quest(commands.Cog):
 
     @quest.command(name="detail")
     async def quest_detail(self, ctx, *, name: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         r = q.get("rewards", {})
@@ -170,7 +174,6 @@ class Quest(commands.Cog):
         items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items]) or "-"
         assigned = ", ".join(q.get("assigned_to", [])) or "-"
 
-        # Judul dengan ikon tambahan
         title_icon = "📜"
         if q.get("status") == "hidden":
             title_icon += " 🔒"
@@ -195,17 +198,19 @@ class Quest(commands.Cog):
 
     @quest.command(name="assign")
     async def quest_assign(self, ctx, name: str, *, chars_csv: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         chars = [c.strip() for c in chars_csv.split(",") if c.strip()]
         q["assigned_to"] = list(dict.fromkeys(chars))
-        save_quest(q)
+        save_quest(guild_id, q)
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
     @quest.command(name="reward")
     async def quest_reward(self, ctx, name: str, *, spec: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         kv = parse_kv_pairs(spec)
@@ -228,34 +233,34 @@ class Quest(commands.Cog):
                     except: continue
             q["favor"] = fav
         q["rewards"] = r
-        save_quest(q)
+        save_quest(guild_id, q)
         await ctx.send(f"🎁 Reward quest **{name}** diset. XP {r.get('xp',0)}, Gold {r.get('gold',0)}, Items {len(r.get('items',[]))}.")
 
     @quest.command(name="reveal")
     async def quest_reveal(self, ctx, *, name: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "open"
-        save_quest(q)
+        save_quest(guild_id, q)
         await ctx.send(f"🔔 Quest **{name}** sekarang **OPEN**.")
 
     @quest.command(name="complete")
     async def quest_complete(self, ctx, name: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
 
-        # tandai completed + archive
         q["status"] = "completed"
         q["archived"] = 1
-        save_quest(q)
+        save_quest(guild_id, q)
 
-        # eksekusi reward lewat quest_service
-        msg = quest_service.complete_quest(name, q.get("assigned_to", []), ctx.author.id)
+        msg = quest_service.complete_quest(guild_id, name, q.get("assigned_to", []), ctx.author.id)
 
-        # log timeline
-        log_event(ctx.author.id,
+        log_event(guild_id,
+                  ctx.author.id,
                   code=f"Q_COMPLETE_{name.upper()}",
                   title=f"Quest selesai: {name}",
                   details=json.dumps(q.get("rewards", {})),
@@ -268,13 +273,15 @@ class Quest(commands.Cog):
 
     @quest.command(name="fail")
     async def quest_fail(self, ctx, *, name: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
         q["archived"] = 1
-        save_quest(q)
-        log_event(ctx.author.id,
+        save_quest(guild_id, q)
+        log_event(guild_id,
+                  ctx.author.id,
                   code=f"Q_FAIL_{name.upper()}",
                   title=f"Quest gagal: {name}",
                   etype="quest_fail",
@@ -285,11 +292,12 @@ class Quest(commands.Cog):
 
     @quest.command(name="archive")
     async def quest_archive(self, ctx, *, name: str):
-        q = load_quest(name)
+        guild_id = ctx.guild.id
+        q = load_quest(guild_id, name)
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["archived"] = 1
-        save_quest(q)
+        save_quest(guild_id, q)
         await ctx.send(f"📦 Quest **{name}** berhasil diarsipkan.")
 
 async def setup(bot):
