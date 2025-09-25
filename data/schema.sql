@@ -3,10 +3,10 @@
 -- ===============================
 CREATE TABLE IF NOT EXISTS characters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,                -- server id
-    channel_id TEXT,              -- channel id
-    name TEXT NOT NULL,           -- nama karakter
-    player_id TEXT DEFAULT NULL,  -- optional: discord user id
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    player_id TEXT DEFAULT NULL,
     class TEXT DEFAULT '',
     race TEXT DEFAULT '',
     level INTEGER DEFAULT 1,
@@ -34,11 +34,16 @@ CREATE TABLE IF NOT EXISTS characters (
     init_mod INTEGER DEFAULT 0,
     speed INTEGER DEFAULT 30,
 
+    -- Carry system
+    carry_capacity INTEGER DEFAULT 0,
+    carry_used REAL DEFAULT 0,
+
     -- JSON fields
-    buffs TEXT DEFAULT '[]',       -- JSON list
-    debuffs TEXT DEFAULT '[]',     -- JSON list
-    equipment TEXT DEFAULT '{}',   -- JSON {weapon, armor, accessory}
-    companions TEXT DEFAULT '[]',  -- JSON list
+    buffs TEXT DEFAULT '[]',
+    debuffs TEXT DEFAULT '[]',
+    equipment TEXT DEFAULT '{}',
+    companions TEXT DEFAULT '[]',
+    inventory TEXT DEFAULT '[]',
 
     notes TEXT DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -50,15 +55,16 @@ CREATE TABLE IF NOT EXISTS characters (
 -- ===============================
 CREATE TABLE IF NOT EXISTS enemies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     name TEXT NOT NULL,
     hp INTEGER DEFAULT 0,
     hp_max INTEGER DEFAULT 0,
     ac INTEGER DEFAULT 10,
     init_mod INTEGER DEFAULT 0,
     xp_reward INTEGER DEFAULT 0,
-    loot TEXT DEFAULT '[]',       -- JSON list item drops
+    gold_reward INTEGER DEFAULT 0,
+    loot TEXT DEFAULT '[]',
     effects TEXT DEFAULT '[]',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -69,15 +75,15 @@ CREATE TABLE IF NOT EXISTS enemies (
 -- ===============================
 CREATE TABLE IF NOT EXISTS quests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     name TEXT UNIQUE,
     desc TEXT,
-    status TEXT DEFAULT 'open',     -- open/completed/failed/hidden
-    assigned_to TEXT DEFAULT '[]',  -- JSON list
-    rewards TEXT DEFAULT '{}',      -- JSON {xp,gold,items,favor}
-    favor TEXT DEFAULT '{}',        -- JSON {faction:points}
-    tags TEXT DEFAULT '{}',         -- JSON {tag:val}
+    status TEXT DEFAULT 'open',
+    assigned_to TEXT DEFAULT '[]',
+    rewards TEXT DEFAULT '{}',
+    favor TEXT DEFAULT '{}',
+    tags TEXT DEFAULT '{}',
     created_by TEXT DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -88,12 +94,12 @@ CREATE TABLE IF NOT EXISTS quests (
 -- ===============================
 CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
-    owner TEXT DEFAULT 'party',  -- karakter atau 'party'
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    owner TEXT DEFAULT 'party',
     item TEXT NOT NULL,
     qty INTEGER DEFAULT 1,
-    metadata TEXT DEFAULT '{}',  -- JSON {rarity, type, notes}
+    metadata TEXT DEFAULT '{}',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -103,14 +109,29 @@ CREATE TABLE IF NOT EXISTS inventory (
 -- ===============================
 CREATE TABLE IF NOT EXISTS npc (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     name TEXT NOT NULL,
     role TEXT DEFAULT '',
     favor INTEGER DEFAULT 0,
-    traits TEXT DEFAULT '{}', -- JSON: {"hidden1": "rahasia"}
+    traits TEXT DEFAULT '{}',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===============================
+-- FAVORS
+-- ===============================
+CREATE TABLE IF NOT EXISTS favors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT,
+    faction TEXT NOT NULL,
+    favor INTEGER DEFAULT 0,
+    notes TEXT DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, faction)
 );
 
 -- ===============================
@@ -118,8 +139,8 @@ CREATE TABLE IF NOT EXISTS npc (
 -- ===============================
 CREATE TABLE IF NOT EXISTS encounters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     name TEXT DEFAULT 'Encounter',
     round INTEGER DEFAULT 1,
     turn_index INTEGER DEFAULT 0,
@@ -131,10 +152,11 @@ CREATE TABLE IF NOT EXISTS encounters (
 CREATE TABLE IF NOT EXISTS encounter_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     encounter_id INTEGER NOT NULL,
-    label TEXT NOT NULL,         -- nama char/npc/enemy
+    label TEXT NOT NULL,
     initiative INTEGER DEFAULT 0,
     tied INTEGER DEFAULT 0,
-    type TEXT DEFAULT 'char',    -- char/enemy/npc
+    type TEXT DEFAULT 'char',
+    state_json TEXT DEFAULT '{}',
     FOREIGN KEY(encounter_id) REFERENCES encounters(id)
 );
 
@@ -143,10 +165,10 @@ CREATE TABLE IF NOT EXISTS encounter_members (
 -- ===============================
 CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
-    action TEXT NOT NULL,         -- contoh: dmg, heal, loot_add
-    data TEXT NOT NULL,           -- JSON detail perubahan
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    data TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -155,8 +177,8 @@ CREATE TABLE IF NOT EXISTS history (
 -- ===============================
 CREATE TABLE IF NOT EXISTS timeline (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     event TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -166,9 +188,10 @@ CREATE TABLE IF NOT EXISTS timeline (
 -- ===============================
 CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
     text TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -177,21 +200,34 @@ CREATE TABLE IF NOT EXISTS notes (
 -- ===============================
 CREATE TABLE IF NOT EXISTS wiki (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
-    category TEXT NOT NULL,  -- race, class, npc, timeline
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    category TEXT NOT NULL,
     name TEXT NOT NULL,
     content TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ===============================
+-- INITIATIVE (Legacy/simple tracker)
+-- ===============================
 CREATE TABLE IF NOT EXISTS initiative (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT,
-    channel_id TEXT,
-    order_json TEXT,   -- simpan list (name, score)
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    order_json TEXT,
     ptr INTEGER,
     round INTEGER,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ===============================
+-- INDEXES
+-- ===============================
+CREATE UNIQUE INDEX IF NOT EXISTS idx_char_guild_name ON characters(guild_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_guild_name ON enemies(guild_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_guild_name ON quests(guild_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_guild_name ON npc(guild_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_favor_guild_faction ON favors(guild_id, faction);
+CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(guild_id, owner);
