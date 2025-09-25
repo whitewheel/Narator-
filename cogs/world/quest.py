@@ -120,7 +120,7 @@ class Quest(commands.Cog):
     # ---------- Commands ----------
     @commands.group(name="quest", invoke_without_command=True)
     async def quest(self, ctx):
-        await ctx.send("Gunakan: `!quest add`, `!quest show`, `!quest detail`, `!quest assign`, `!quest reward`, `!quest reveal`, `!quest complete`, `!quest fail`, `!quest archive`")
+        await ctx.send("Gunakan: `!quest add`, `!quest show`, `!quest detail`, `!quest assign`, `!quest reward`, `!quest reveal`, `!quest complete`, `!quest fail`, `!quest archive`, `!quest showarchived`")
 
     @quest.command(name="add")
     async def quest_add(self, ctx, *, entry: str):
@@ -148,6 +148,18 @@ class Quest(commands.Cog):
             return await ctx.send("Tidak ada quest yang cocok.")
         await ctx.send("\n".join(out[:25]))
 
+    @quest.command(name="showarchived")
+    async def quest_show_archived(self, ctx):
+        allq = load_all_quests()
+        out = []
+        for nm, q in allq.items():
+            if q.get("archived", 0) == 1:
+                st = q.get("status", "open")
+                out.append(f"• **{nm}** — _{st}_ 📦")
+        if not out:
+            return await ctx.send("Tidak ada quest yang diarsipkan.")
+        await ctx.send("\n".join(out[:25]))
+
     @quest.command(name="detail")
     async def quest_detail(self, ctx, *, name: str):
         q = load_quest(name)
@@ -157,7 +169,19 @@ class Quest(commands.Cog):
         items = r.get("items", [])
         items_str = "\n".join([f"- {it['name']} x{it.get('qty',1)}" for it in items]) or "-"
         assigned = ", ".join(q.get("assigned_to", [])) or "-"
-        embed = discord.Embed(title=f"📜 {q['name']}", description=q.get("desc", "-"), color=discord.Color.gold())
+
+        # Judul dengan ikon tambahan
+        title_icon = "📜"
+        if q.get("status") == "hidden":
+            title_icon += " 🔒"
+        if q.get("archived", 0) == 1:
+            title_icon += " 📦"
+
+        embed = discord.Embed(
+            title=f"{title_icon} {q['name']}",
+            description=q.get("desc", "-"),
+            color=discord.Color.gold()
+        )
         embed.add_field(name="Status", value=q.get("status", "open"), inline=True)
         embed.add_field(name="Assigned To", value=assigned, inline=True)
         embed.add_field(name="XP/Gold", value=f"{r.get('xp',0)} XP / {r.get('gold',0)} Gold (per karakter)", inline=False)
