@@ -26,7 +26,7 @@ def _update_equipment(guild_id: int, char: str, eq: dict):
     )
 
 def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0"):
-    """Equip item dari inventory ke slot equipment karakter."""
+    """Equip item dari inventory ke slot equipment karakter (cek carry)."""
     slot = slot.lower()
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
@@ -41,6 +41,15 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
     found = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
     if not found or found["qty"] <= 0:
         return False, f"❌ {char} tidak punya {item_name} di inventory."
+
+    # cek data item (ambil weight)
+    item_data = item_service.get_item(guild_id, item_name)
+    weight = float(item_data.get("weight", 0)) if item_data else 0.0
+
+    carry_capacity = c.get("carry_capacity", 0)
+    carry_used = c.get("carry_used", 0.0)
+    if carry_capacity > 0 and carry_used + weight > carry_capacity:
+        return False, f"❌ {char} tidak sanggup equip {item_name} (melebihi kapasitas)."
 
     # ambil equipment json
     eq = json.loads(c.get("equipment") or "{}")
@@ -58,6 +67,9 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
     # kurangi inventory
     inventory_service.remove_item(guild_id, char, item_name, 1, user_id=user_id)
 
+    # sync carry
+    inventory_service.calc_carry(guild_id, char)
+
     # log
     log_event(
         guild_id,
@@ -72,9 +84,8 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
 
     return True, f"⚔️ {char} sekarang memakai {item_name} di slot {slot}."
 
-
 def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
-    """Unequip item dari slot ke inventory karakter."""
+    """Unequip item dari slot ke inventory karakter (boleh overload)."""
     slot = slot.lower()
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
@@ -96,6 +107,9 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     eq[slot] = ""
     _update_equipment(guild_id, char, eq)
 
+    # sync carry
+    inventory_service.calc_carry(guild_id, char)
+
     log_event(
         guild_id,
         user_id,
@@ -108,7 +122,6 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     )
 
     return True, f"🛑 {char} melepas {item_name} dari slot {slot}."
-
 
 def show_equipment(guild_id: int, char: str):
     """Ambil daftar equipment karakter."""
