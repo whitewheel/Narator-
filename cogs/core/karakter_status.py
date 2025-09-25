@@ -70,10 +70,13 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"CHA {final_stats['cha']} ({_mod(final_stats['cha']):+d}){note_line}"
         )
 
-        profile_line = f"Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')} | XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
+        profile_line = (
+            f"Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')} "
+            f"| XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
+        )
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
 
-        # equipment slot fix
+        # equipment slot (dengan aksesori 3 + augment 3)
         eq = json.loads(c.get("equipment") or "{}")
         equip_lines = [
             f"🗡️ Main Hand: {eq.get('main_hand') or '-'}",
@@ -82,6 +85,10 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"🛡️ Armor Outer: {eq.get('armor_outer') or '-'}",
             f"💍 Accessory 1: {eq.get('accessory1') or '-'}",
             f"💍 Accessory 2: {eq.get('accessory2') or '-'}",
+            f"💍 Accessory 3: {eq.get('accessory3') or '-'}",
+            f"🧬 Augment 1: {eq.get('augment1') or '-'}",
+            f"🧬 Augment 2: {eq.get('augment2') or '-'}",
+            f"🧬 Augment 3: {eq.get('augment3') or '-'}",
         ]
         equip_block = "\n".join(equip_lines)
 
@@ -100,13 +107,17 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             for comp in comp_list
         ]) or "-"
 
+        # carry system
+        carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
+
         value = (
             f"{profile_line}\n"
             f"❤️ HP: {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
             f"🔋 Energy: {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
             f"⚡ Stamina: {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
             f"📊 Stats:\n{stats_line}\n\n"
-            f"🛡️ Combat: {combat_line}\n\n"
+            f"🛡️ Combat: {combat_line}\n"
+            f"{carry_line}\n\n"
             f"🎒 Equipment:\n{equip_block}\n\n"
             f"📦 Inventory:\n{inv_line}\n\n"
             f"✨ Buffs:\n{buffs_str}\n\n"
@@ -174,6 +185,14 @@ class CharacterStatus(commands.Cog):
         await status_service.set_status(ctx.guild.id, "char", name, "ac", ac)
         await ctx.send(f"🛡️ AC {name} sekarang {ac}.")
 
+    @status_group.command(name="setcarry")
+    async def status_setcarry(self, ctx, name: str, capacity: int):
+        """Set kapasitas bawa karakter (manual)."""
+        guild_id = ctx.guild.id
+        execute(guild_id, "UPDATE characters SET carry_capacity=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+                (capacity, name))
+        await ctx.send(f"⚖️ Carry capacity {name} diset ke {capacity}.")
+
     @status_group.command(name="equip")
     async def status_equip(self, ctx, name: str, slot: str, *, item: str):
         guild_id = ctx.guild.id
@@ -230,7 +249,11 @@ class CharacterStatus(commands.Cog):
             hp_text = f"{c['hp']}/{c['hp_max']}"
             en_text = f"{c['energy']}/{c['energy_max']}"
             st_text = f"{c['stamina']}/{c['stamina_max']}"
-            lines.append(f"**{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}")
+            carry_line = f"⚖️ {c.get('carry_used',0):.1f}/{c.get('carry_capacity',0)}"
+            lines.append(
+                f"**{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} "
+                f"| {carry_line} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}"
+            )
         await ctx.send("\n".join(lines))
 
 async def setup(bot):
