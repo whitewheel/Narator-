@@ -7,7 +7,6 @@ import discord
 from discord.ext import commands
 
 from utils.db import execute, fetchone, fetchall
-from cogs.world.timeline import log_event  # tetap dipakai untuk narasi/log
 
 # ===============================
 # DB Helpers & Setup
@@ -69,7 +68,7 @@ def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
 
     embed = discord.Embed(
         title=title,
-        description=f"📜 Round **{rnd}**",
+        description=f"📜 Round **{rnd}** • Total Peserta: **{len(order)}**",
         color=discord.Color.red()
     )
 
@@ -80,8 +79,12 @@ def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
 
     lines = []
     for i, (name, score) in enumerate(order):
-        marker = "👉" if highlight and i == ptr else "  "
-        lines.append(f"{marker} {i+1}. **{name}** ({score})")
+        if highlight and i == ptr:
+            marker = "🔥"
+            lines.append(f"{marker} **{i+1}. {name}** ({score}) ← Giliran")
+        else:
+            marker = "⏳"
+            lines.append(f"{marker} {i+1}. {name} ({score})")
 
     embed.add_field(name="⚔️ Initiative Order", value="\n".join(lines), inline=False)
     embed.set_footer(text="Gunakan !init next / !next untuk lanjut giliran.")
@@ -114,21 +117,23 @@ class InitiativeMemory(commands.Cog):
     # ---------- group ----------
     @commands.group(name="init", invoke_without_command=True)
     async def init_group(self, ctx):
-        await ctx.send(
-            "```txt\n"
-            "Initiative Commands:\n"
-            "• !init add <Nama> <Skor>\n"
-            "• !init addmany \"Alice 18, Goblin 12, Borin 14\"\n"
-            "• !init show   (alias: !order)\n"
-            "• !init next   (alias: !next / !n)\n"
-            "• !init setptr <index>  (mulai 1)\n"
-            "• !init remove <Nama>\n"
-            "• !init clear\n"
-            "• !init shuffle\n"
-            "• !init round [angka]\n"
-            "• !engage / !victory\n"
-            "```"
+        embed = discord.Embed(
+            title="📖 Initiative Commands",
+            description=(
+                "• `!init add <Nama> <Skor>`\n"
+                "• `!init addmany \"Alice 18, Goblin 12, Borin 14\"`\n"
+                "• `!init show`   (alias: `!order`)\n"
+                "• `!init next`   (alias: `!next` / `!n`)\n"
+                "• `!init setptr <index>` (mulai dari 1)\n"
+                "• `!init remove <Nama>`\n"
+                "• `!init clear`\n"
+                "• `!init shuffle`\n"
+                "• `!init round [angka]`\n"
+                "• `!engage` / `!victory`"
+            ),
+            color=discord.Color.blurple()
         )
+        await ctx.send(embed=embed)
 
     # ---------- add ----------
     @init_group.command(name="add")
@@ -139,7 +144,13 @@ class InitiativeMemory(commands.Cog):
         s["order"] = _sorted_order(list(existing.items()))
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
         self._persist(ctx)
-        await ctx.send(f"✅ Ditambahkan/diupdate: **{name}** = `{score}`")
+
+        embed = discord.Embed(
+            title="✅ Peserta Ditambahkan / Diupdate",
+            description=f"**{name}** = `{score}`",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
 
     @init_group.command(name="addmany")
     async def init_addmany(self, ctx, *, entries: str = None):
@@ -170,12 +181,18 @@ class InitiativeMemory(commands.Cog):
         s["order"] = _sorted_order(list(existing.items()))
         s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
 
-        msg = f"✅ Ditambahkan/diupdate **{added}** peserta."
+        desc = f"✅ Ditambahkan / diupdate **{added}** peserta."
         if skipped:
             preview = ", ".join(skipped[:5]) + (" ..." if len(skipped) > 5 else "")
-            msg += f" (di-skip: {preview})"
+            desc += f"\n⚠️ Di-skip: {preview}"
+
         self._persist(ctx)
-        await ctx.send(msg)
+        embed = discord.Embed(
+            title="📥 Add Many",
+            description=desc,
+            color=discord.Color.blue()
+        )
+        await ctx.send(embed=embed)
 
     # ---------- remove / clear ----------
     @init_group.command(name="remove")
@@ -186,7 +203,12 @@ class InitiativeMemory(commands.Cog):
         if len(s["order"]) < before:
             s["ptr"] = s["ptr"] % len(s["order"]) if s["order"] else 0
             self._persist(ctx)
-            await ctx.send(f"🗑️ Hapus **{name}**")
+            embed = discord.Embed(
+                title="🗑️ Peserta Dihapus",
+                description=f"**{name}** dihapus dari urutan.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
         else:
             await ctx.send("⚠️ Nama tidak ditemukan.")
 
@@ -195,7 +217,12 @@ class InitiativeMemory(commands.Cog):
         guild_id = ctx.guild.id
         self.state[guild_id] = {"order": [], "ptr": 0, "round": 1}
         self._persist(ctx)
-        await ctx.send("🧹 Initiative direset.")
+        embed = discord.Embed(
+            title="🧹 Initiative Reset",
+            description="Semua peserta dihapus. Urutan kosong.",
+            color=discord.Color.dark_gray()
+        )
+        await ctx.send(embed=embed)
 
     # ---------- show / order ----------
     @init_group.command(name="show")
@@ -222,7 +249,7 @@ class InitiativeMemory(commands.Cog):
         self._persist(ctx)
         embed = _make_embed(ctx, "⏭️ Initiative Next", s)
         current = s["order"][s["ptr"]][0]
-        embed.add_field(name="Giliran", value=f"✨ **{current}**", inline=False)
+        embed.add_field(name="Giliran Saat Ini", value=f"✨ **{current}**", inline=False)
         await ctx.send(embed=embed)
 
     @init_group.command(name="setptr")
@@ -302,9 +329,10 @@ class InitiativeMemory(commands.Cog):
 
         embed = discord.Embed(
             title="🎉 Victory!",
+            description="Pertempuran berakhir dengan kemenangan!",
             color=discord.Color.green()
         )
-        embed.add_field(name="👹 Rangkuman Musuh", value=f"Total: {total} • Alive: {alive} • Defeated: {defeated}", inline=False)
+        embed.add_field(name="👹 Musuh", value=f"Total: {total} • Alive: {alive} • Defeated: {defeated}", inline=False)
         embed.add_field(name="📜 Round Terakhir", value=str(rnd), inline=True)
         embed.add_field(name="✨ Giliran Terakhir", value=current_turn, inline=True)
 
