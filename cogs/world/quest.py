@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from utils.db import fetchone, fetchall
+from utils.db import fetchone, fetchall, execute
 import json
 import re
 from cogs.world.timeline import log_event  # hook timeline
@@ -10,10 +10,9 @@ from services import quest_service
 # Storage helpers (global, pakai tabel quests)
 # --------------------
 def save_quest(data: dict):
-    from utils.db import execute
     execute("""
-        INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags)
-        VALUES (?,?,?,?,?,?,?)
+        INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived)
+        VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(name) DO UPDATE SET
             desc=excluded.desc,
             status=excluded.status,
@@ -21,6 +20,7 @@ def save_quest(data: dict):
             rewards=excluded.rewards,
             favor=excluded.favor,
             tags=excluded.tags,
+            archived=excluded.archived,
             updated_at=CURRENT_TIMESTAMP
     """, (
         data["name"],
@@ -29,7 +29,8 @@ def save_quest(data: dict):
         json.dumps(data.get("assigned_to", [])),
         json.dumps(data.get("rewards", {})),
         json.dumps(data.get("favor", {})),
-        json.dumps(data.get("tags", {}))
+        json.dumps(data.get("tags", {})),
+        data.get("archived", 0)
     ))
 
 def load_quest(name: str):
@@ -44,6 +45,7 @@ def load_quest(name: str):
         "rewards": json.loads(row.get("rewards") or "{}"),
         "favor": json.loads(row.get("favor") or "{}"),
         "tags": json.loads(row.get("tags") or "{}"),
+        "archived": row.get("archived", 0),
     }
 
 def load_all_quests():
@@ -58,6 +60,7 @@ def load_all_quests():
             "rewards": json.loads(r.get("rewards") or "{}"),
             "favor": json.loads(r.get("favor") or "{}"),
             "tags": json.loads(r.get("tags") or "{}"),
+            "archived": r.get("archived", 0),
         }
     return out
 
@@ -111,12 +114,13 @@ class Quest(commands.Cog):
             "rewards": {"xp": 0, "gold": 0, "items": []},
             "favor": {},
             "tags": {},
+            "archived": 0,
         }
 
     # ---------- Commands ----------
     @commands.group(name="quest", invoke_without_command=True)
     async def quest(self, ctx):
-        await ctx.send("Gunakan: `!quest add`, `!quest show`, `!quest detail`, `!quest assign`, `!quest reward`, `!quest reveal`, `!quest complete`, `!quest fail`")
+        await ctx.send("Gunakan: `!quest add`, `!quest show`, `!quest detail`, `!quest assign`, `!quest reward`, `!quest reveal`, `!quest complete`, `!quest fail`, `!quest archive`")
 
     @quest.command(name="add")
     async def quest_add(self, ctx, *, entry: str):
@@ -135,6 +139,8 @@ class Quest(commands.Cog):
         filt = status.lower()
         out = []
         for nm, q in allq.items():
+            if q.get("archived", 0) == 1:
+                continue  # skip archived
             st = q.get("status", "open")
             if filt == "all" or st.lower() == filt:
                 out.append(f"• **{nm}** — _{st}_")
@@ -159,6 +165,8 @@ class Quest(commands.Cog):
         if q.get("favor"):
             fav_str = "\n".join([f"{f}: {v:+d}" for f, v in q["favor"].items()])
             embed.add_field(name="Favor", value=fav_str, inline=False)
+        if q.get("archived", 0) == 1:
+            embed.set_footer(text="📦 Arsip Quest")
         await ctx.send(embed=embed)
 
     @quest.command(name="assign")
@@ -214,8 +222,9 @@ class Quest(commands.Cog):
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
 
-        # tandai completed
+        # tandai completed + archive
         q["status"] = "completed"
+        q["archived"] = 1
         save_quest(q)
 
         # eksekusi reward lewat quest_service
@@ -239,6 +248,7 @@ class Quest(commands.Cog):
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
         q["status"] = "failed"
+        q["archived"] = 1
         save_quest(q)
         log_event(ctx.author.id,
                   code=f"Q_FAIL_{name.upper()}",
@@ -247,7 +257,16 @@ class Quest(commands.Cog):
                   quest=name,
                   actors=q.get("assigned_to", []),
                   tags=["quest","fail"])
-        await ctx.send(f"❌ Quest **{name}** ditandai **FAILED**.")
+        await ctx.send(f"❌ Quest **{name}** ditandai **FAILED** dan diarsipkan.")
+
+    @quest.command(name="archive")
+    async def quest_archive(self, ctx, *, name: str):
+        q = load_quest(name)
+        if not q:
+            return await ctx.send("❌ Quest tidak ditemukan.")
+        q["archived"] = 1
+        save_quest(q)
+        await ctx.send(f"📦 Quest **{name}** berhasil diarsipkan.")
 
 async def setup(bot):
     await bot.add_cog(Quest(bot))
