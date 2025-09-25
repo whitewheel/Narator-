@@ -3,7 +3,7 @@ from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # pakai log_event biar konsisten
 
 # ===============================
-# INVENTORY SERVICE (per-server) + ICONS
+# INVENTORY SERVICE (per-server) + ICONS + Carry System
 # ===============================
 
 ICONS = {
@@ -14,6 +14,31 @@ ICONS = {
     "bag": "🎒",
 }
 
+# ---------- Carry Calculation ----------
+def calc_carry(guild_id: int, owner: str):
+    """Hitung total weight dari inventory owner dan update ke characters.carry_used"""
+    rows = fetchall(
+        guild_id,
+        "SELECT qty, metadata FROM inventory WHERE owner=?",
+        (owner,)
+    )
+    total_weight = 0.0
+    for r in rows:
+        try:
+            meta = json.loads(r["metadata"] or "{}")
+            weight = float(meta.get("weight", 0))
+            total_weight += weight * r["qty"]
+        except Exception:
+            continue
+
+    execute(
+        guild_id,
+        "UPDATE characters SET carry_used=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+        (total_weight, owner)
+    )
+    return total_weight
+
+# ---------- CRUD ----------
 def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0"):
     """Tambah item ke inventory (owner = karakter / 'party')."""
     row = fetchone(
@@ -28,6 +53,9 @@ def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0")
     else:
         execute(guild_id, "INSERT INTO inventory (owner, item, qty, metadata) VALUES (?,?,?,?)",
                 (owner, item_name, qty, json.dumps(metadata or {})))
+
+    # sync carry
+    calc_carry(guild_id, owner)
 
     # history
     execute(guild_id, "INSERT INTO history (action, data) VALUES (?,?)",
@@ -62,6 +90,9 @@ def remove_item(guild_id: int, owner, item_name, qty=1, user_id="0"):
                 (new_qty, row["id"]))
     else:
         execute(guild_id, "DELETE FROM inventory WHERE id=?", (row["id"],))
+
+    # sync carry
+    calc_carry(guild_id, owner)
 
     execute(guild_id, "INSERT INTO history (action, data) VALUES (?,?)",
             ("loot_remove", json.dumps({"owner": owner, "item": item_name, "qty": qty})))
@@ -99,6 +130,10 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
         return False
     add_item(guild_id, to_owner, item_name, qty, metadata=meta, user_id=user_id)
 
+    # sync carry untuk kedua owner
+    calc_carry(guild_id, from_owner)
+    calc_carry(guild_id, to_owner)
+
     log_event(
         guild_id,
         user_id,
@@ -112,7 +147,7 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
     return True
 
 def update_metadata(guild_id: int, owner, item_name, metadata: dict, user_id="0"):
-    """Update metadata item (rarity, type, notes)."""
+    """Update metadata item (rarity, type, notes, weight)."""
     row = fetchone(
         guild_id,
         "SELECT * FROM inventory WHERE owner=? AND item=?",
@@ -125,6 +160,9 @@ def update_metadata(guild_id: int, owner, item_name, metadata: dict, user_id="0"
     meta.update(metadata)
     execute(guild_id, "UPDATE inventory SET metadata=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (json.dumps(meta), row["id"]))
+
+    # sync carry
+    calc_carry(guild_id, owner)
 
     log_event(
         guild_id,
