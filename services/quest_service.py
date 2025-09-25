@@ -21,7 +21,7 @@ def add_quest(title, detail="", items_required=None, rewards=None, created_by=No
     """Tambah quest baru (global)."""
     status = "hidden" if hidden else "open"
     execute(
-        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived) VALUES (?,?,?,?,?,?,?,?)",
         (
             title,
             detail,
@@ -30,6 +30,7 @@ def add_quest(title, detail="", items_required=None, rewards=None, created_by=No
             json.dumps(rewards or {}),
             json.dumps({}),
             json.dumps({}),
+            0
         ),
     )
     log_event(
@@ -49,27 +50,36 @@ def get_quest(title):
     return fetchone("SELECT * FROM quests WHERE name=?", (title,))
 
 
-def list_quests(status="all"):
-    """Ambil semua quest global, bisa filter status."""
+def list_quests(status="all", include_archived=False):
+    """Ambil semua quest global, bisa filter status. Skip archived jika tidak diminta."""
     rows = fetchall("SELECT * FROM quests")
     if not rows:
         return f"{ICONS['quest']} Tidak ada quest."
 
     out = []
     for r in rows:
+        if not include_archived and r.get("archived", 0) == 1:
+            continue
         if status != "all" and r["status"].lower() != status.lower():
             continue
         icon = ICONS["check"] if r["status"] == "completed" else (
             ICONS["fail"] if r["status"] == "failed" else ICONS["quest"]
         )
-        out.append(f"{icon} **{r['name']}** — {r['status']}")
+        label = f"{icon} **{r['name']}** — {r['status']}"
+        if r.get("archived", 0) == 1:
+            label += " 📦"
+        out.append(label)
     return "\n".join(out)
 
 
-def update_status(title, new_status):
-    """Update status quest."""
-    execute("UPDATE quests SET status=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
-            (new_status, title))
+def update_status(title, new_status, archive=False):
+    """Update status quest (dan archive kalau perlu)."""
+    if archive:
+        execute("UPDATE quests SET status=?, archived=1, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+                (new_status, title))
+    else:
+        execute("UPDATE quests SET status=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+                (new_status, title))
     return True
 
 
@@ -104,8 +114,8 @@ async def complete_quest(title, targets: list = None, user_id=0):
     if not targets:
         targets = assigned or []
 
-    # update quest status
-    update_status(title, "completed")
+    # update quest status + archive
+    update_status(title, "completed", archive=True)
 
     # berikan reward
     msg_parts = [f"{ICONS['check']} Quest **{quest['name']}** selesai!"]
@@ -158,7 +168,7 @@ async def complete_quest(title, targets: list = None, user_id=0):
 
 def fail_quest(title, user_id=0):
     """Tandai quest gagal."""
-    update_status(title, "failed")
+    update_status(title, "failed", archive=True)
     log_event(
         user_id,
         code=f"QUEST_FAIL_{title.upper()}",
@@ -168,6 +178,12 @@ def fail_quest(title, user_id=0):
         actors=[title],
         tags=["quest","fail"]
     )
+    return True
+
+
+def archive_quest(title):
+    """Arsipkan quest manual."""
+    execute("UPDATE quests SET archived=1, updated_at=CURRENT_TIMESTAMP WHERE name=?", (title,))
     return True
 
 
@@ -184,4 +200,5 @@ def get_detail(title):
         "status": row["status"],
         "rewards": rewards,
         "assigned_to": assigned,
+        "archived": row.get("archived", 0),
     }
