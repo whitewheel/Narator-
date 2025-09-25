@@ -15,9 +15,13 @@ ICONS = {
     "lore": "📚",
 }
 
+def get_npc(guild_id: int, name: str):
+    """Ambil 1 NPC berdasarkan nama."""
+    return fetchone(guild_id, "SELECT * FROM npc WHERE name=?", (name,))
+
 async def add_npc(guild_id: int, user_id, name, role="", favor=0, traits=None):
     """Tambah NPC baru ke world (per-server)."""
-    exists = fetchone(guild_id, "SELECT id FROM npc WHERE name=?", (name,))
+    exists = get_npc(guild_id, name)
     if exists:
         return f"⚠️ NPC **{name}** sudah ada."
 
@@ -38,10 +42,9 @@ async def add_npc(guild_id: int, user_id, name, role="", favor=0, traits=None):
     )
     return f"{ICONS['npc']} NPC **{name}** berhasil ditambahkan."
 
-
 async def update_favor(guild_id: int, name, amount, user_id=None):
     """Ubah favor NPC (positif / negatif)."""
-    npc = fetchone(guild_id, "SELECT * FROM npc WHERE name=?", (name,))
+    npc = get_npc(guild_id, name)
     if not npc:
         return f"{ICONS['favor_down']} NPC tidak ditemukan."
 
@@ -62,10 +65,9 @@ async def update_favor(guild_id: int, name, amount, user_id=None):
     )
     return f"{icon} Favor {name} sekarang {new_favor}"
 
-
 async def reveal_trait(guild_id: int, name, trait_key, user_id=None):
     """Reveal trait tersembunyi NPC."""
-    npc = fetchone(guild_id, "SELECT * FROM npc WHERE name=?", (name,))
+    npc = get_npc(guild_id, name)
     if not npc:
         return f"{ICONS['favor_down']} NPC tidak ditemukan."
 
@@ -88,7 +90,6 @@ async def reveal_trait(guild_id: int, name, trait_key, user_id=None):
     )
     return msg
 
-
 async def list_npc(guild_id: int):
     """List semua NPC (per-server)."""
     rows = fetchall(guild_id, "SELECT * FROM npc")
@@ -99,13 +100,12 @@ async def list_npc(guild_id: int):
         out.append(f"{ICONS['npc']} **{r['name']}** ({r['role']}) Favor: {r['favor']}")
     return "\n".join(out)
 
-
 async def sync_from_wiki(guild_id: int, user_id=None):
     """Sinkronkan semua NPC dari wiki kategori 'npc' (per-server)."""
     rows = fetchall(guild_id, "SELECT * FROM wiki WHERE category='npc'")
     added = []
     for r in rows:
-        npc = fetchone(guild_id, "SELECT * FROM npc WHERE name=?", (r["name"],))
+        npc = get_npc(guild_id, r["name"])
         if not npc:
             execute(
                 guild_id,
@@ -138,3 +138,22 @@ async def sync_from_wiki(guild_id: int, user_id=None):
         tags=["npc","lore","sync"]
     )
     return f"{ICONS['lore']} NPC ditambahkan dari lore: {', '.join(added)}"
+
+async def remove_npc(guild_id: int, user_id: int, name: str):
+    """Hapus NPC (per-server) + log ke timeline."""
+    npc = get_npc(guild_id, name)
+    if not npc:
+        return f"❌ NPC **{name}** tidak ditemukan."
+    
+    execute(guild_id, "DELETE FROM npc WHERE name=?", (name,))
+    log_event(
+        guild_id,
+        user_id,
+        code=f"NPC_REMOVE_{name.upper()}",
+        title=f"🗑️ NPC {name} dihapus.",
+        details=f"Role: {npc.get('role','-')}, Favor: {npc.get('favor',0)}",
+        etype="npc_remove",
+        actors=[name],
+        tags=["npc","remove"]
+    )
+    return f"🗑️ NPC **{name}** dihapus."
