@@ -1,4 +1,3 @@
-# utils/db.py
 import os
 import sqlite3
 import json
@@ -149,6 +148,8 @@ def init_db(guild_id: int) -> None:
         xp INTEGER DEFAULT 0,
         gold INTEGER DEFAULT 0,
         speed INTEGER DEFAULT 30,
+        carry_capacity INTEGER DEFAULT 0,
+        carry_used REAL DEFAULT 0,
         buffs TEXT DEFAULT '[]',
         debuffs TEXT DEFAULT '[]',
         effects TEXT DEFAULT '[]',
@@ -257,7 +258,9 @@ def init_db(guild_id: int) -> None:
         "inventory": "TEXT DEFAULT '[]'",
         "xp": "INTEGER DEFAULT 0",
         "gold": "INTEGER DEFAULT 0",
-        "speed": "INTEGER DEFAULT 30"
+        "speed": "INTEGER DEFAULT 30",
+        "carry_capacity": "INTEGER DEFAULT 0",
+        "carry_used": "REAL DEFAULT 0"
     })
 
     _ensure_columns(guild_id, "enemies", {
