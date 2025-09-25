@@ -153,7 +153,18 @@ def init_db(guild_id: int) -> None:
         buffs TEXT DEFAULT '[]',
         debuffs TEXT DEFAULT '[]',
         effects TEXT DEFAULT '[]',
-        equipment TEXT DEFAULT '{}',
+        equipment TEXT DEFAULT '{
+            "main_hand": null,
+            "off_hand": null,
+            "armor_inner": null,
+            "armor_outer": null,
+            "accessory1": null,
+            "accessory2": null,
+            "accessory3": null,
+            "augment1": null,
+            "augment2": null,
+            "augment3": null
+        }',
         companions TEXT DEFAULT '[]',
         inventory TEXT DEFAULT '[]',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -253,7 +264,7 @@ def init_db(guild_id: int) -> None:
     # 3) Auto-migrate kolom tambahan
     _ensure_columns(guild_id, "characters", {
         "effects": "TEXT DEFAULT '[]'",
-        "equipment": "TEXT DEFAULT '{}'",
+        "equipment": "TEXT DEFAULT '{}' ",
         "companions": "TEXT DEFAULT '[]'",
         "inventory": "TEXT DEFAULT '[]'",
         "xp": "INTEGER DEFAULT 0",
