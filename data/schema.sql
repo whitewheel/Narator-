@@ -71,11 +71,13 @@ CREATE TABLE IF NOT EXISTS quests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT,
     channel_id TEXT,
-    title TEXT NOT NULL,
-    detail TEXT DEFAULT '',
-    status TEXT DEFAULT 'open', -- open/completed/failed
-    items_required TEXT DEFAULT '[]', -- JSON list
-    rewards TEXT DEFAULT '{}',        -- JSON {loot, favor, xp}
+    name TEXT UNIQUE,
+    desc TEXT,
+    status TEXT DEFAULT 'open',     -- open/completed/failed/hidden
+    assigned_to TEXT DEFAULT '[]',  -- JSON list
+    rewards TEXT DEFAULT '{}',      -- JSON {xp,gold,items,favor}
+    favor TEXT DEFAULT '{}',        -- JSON {faction:points}
+    tags TEXT DEFAULT '{}',         -- JSON {tag:val}
     created_by TEXT DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
