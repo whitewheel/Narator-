@@ -5,6 +5,8 @@ from discord.ext import commands
 from utils.db import fetchall, fetchone, execute
 from services import status_service
 
+# ===== Utility =====
+
 def _bar(cur: int, mx: int, width: int = 12) -> str:
     if mx <= 0:
         return "░" * width
@@ -34,19 +36,36 @@ def _format_effect(e):
     d = e.get("duration", -1)
     return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
 
-def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
+def _hp_status(cur: int, mx: int) -> str:
+    if mx <= 0:
+        return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if cur <= 0:
+        return "💀 Tewas"
+    elif pct >= 100:
+        return "💪 Sehat"
+    elif pct >= 75:
+        return "🙂 Luka Ringan"
+    elif pct >= 50:
+        return "⚔️ Luka Sedang"
+    elif pct >= 25:
+        return "🤕 Luka Berat"
+    else:
+        return "☠️ Sekarat"
+
+# ===== Embed Builder =====
+
+def make_embed(enemies: list, ctx, title="👹 Enemy Status", mode="player"):
     embed = discord.Embed(
         title=title,
-        description="📜 Status Musuh (Global)",
+        description="📜 Status Musuh",
         color=discord.Color.red()
     )
     if not enemies:
-        embed.add_field(name="(kosong)", value="Gunakan `!enemy add` untuk menambah musuh.", inline=False)
+        embed.add_field(name="(kosong)", value="Gunakan `!enemy add`.", inline=False)
         return embed
 
     for e in enemies:
-        hp_text = f"{e['hp']}/{e['hp_max']}" if e['hp_max'] else str(e['hp'])
-
         effects = json.loads(e["effects"] or "[]")
         buffs = [eff for eff in effects if "buff" in eff.get("type","").lower()]
         debuffs = [eff for eff in effects if "debuff" in eff.get("type","").lower()]
@@ -71,8 +90,13 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
         loot_list = json.loads(e["loot"] or "[]")
         loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in loot_list]) or "-"
 
+        if mode == "gm":
+            hp_line = f"❤️ HP: {e['hp']}/{e['hp_max']} [{_bar(e['hp'], e['hp_max'])}]"
+        else:
+            hp_line = f"❤️ Kondisi: {_hp_status(e['hp'], e['hp_max'])}"
+
         value = (
-            f"❤️ HP: {hp_text} [{_bar(e['hp'], e['hp_max'])}]\n\n"
+            f"{hp_line}\n\n"
             f"📊 Stats: {stats_line}\n\n"
             f"✨ Buffs:\n{buffs_str}\n\n"
             f"☠️ Debuffs:\n{debuffs_str}\n\n"
@@ -82,6 +106,7 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status"):
         embed.add_field(name=e["name"], value=value, inline=False)
     return embed
 
+# ===== Cog =====
 
 class EnemyStatus(commands.Cog):
     def __init__(self, bot):
@@ -89,7 +114,7 @@ class EnemyStatus(commands.Cog):
 
     @commands.group(name="enemy", invoke_without_command=True)
     async def enemy(self, ctx):
-        await ctx.send("Gunakan: `!enemy add`, `!enemy show`, `!enemy dmg`, `!enemy heal`, `!enemy loot`, `!enemy buff`, `!enemy debuff`")
+        await ctx.send("Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, `!enemy dmg`, `!enemy heal`, `!enemy loot`, `!enemy buff`, `!enemy debuff`")
 
     @enemy.command(name="add")
     async def enemy_add(self, ctx, name: str, hp: int, *, opts: str = None):
@@ -132,9 +157,33 @@ class EnemyStatus(commands.Cog):
             await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
 
     @enemy.command(name="show")
-    async def enemy_show(self, ctx):
-        rows = fetchall("SELECT * FROM enemies")
-        embed = make_embed(rows, ctx)
+    async def enemy_show(self, ctx, *, name: str = None):
+        if name:
+            row = fetchone("SELECT * FROM enemies WHERE name=?", (name,))
+            if not row:
+                return await ctx.send(f"❌ Enemy **{name}** tidak ditemukan.")
+            rows = [row]
+            title = f"👹 Enemy Status: {name}"
+        else:
+            rows = fetchall("SELECT * FROM enemies")
+            title = "👹 Enemy Status (All)"
+
+        embed = make_embed(rows, ctx, title=title, mode="player")
+        await ctx.send(embed=embed)
+
+    @enemy.command(name="gmshow")
+    async def enemy_gmshow(self, ctx, *, name: str = None):
+        if name:
+            row = fetchone("SELECT * FROM enemies WHERE name=?", (name,))
+            if not row:
+                return await ctx.send(f"❌ Enemy **{name}** tidak ditemukan.")
+            rows = [row]
+            title = f"🎭 GM Enemy Status: {name}"
+        else:
+            rows = fetchall("SELECT * FROM enemies")
+            title = "🎭 GM Enemy Status (All)"
+
+        embed = make_embed(rows, ctx, title=title, mode="gm")
         await ctx.send(embed=embed)
 
     @enemy.command(name="dmg")
@@ -181,6 +230,36 @@ class EnemyStatus(commands.Cog):
     async def enemy_cleardebuff(self, ctx, name: str):
         await status_service.clear_effects("enemy", name, is_buff=False)
         await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
+
+    # ===== Short Aliases =====
+
+    @commands.command(name="dmg")
+    async def dmg_short(self, ctx, name: str, amount: int):
+        """Alias cepat untuk !enemy dmg"""
+        new_hp = await status_service.damage("enemy", name, amount)
+        if new_hp is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
+
+    @commands.command(name="heal")
+    async def heal_short(self, ctx, name: str, amount: int):
+        """Alias cepat untuk !enemy heal"""
+        new_hp = await status_service.heal("enemy", name, amount)
+        if new_hp is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
+
+    @commands.command(name="buff")
+    async def buff_short(self, ctx, name: str, *, text: str):
+        """Alias cepat untuk !enemy buff"""
+        await status_service.add_effect("enemy", name, text, is_buff=True)
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+
+    @commands.command(name="debuff")
+    async def debuff_short(self, ctx, name: str, *, text: str):
+        """Alias cepat untuk !enemy debuff"""
+        await status_service.add_effect("enemy", name, text, is_buff=False)
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
 
 async def setup(bot):
     await bot.add_cog(EnemyStatus(bot))
