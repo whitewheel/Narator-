@@ -32,8 +32,18 @@ def ensure_table(guild_id: int):
     """)
 
 def add_item(guild_id: int, data: dict):
-    """Tambah atau update item di katalog (per-server)."""
+    """Tambah atau update item di katalog (per-server). Wajib ada weight > 0."""
     ensure_table(guild_id)
+
+    # --- Validasi weight ---
+    weight = data.get("weight", 0.0)
+    try:
+        weight = float(weight)
+    except Exception:
+        return False
+    if weight <= 0:
+        return False
+
     execute(guild_id, """
         INSERT INTO items (name, type, effect, rarity, value, weight, slot, notes, rules)
         VALUES (?,?,?,?,?,?,?,?,?)
@@ -53,7 +63,7 @@ def add_item(guild_id: int, data: dict):
         data.get("effect"),
         data.get("rarity","Common"),
         data.get("value",0),
-        data.get("weight",0.0),
+        weight,
         data.get("slot"),
         data.get("notes",""),
         data.get("rules","")
