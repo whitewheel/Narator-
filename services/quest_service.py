@@ -151,7 +151,7 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
         actors=targets,
         tags=["quest","complete"]
     )
-
+    
     return "\n".join(msg_parts)
 
 def fail_quest(guild_id: int, title, user_id=0):
