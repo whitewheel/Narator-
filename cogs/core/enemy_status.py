@@ -236,11 +236,10 @@ class EnemyStatus(commands.Cog):
         await status_service.clear_effects(ctx.guild.id, "enemy", name, is_buff=False)
         await ctx.send(f"☠️ Semua debuff dihapus dari {name}.")
 
-    # ===== Short Aliases =====
+    # ===== Short Aliases (global, hati2 bentrok) =====
 
     @commands.command(name="dmg")
     async def dmg_short(self, ctx, name: str, amount: int):
-        """Alias cepat untuk !enemy dmg"""
         new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Enemy tidak ditemukan.")
@@ -248,7 +247,6 @@ class EnemyStatus(commands.Cog):
 
     @commands.command(name="heal")
     async def heal_short(self, ctx, name: str, amount: int):
-        """Alias cepat untuk !enemy heal"""
         new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Enemy tidak ditemukan.")
@@ -256,13 +254,37 @@ class EnemyStatus(commands.Cog):
 
     @commands.command(name="buff")
     async def buff_short(self, ctx, name: str, *, text: str):
-        """Alias cepat untuk !enemy buff"""
         await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=True)
         await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
 
     @commands.command(name="debuff")
     async def debuff_short(self, ctx, name: str, *, text: str):
-        """Alias cepat untuk !enemy debuff"""
+        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+
+    # ===== GM Short Aliases (prefix e) =====
+
+    @commands.command(name="edmg")
+    async def enemy_dmg_short(self, ctx, name: str, amount: int):
+        new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
+        if new_hp is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"💥 Enemy {name} menerima {amount} damage → {new_hp} HP")
+
+    @commands.command(name="eheal")
+    async def enemy_heal_short(self, ctx, name: str, amount: int):
+        new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
+        if new_hp is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ Enemy {name} dipulihkan {amount} HP → {new_hp} HP")
+
+    @commands.command(name="ebuff")
+    async def enemy_buff_short(self, ctx, name: str, *, text: str):
+        await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=True)
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+
+    @commands.command(name="edebuff")
+    async def enemy_debuff_short(self, ctx, name: str, *, text: str):
         await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
         await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
 
