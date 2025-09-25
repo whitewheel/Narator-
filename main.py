@@ -6,7 +6,7 @@ from discord.ext import commands
 from openai import OpenAI
 
 # === DB (SQLite) ===
-from utils.db import init_db, DB_PATH   # FIXED
+from utils.db import init_db
 
 # === Utils ===
 from utils.discord_tools import send_long
@@ -28,9 +28,9 @@ if not DISCORD_TOKEN:
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ ENV OPENAI_API_KEY kosong.")
 
-# Inisialisasi DB
-init_db()
-logger.info(f"📦 SQLite DB path: {DB_PATH}")
+# Inisialisasi dummy global (guild_id = 0)
+init_db(0)
+logger.info("📦 DB system initialized (per-server).")
 
 # ====== GPT CLIENT ======
 client_gpt = OpenAI(api_key=OPENAI_API_KEY)
@@ -38,6 +38,7 @@ client_gpt = OpenAI(api_key=OPENAI_API_KEY)
 # ====== DISCORD BOT ======
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True  # supaya dapat event guild join/leave
 
 class MyBot(commands.Bot):
     async def setup_hook(self):
@@ -94,12 +95,22 @@ async def on_ready():
     logger.info(f"🤖 Bot login sebagai {bot.user} | Commands: [{cmds}]")
 
 @bot.event
+async def on_guild_join(guild):
+    """Auto setup DB saat join server baru."""
+    try:
+        init_db(guild.id)
+        logger.info(f"📦 DB created for guild {guild.name} ({guild.id})")
+    except Exception as e:
+        logger.error(f"❌ Gagal init DB untuk guild {guild.id}: {e}")
+
+@bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         await ctx.send("❌ Command tidak dikenal. Coba `!help`.")
     else:
         await ctx.send("⚠️ Terjadi error, coba lagi nanti.")
-        logger.error(f"Error di command {getattr(ctx, 'command', None)}: {error}")
+        import traceback
+        logger.error(f"Error di command {getattr(ctx, 'command', None)}: {error}\n{traceback.format_exc()}")
 
 @bot.command(name="ask")
 async def ask(ctx, *, prompt: str = None):
@@ -109,7 +120,7 @@ async def ask(ctx, *, prompt: str = None):
     msg = await ctx.send("🤖...")
     try:
         response = client_gpt.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": "Kamu adalah asisten yang ramah."},
                 {"role": "user", "content": prompt},
