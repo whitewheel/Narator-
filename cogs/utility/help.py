@@ -17,33 +17,33 @@ COLOR_WORLD     = discord.Color.teal()
 
 def embed_overview(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="📖 Bantuan Bot",
+        title="📖 Bantuan Narator Bot",
         description=(
             "Selamat datang! Pilih topik bantuan dengan mengetik:\n"
             f"`{prefix}help init` • `{prefix}help status` • `{prefix}help enemy` • `{prefix}help dice`\n"
             f"`{prefix}help quick` • `{prefix}help poll` • `{prefix}help gpt`\n"
             f"`{prefix}help quest` • `{prefix}help item` • `{prefix}help npc` • `{prefix}help favor` • `{prefix}help scene`\n"
             f"`{prefix}help timeline` • `{prefix}help wiki` • `{prefix}help class` • `{prefix}help race` • `{prefix}help loot`\n\n"
-            f"Gunakan `{prefix}help <topik>` untuk detail."
+            f"Gunakan `{prefix}help <topik>` untuk detail & contoh."
         ),
         color=COLOR_OVERVIEW,
         timestamp=datetime.datetime.utcnow()
     )
     # Core play
-    e.add_field(name="🧍 Karakter Status", value="Kelola HP/Energy/Stamina, core stat, buff/debuff, ringkasan `!party`.", inline=False)
-    e.add_field(name="👾 Enemy Status", value="Tambah musuh, AoE `dmg/heal [all]`, buff/debuff, tick.", inline=False)
-    e.add_field(name="⚔️ Initiative", value="Urutan giliran, `addmany`, `next`, `setptr`, `round`, `shuffle`.", inline=False)
+    e.add_field(name="🧍 Karakter Status", value="Kelola HP/Energy/Stamina, core stat, buff/debuff, equipment, companions, carry. Ringkasan `!party`.", inline=False)
+    e.add_field(name="👾 Enemy Status", value="Tambah musuh, AoE `dmg/heal [all]`, buff/debuff, reward/loot.", inline=False)
+    e.add_field(name="⚔️ Initiative", value="Urutan giliran encounter, `addmany`, `next`, `setptr`, `round`, `shuffle`, `engage`, `victory`.", inline=False)
     e.add_field(name="🎲 Dice Roller", value="`roll`/`r`, dukung `as <Nama>`, `+str|dex|…`, `dc|vs`.", inline=False)
     e.add_field(name="⚡ Quick & Utility", value="Alias cepat: `dmg/heal/ene±/stam±`, `party`, `undo`, `multi`, `order`, `victory`.", inline=False)
     # World systems
-    e.add_field(name="📜 Quest", value="Tambah, show, detail, assign, reward, reveal, complete, fail.", inline=False)
-    e.add_field(name="👤 NPC", value="Tambah/show/detail, `--hidden`, reveal/remove.", inline=False)
-    e.add_field(name="🧰 Item", value="Item library & inventory: add/show/detail/remove, `use` item.", inline=False)
-    e.add_field(name="🎁 Loot", value="Kelola loot musuh: list/take/takeall/drop.", inline=False)
-    e.add_field(name="🪙 Favor", value="Reputasi fraksi: add/set/show/detail/remove.", inline=False)
-    e.add_field(name="📍 Scene", value="Pin & tampilkan lokasi/scene aktif kanal.", inline=False)
+    e.add_field(name="📜 Quest", value="Tambah, show, detail, assign, reward, complete, fail, archive.", inline=False)
+    e.add_field(name="👤 NPC", value="Tambah/show/detail, favor, reveal traits, sync dari wiki.", inline=False)
+    e.add_field(name="🧰 Item", value="Item library & inventory: add/show/detail/remove, `inv add/show/remove`, `use` item.", inline=False)
+    e.add_field(name="🎁 Loot", value="Loot drop musuh: list/take/takeall/drop.", inline=False)
+    e.add_field(name="🪙 Favor", value="Reputasi fraksi: add/set/mod/show/detail/remove.", inline=False)
+    e.add_field(name="📍 Scene", value="Pin & tampilkan scene/lokasi aktif kanal. Bisa edit scene lama.", inline=False)
     e.add_field(name="⏳ Timeline", value="Catat & cari event kronologis.", inline=False)
-    e.add_field(name="📚 Wiki", value="Entri lore dunia, add/show/detail/remove.", inline=False)
+    e.add_field(name="📚 Wiki", value="Entri lore dunia: add/show/detail/remove.", inline=False)
     e.add_field(name="🧑‍🎓 Class & Race", value="Info class/ras, `setclass`, `setrace`.", inline=False)
     # Misc
     e.add_field(name="📊 Polling", value="Voting cepat dengan reaction angka.", inline=False)
@@ -61,25 +61,25 @@ def embed_init(prefix: str) -> discord.Embed:
     e.add_field(
         name="🔹 Dasar",
         value=(
-            f"- `{prefix}init add <Nama> <initiative>` • `{prefix}init remove <Nama>`\n"
-            f"- `{prefix}init show` • `{prefix}init clear`"
+            f"- `{prefix}init add <Nama> <initiative>`\n"
+            f"- `{prefix}init remove <Nama>` • `{prefix}init show` • `{prefix}init clear`"
         ),
         inline=False
     )
     e.add_field(
         name="🔹 Lanjutan",
         value=(
-            f"- `{prefix}init addmany` *(tambah banyak sekaligus)*\n"
+            f"- `{prefix}init addmany \"Alice 18, Goblin 12, Borin 14\"`\n"
             f"- `{prefix}init setptr <index>` • `{prefix}init next`\n"
-            f"- `{prefix}init round [n]` *(lihat/set ronde)* • `{prefix}init shuffle` *(acak urutan)*"
+            f"- `{prefix}init round [n]` • `{prefix}init shuffle`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Utility",
+        name="🔹 Encounter",
         value=(
-            f"- `!order` → tampilkan urutan\n"
-            f"- `!victory` → akhiri encounter"
+            f"- `!engage` → mulai encounter\n"
+            f"- `!victory` → akhiri encounter (hapus musuh jika tidak pakai flag keep)"
         ),
         inline=False
     )
@@ -88,7 +88,7 @@ def embed_init(prefix: str) -> discord.Embed:
 def embed_status(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="🧍 Bantuan: Status",
-        description="Kelola karakter: HP, Energy, Stamina, core stat, buff/debuff, equipment.",
+        description="Kelola karakter: HP, Energy, Stamina, core stat, equipment, inventory, companions.",
         color=COLOR_STATUS,
         timestamp=datetime.datetime.utcnow()
     )
@@ -97,7 +97,7 @@ def embed_status(prefix: str) -> discord.Embed:
         value=(
             f"- `{prefix}status set <Nama> <HP> <Energy> <Stamina>`\n"
             f"- `{prefix}status show [Nama]` • `{prefix}status remove <Nama>`\n"
-            f"- `!party` *(ringkasan party)*"
+            f"- `!party` → ringkasan party"
         ),
         inline=False
     )
@@ -105,9 +105,9 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Core & Efek",
         value=(
             f"- `{prefix}status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
-            f"- `{prefix}status buff|debuff <Nama> <efek> [durasi|perm]`\n"
-            f"- `{prefix}status unbuff|undebuff <Nama> <efek>`\n"
-            f"- `{prefix}status clearbuff|cleardebuff <Nama>` • `{prefix}status tick` *(kurangi durasi efek)*"
+            f"- `{prefix}status buff|debuff <Nama> <efek>`\n"
+            f"- `{prefix}status clearbuff|cleardebuff <Nama>`\n"
+            f"- `!tick` → kurangi durasi semua efek aktif"
         ),
         inline=False
     )
@@ -115,8 +115,7 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Level & Progression",
         value=(
             f"- `{prefix}status setlevel <Nama> <Level>`\n"
-            f"- `{prefix}status addxp <Nama> <jumlah>`\n"
-            f"- `{prefix}status addgold <Nama> <jumlah>`"
+            f"- `{prefix}status addxp <Nama> <jumlah>` • `{prefix}status addgold <Nama> <jumlah>`"
         ),
         inline=False
     )
@@ -124,8 +123,7 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Combat",
         value=(
             f"- `{prefix}status setac <Nama> <AC>`\n"
-            f"- `{prefix}status dmg <Nama> <jumlah>`\n"
-            f"- `{prefix}status heal <Nama> <jumlah>`"
+            f"- `{prefix}status dmg <Nama> <jumlah>` • `{prefix}status heal <Nama> <jumlah>`"
         ),
         inline=False
     )
@@ -133,7 +131,7 @@ def embed_status(prefix: str) -> discord.Embed:
         name="🔹 Equipment",
         value=(
             f"- `{prefix}status equip <Nama> <slot> <item>`\n"
-            f"Slot: main_hand, off_hand, armor_inner, armor_outer, accessory1, accessory2"
+            f"Slot: main_hand, off_hand, armor_inner, armor_outer, accessory1-3, augment1-3"
         ),
         inline=False
     )
@@ -142,43 +140,39 @@ def embed_status(prefix: str) -> discord.Embed:
 def embed_enemy(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="👾 Bantuan: Enemy",
-        description="Kelola musuh: tambah, core, buff/debuff, AoE.",
+        description="Kelola musuh encounter: HP, efek, loot, reward.",
         color=COLOR_ENEMY,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
-        name="🔹 Dasar",
+        name="🔹 Tambah & Show",
         value=(
-            f"- `{prefix}enemy set <Nama> <HP> <Energy> <Stamina>`\n"
-            f"- `{prefix}enemy show [Nama]` • `{prefix}enemy remove <Nama>` • `{prefix}enemy clear`"
+            f"- `{prefix}enemy add <Nama> <HP> [--xp 100 --gold 50 --loot Potion|Consumable|Heal|Rare]`\n"
+            f"- `{prefix}enemy show [Nama]` • `{prefix}enemy gmshow [Nama]`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Tambah Banyak",
+        name="🔹 Combat",
         value=(
-            f"- `{prefix}enemy addmany Goblin 15 0 10 x2, Archer 10 3 10 x1`\n"
-            f"- Atau multiline: satu baris per enemy"
+            f"- `{prefix}enemy dmg <Nama> <jumlah>` • `{prefix}enemy heal <Nama> <jumlah>`\n"
+            f"- `!edmg <Nama> <jumlah>` *(alias GM)*"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Core & Efek",
+        name="🔹 Buff & Debuff",
         value=(
-            f"- `{prefix}enemy setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
-            f"- `{prefix}enemy buff|debuff <Nama> <efek> [durasi|perm]`\n"
-            f"- `{prefix}enemy unbuff|undebuff <Nama> <efek>`\n"
-            f"- `{prefix}enemy clearbuff|cleardebuff <Nama>`\n"
-            f"- `{prefix}enemy tick`"
+            f"- `{prefix}enemy buff|debuff <Nama> <efek>`\n"
+            f"- `{prefix}enemy clearbuff|cleardebuff <Nama>`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Resource & AoE",
+        name="🔹 Loot & Reward",
         value=(
-            f"- `{prefix}enemy dmg|heal <Nama> <jumlah> [all]`\n"
-            f"- `{prefix}enemy useenergy|regenenergy <Nama> <jumlah>`\n"
-            f"- `{prefix}enemy usestam|regenstam <Nama> <jumlah>`"
+            f"- `{prefix}enemy loot <Nama>` → lihat loot musuh\n"
+            f"- Reward otomatis: XP & Gold saat musuh defeated"
         ),
         inline=False
     )
@@ -218,8 +212,8 @@ def embed_quick(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Alias",
-        value=(
-            f"- `!dmg <Nama> <jumlah> [all]` • `!heal <Nama> <jumlah> [all]`\n"
+        value=( 
+            f"- `!dmg <Nama> <jumlah>` • `!heal <Nama> <jumlah>`\n"
             f"- `!ene- <Nama> <jumlah>` • `!ene+ <Nama> <jumlah>`\n"
             f"- `!stam- <Nama> <jumlah>` • `!stam+ <Nama> <jumlah>`\n"
             f"- `!party` • `!undo` • `!multi` • `!order` • `!victory`"
@@ -251,7 +245,7 @@ def embed_gpt(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Perintah",
-        value=(
+        value=( 
             f"- `{prefix}ask <prompt>` → tanya GPT\n"
             f"- `{prefix}define <kata>`\n"
             f"- `{prefix}summarize <teks>`\n"
@@ -270,55 +264,50 @@ def embed_quest(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Dasar",
-        value=(
-            f"- `{prefix}quest add Nama | Deskripsi | [--hidden]`\n"
-            f"- `{prefix}quest show [all|open|completed|failed|hidden]`\n"
+        value=( 
+            f"- `{prefix}quest add Nama | Deskripsi [--hidden]`\n"
+            f"- `{prefix}quest list [all|open|completed|failed|hidden]`\n"
             f"- `{prefix}quest detail <Nama>`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Lanjutan",
-        value=(
+        name="🔹 Assign & Reward",
+        value=( 
             f"- `{prefix}quest assign <Quest> <Char1,Char2,...>`\n"
-            f"- `{prefix}quest reward <Quest> xp=100 gold=50 "
-            f"items=\"Potion x2;Battery x1\" favor=\"Faction:+2\"`\n"
-            f"- `{prefix}quest reveal <Quest>`"
+            f"- `{prefix}quest reward <Quest> xp=100 gold=50 items=\"Potion x2\" favor=\"Faction:+2\"`"
         ),
         inline=False
     )
     e.add_field(
         name="🔹 Penyelesaian",
-        value=(
-            f"- `{prefix}quest complete <Quest>` *(selesai & auto-archive)*\n"
-            f"- `{prefix}quest fail <Quest>` *(gagal & auto-archive)*\n"
-            f"- `{prefix}quest archive <Quest>` *(arsip manual)*"
+        value=( 
+            f"- `{prefix}quest complete <Quest>` • `{prefix}quest fail <Quest>` • `{prefix}quest archive <Quest>`"
         ),
         inline=False
     )
-    e.set_footer(text="Quest yang selesai/gagal otomatis diarsipkan (📦).")
     return e
 
 def embed_item(prefix: str) -> discord.Embed:
     e = discord.Embed(
-        title="🧰 Bantuan: Item",
-        description="Kelola item library & inventory.",
+        title="🧰 Bantuan: Item & Inventory",
+        description="Kelola item library & inventory karakter.",
         color=COLOR_WORLD,
         timestamp=datetime.datetime.utcnow()
     )
     e.add_field(
         name="🔹 Library",
-        value=(
+        value=( 
             f"- `{prefix}item add <nama> | <type> | <efek> | [rarity]`\n"
-            f"- `{prefix}item show`\n"
+            f"- `{prefix}item list`\n"
             f"- `{prefix}item detail <nama>`\n"
             f"- `{prefix}item remove <nama>`"
         ),
         inline=False
     )
     e.add_field(
-        name="🔹 Inventory & Use",
-        value=(
+        name="🔹 Inventory",
+        value=( 
             f"- `{prefix}inv show <Char>`\n"
             f"- `{prefix}inv add <Char> | <Item> xN`\n"
             f"- `{prefix}inv remove <Char> | <Item>`\n"
@@ -337,7 +326,7 @@ def embed_loot(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
+        value=( 
             f"- `{prefix}loot list <Enemy>`\n"
             f"- `{prefix}loot take <Enemy> <Item> <Char>`\n"
             f"- `{prefix}loot takeall <Enemy> <Char>`\n"
@@ -356,11 +345,13 @@ def embed_npc(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
-            f"- `{prefix}npc add <nama> | <peran> | [sikap] | [catatan] [--hidden]`\n"
-            f"- `{prefix}npc show`\n"
+        value=( 
+            f"- `{prefix}npc add <nama> | <peran>`\n"
+            f"- `{prefix}npc list`\n"
             f"- `{prefix}npc detail <nama>`\n"
-            f"- `{prefix}npc reveal <nama>`\n"
+            f"- `{prefix}npc favor <nama> <+/-nilai>`\n"
+            f"- `{prefix}npc reveal <nama> <trait>`\n"
+            f"- `{prefix}npc sync` *(sinkron dari wiki)*\n"
             f"- `{prefix}npc remove <nama>`"
         ),
         inline=False
@@ -376,8 +367,9 @@ def embed_favor(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
-            f"- `{prefix}favor add|set <faksi> | <nilai> | [catatan]`\n"
+        value=( 
+            f"- `{prefix}favor add <faksi> <nilai> [catatan]`\n"
+            f"- `{prefix}favor set <faksi> <nilai> [catatan]`\n"
             f"- `{prefix}favor show`\n"
             f"- `{prefix}favor detail <faksi>`\n"
             f"- `{prefix}favor remove <faksi>`"
@@ -395,11 +387,13 @@ def embed_scene(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
-            f"- `{prefix}scene pin` → pin scene terakhir\n"
+        value=( 
+            f"- `{prefix}scene new <Nama> | <Deskripsi>`\n"
+            f"- `{prefix}scene pin`\n"
             f"- `{prefix}scene unpin`\n"
             f"- `{prefix}scene show`\n"
-            f"- `{prefix}scene now` *(alias cepat)*"
+            f"- `{prefix}scene now`\n"
+            f"- `{prefix}scene edit <Nama>` *(update deskripsi lama)*"
         ),
         inline=False
     )
@@ -414,9 +408,9 @@ def embed_timeline(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
-            f"- `{prefix}timeline [N]` → tampilkan N event terakhir\n"
+        value=( 
             f"- `{prefix}timeline add CODE | Judul | detail`\n"
+            f"- `{prefix}timeline [N]` → tampilkan N event terakhir\n"
             f"- `{prefix}timeline full`\n"
             f"- `{prefix}timeline search <keyword>`"
         ),
@@ -433,7 +427,7 @@ def embed_wiki(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
+        value=( 
             f"- `{prefix}wiki list <Category>`\n"
             f"- `{prefix}wiki get <Category> <Name>`\n"
             f"- `{prefix}wiki add <Category> <Name> | <Content>`\n"
@@ -452,7 +446,7 @@ def embed_classrace(prefix: str) -> discord.Embed:
     )
     e.add_field(
         name="🔹 Command",
-        value=(
+        value=( 
             f"- `{prefix}classinfo <Nama>` → lihat detail class\n"
             f"- `{prefix}setclass <Char> <ClassName>`\n"
             f"- `{prefix}raceinfo <Nama>` → lihat detail ras\n"
