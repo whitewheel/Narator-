@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from services import inventory_service
+from utils.db import fetchone  # untuk ambil carry dari tabel characters
 
 class Inventory(commands.Cog):
     def __init__(self, bot):
@@ -81,6 +82,14 @@ class Inventory(commands.Cog):
             title=f"🎒 Inventory: {owner}",
             color=discord.Color.gold()
         )
+
+        # tampilkan carry kalau owner karakter
+        char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
+        if char:
+            cap = char.get("carry_capacity", 0) or 0
+            used = char.get("carry_used", 0) or 0
+            embed.description = f"⚖️ Carry: {used:.1f} / {cap:.1f}"
+
         for it in items:
             meta = it["meta"]
             meta_line = ", ".join([f"{k}: {v}" for k, v in meta.items()]) if meta else "-"
@@ -99,7 +108,7 @@ class Inventory(commands.Cog):
         if ok:
             await ctx.send(f"🔄 {qty}x **{item}** dipindahkan dari {from_owner} → {to_owner}.")
         else:
-            await ctx.send(f"❌ Gagal transfer, cek item/qty.")
+            await ctx.send(f"❌ Transfer gagal. {to_owner} mungkin kelebihan beban atau item tidak cukup.")
 
     # === Update metadata ===
     @inv_group.command(name="meta")
