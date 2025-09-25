@@ -264,7 +264,7 @@ def embed_gpt(prefix: str) -> discord.Embed:
 def embed_quest(prefix: str) -> discord.Embed:
     e = discord.Embed(
         title="📜 Bantuan: Quest",
-        description="Kelola quest dengan status, assignment, dan reward.",
+        description="Kelola quest dengan status, assignment, reward, dan arsip (📦).",
         color=COLOR_WORLD,
         timestamp=datetime.datetime.utcnow()
     )
@@ -272,7 +272,7 @@ def embed_quest(prefix: str) -> discord.Embed:
         name="🔹 Dasar",
         value=(
             f"- `{prefix}quest add Nama | Deskripsi | [--hidden]`\n"
-            f"- `{prefix}quest show [active|hidden|all|complete|failed]`\n"
+            f"- `{prefix}quest show [all|open|completed|failed|hidden]`\n"
             f"- `{prefix}quest detail <Nama>`"
         ),
         inline=False
@@ -281,13 +281,22 @@ def embed_quest(prefix: str) -> discord.Embed:
         name="🔹 Lanjutan",
         value=(
             f"- `{prefix}quest assign <Quest> <Char1,Char2,...>`\n"
-            f"- `{prefix}quest reward <Quest> xp=100 gold=50 items=\"Potion x2\" favor=Faction:+10`\n"
-            f"- `{prefix}quest reveal <Quest>` → ubah status ke active\n"
-            f"- `{prefix}quest complete <Quest> [to=Aima,Zarek]`\n"
-            f"- `{prefix}quest fail <Quest>`"
+            f"- `{prefix}quest reward <Quest> xp=100 gold=50 "
+            f"items=\"Potion x2;Battery x1\" favor=\"Faction:+2\"`\n"
+            f"- `{prefix}quest reveal <Quest>`"
         ),
         inline=False
     )
+    e.add_field(
+        name="🔹 Penyelesaian",
+        value=(
+            f"- `{prefix}quest complete <Quest>` *(selesai & auto-archive)*\n"
+            f"- `{prefix}quest fail <Quest>` *(gagal & auto-archive)*\n"
+            f"- `{prefix}quest archive <Quest>` *(arsip manual)*"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Quest yang selesai/gagal otomatis diarsipkan (📦).")
     return e
 
 def embed_item(prefix: str) -> discord.Embed:
