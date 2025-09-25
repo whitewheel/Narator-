@@ -15,7 +15,6 @@ class StatusAlias(commands.Cog):
         status_cog = self.bot.get_cog("CharacterStatus")
         if not status_cog:
             return False
-        # panggil langsung method di cog: status_<subcommand>
         fn = getattr(status_cog, f"status_{subcommand}", None)
         if not fn:
             return False
@@ -87,6 +86,68 @@ class StatusAlias(commands.Cog):
         if await self._call_enemy(ctx, "regenstam", name, amount):
             return
         await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
+    # ==== Tambahan QoL ====
+
+    @commands.command(name="gold+")
+    async def gold_plus(self, ctx, name: str, amount: int):
+        """Alias: !gold+ <Nama> <jumlah> → tambah gold ke karakter"""
+        if await self._call_status(ctx, "addgold", name, amount):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character.")
+
+    @commands.command(name="xp+")
+    async def xp_plus(self, ctx, name: str, amount: int):
+        """Alias: !xp+ <Nama> <jumlah> → tambah XP ke karakter"""
+        if await self._call_status(ctx, "addxp", name, amount):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character.")
+
+    @commands.command(name="buff")
+    async def buff_alias(self, ctx, name: str, *, text: str):
+        """Alias: !buff <Nama> <efek> → tambahkan buff"""
+        if await self._call_status(ctx, "buff", name, text):
+            return
+        if await self._call_enemy(ctx, "buff", name, text):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
+    @commands.command(name="debuff")
+    async def debuff_alias(self, ctx, name: str, *, text: str):
+        """Alias: !debuff <Nama> <efek> → tambahkan debuff"""
+        if await self._call_status(ctx, "debuff", name, text):
+            return
+        if await self._call_enemy(ctx, "debuff", name, text):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
+    @commands.command(name="hp")
+    async def hp_check(self, ctx, name: str):
+        """Alias: !hp <Nama> → cek HP"""
+        if await self._call_status(ctx, "showhp", name):
+            return
+        if await self._call_enemy(ctx, "showhp", name):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
+    @commands.command(name="ene")
+    async def ene_check(self, ctx, name: str):
+        """Alias: !ene <Nama> → cek Energy"""
+        if await self._call_status(ctx, "showene", name):
+            return
+        if await self._call_enemy(ctx, "showene", name):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
+    @commands.command(name="stam")
+    async def stam_check(self, ctx, name: str):
+        """Alias: !stam <Nama> → cek Stamina"""
+        if await self._call_status(ctx, "showstam", name):
+            return
+        if await self._call_enemy(ctx, "showstam", name):
+            return
+        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
+
 
 async def setup(bot):
     await bot.add_cog(StatusAlias(bot))
