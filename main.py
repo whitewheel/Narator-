@@ -60,7 +60,6 @@ class MyBot(commands.Bot):
             "cogs.world.favor",
             "cogs.world.scene",
             "cogs.world.item",
-            "cogs.world.loot",
             "cogs.world.encyclopedia",
             "cogs.world.timeline",
             "cogs.world.wiki",
@@ -69,7 +68,6 @@ class MyBot(commands.Bot):
             "cogs.utility.roll",
             "cogs.utility.poll",
             "cogs.utility.multi",
-            "cogs.utility.help",
             "cogs.utility.help_ui",
         ]
         for ext in exts:
