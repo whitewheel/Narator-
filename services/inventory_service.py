@@ -3,7 +3,7 @@ from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # pakai log_event biar konsisten
 
 # ===============================
-# INVENTORY SERVICE (per-server) + ICONS + Carry System
+# INVENTORY SERVICE (per-server) + ICONS + Carry System + Hard Limit
 # ===============================
 
 ICONS = {
@@ -12,6 +12,7 @@ ICONS = {
     "transfer": "🔄",
     "update": "📝",
     "bag": "🎒",
+    "fail": "❌",
 }
 
 # ---------- Carry Calculation ----------
@@ -41,6 +42,21 @@ def calc_carry(guild_id: int, owner: str):
 # ---------- CRUD ----------
 def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0"):
     """Tambah item ke inventory (owner = karakter / 'party')."""
+
+    # --- Ambil kapasitas karakter (kalau ada) ---
+    char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
+    weight = 0
+    try:
+        weight = float(metadata.get("weight", 0)) if metadata else 0
+    except Exception:
+        weight = 0
+
+    if char and char.get("carry_capacity", 0) > 0:
+        projected = float(char.get("carry_used", 0) or 0) + (weight * qty)
+        if projected > char["carry_capacity"]:
+            # Overloaded → tolak penambahan
+            return False
+
     row = fetchone(
         guild_id,
         "SELECT * FROM inventory WHERE owner=? AND item=?",
@@ -128,7 +144,12 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
     removed = remove_item(guild_id, from_owner, item_name, qty, user_id=user_id)
     if not removed:
         return False
-    add_item(guild_id, to_owner, item_name, qty, metadata=meta, user_id=user_id)
+    ok = add_item(guild_id, to_owner, item_name, qty, metadata=meta, user_id=user_id)
+
+    if not ok:
+        # jika gagal karena overload, kembalikan item ke from_owner
+        add_item(guild_id, from_owner, item_name, qty, metadata=meta, user_id=user_id)
+        return False
 
     # sync carry untuk kedua owner
     calc_carry(guild_id, from_owner)
