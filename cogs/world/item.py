@@ -9,15 +9,22 @@ class Item(commands.Cog):
 
     def _parse_entry(self, raw: str):
         parts = [p.strip() for p in raw.split("|")]
-        if len(parts) < 3:
+        # minimal: Nama | Type | Effect | Rarity | Value | Weight
+        if len(parts) < 6:
             return None
+        # validasi weight harus angka
+        try:
+            weight = float(parts[5])
+        except ValueError:
+            return None
+
         return {
             "name": parts[0],
             "type": parts[1],
             "effect": parts[2],
             "rarity": parts[3] if len(parts) > 3 else "Common",
             "value": int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0,
-            "weight": float(parts[5]) if len(parts) > 5 and parts[5].replace(".","",1).isdigit() else 0.0,
+            "weight": weight,
             "slot": parts[6] if len(parts) > 6 else None,
             "notes": parts[7] if len(parts) > 7 else "",
             "rules": parts[8] if len(parts) > 8 else "",
@@ -25,14 +32,27 @@ class Item(commands.Cog):
 
     @commands.group(name="item", invoke_without_command=True)
     async def item(self, ctx):
-        await ctx.send("Gunakan: `!item add`, `!item show`, `!item remove`, `!item detail`, `!use`")
+        await ctx.send(
+            "📦 **Item Commands**\n"
+            "• `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
+            "• `!item show`\n"
+            "• `!item remove <Nama>`\n"
+            "• `!item detail <Nama>`\n"
+            "• `!use <Char> <Item>`\n\n"
+            "⚠️ Kolom **Weight** wajib diisi (angka). Contoh:\n"
+            "`!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
+        )
 
     @item.command(name="add")
     async def item_add(self, ctx, *, entry: str):
         guild_id = ctx.guild.id
         data = self._parse_entry(entry)
         if not data:
-            return await ctx.send("⚠️ Format: `!item add Nama | Type | Effect | [Rarity] | [Value] | [Weight] | [Slot] | [Notes] | [Rules]`")
+            return await ctx.send(
+                "⚠️ Format salah!\n"
+                "Gunakan: `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
+                "Contoh: `!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
+            )
         item_service.add_item(guild_id, data)
         await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
 
@@ -60,7 +80,7 @@ class Item(commands.Cog):
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
         embed = discord.Embed(
-            title=f"{i['icon']} {i['name']}",
+            title=f"{i.get('icon','🧰')} {i['name']}",
             description=f"Tipe: **{i['type']}**",
             color=discord.Color.gold()
         )
@@ -68,7 +88,7 @@ class Item(commands.Cog):
         embed.add_field(name="Rules", value=i.get("rules","-"), inline=False)
         embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
         embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
-        embed.add_field(name="Weight", value=str(i.get("weight",0)), inline=True)
+        embed.add_field(name="⚖️ Berat", value=str(i.get("weight",0)), inline=True)
         embed.add_field(name="Slot", value=str(i.get("slot","-")), inline=True)
         embed.add_field(name="Notes", value=i.get("notes","-"), inline=False)
         await ctx.send(embed=embed)
