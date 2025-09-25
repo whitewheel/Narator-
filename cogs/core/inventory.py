@@ -8,27 +8,54 @@ class Inventory(commands.Cog):
 
     @commands.group(name="inv", invoke_without_command=True)
     async def inv_group(self, ctx):
-        await ctx.send("Gunakan: `!inv add`, `!inv remove`, `!inv show`, `!inv transfer`, `!inv meta`")
+        await ctx.send("Gunakan: `!inv add`, `!inv remove`, `!inv drop`, `!inv clear`, `!inv show`, `!inv transfer`, `!inv meta`")
 
     # === Tambah item ===
     @inv_group.command(name="add")
     async def inv_add(self, ctx, owner: str, item: str, qty: int = 1):
-        await inventory_service.add_item(owner, item, qty)
+        guild_id = ctx.guild.id
+        inventory_service.add_item(guild_id, owner, item, qty)
         await ctx.send(f"📦 {qty}x **{item}** ditambahkan ke inventory {owner}.")
 
     # === Hapus item ===
     @inv_group.command(name="remove")
     async def inv_remove(self, ctx, owner: str, item: str, qty: int = 1):
-        ok = await inventory_service.remove_item(owner, item, qty)
+        guild_id = ctx.guild.id
+        ok = inventory_service.remove_item(guild_id, owner, item, qty)
         if ok:
             await ctx.send(f"🗑️ {qty}x **{item}** dihapus dari inventory {owner}.")
         else:
             await ctx.send(f"❌ {owner} tidak punya cukup {item}.")
 
+    # === Drop item (narasi berbeda) ===
+    @inv_group.command(name="drop")
+    async def inv_drop(self, ctx, owner: str, item: str, qty: int = 1):
+        guild_id = ctx.guild.id
+        ok = inventory_service.remove_item(guild_id, owner, item, qty)
+        if ok:
+            await ctx.send(f"📤 {owner} menjatuhkan {qty}x **{item}** ke tanah.")
+        else:
+            await ctx.send(f"❌ {owner} tidak punya cukup {item} untuk dijatuhkan.")
+
+    # === Clear inventory ===
+    @inv_group.command(name="clear")
+    async def inv_clear(self, ctx, owner: str):
+        guild_id = ctx.guild.id
+        items = inventory_service.get_inventory(guild_id, owner)
+        if not items:
+            return await ctx.send(f"ℹ️ Inventory {owner} sudah kosong.")
+
+        # hapus semua
+        for it in items:
+            inventory_service.remove_item(guild_id, owner, it["item"], it["qty"])
+
+        await ctx.send(f"🧹 Semua item di inventory **{owner}** telah dibersihkan.")
+
     # === Lihat inventory ===
     @inv_group.command(name="show")
     async def inv_show(self, ctx, owner: str = "party"):
-        items = await inventory_service.get_inventory(owner)
+        guild_id = ctx.guild.id
+        items = inventory_service.get_inventory(guild_id, owner)
         if not items:
             return await ctx.send(f"ℹ️ Inventory {owner} kosong.")
 
@@ -49,7 +76,8 @@ class Inventory(commands.Cog):
     # === Transfer item ===
     @inv_group.command(name="transfer")
     async def inv_transfer(self, ctx, from_owner: str, to_owner: str, item: str, qty: int = 1):
-        ok = await inventory_service.transfer_item(from_owner, to_owner, item, qty)
+        guild_id = ctx.guild.id
+        ok = inventory_service.transfer_item(guild_id, from_owner, to_owner, item, qty)
         if ok:
             await ctx.send(f"🔄 {qty}x **{item}** dipindahkan dari {from_owner} → {to_owner}.")
         else:
@@ -58,14 +86,14 @@ class Inventory(commands.Cog):
     # === Update metadata ===
     @inv_group.command(name="meta")
     async def inv_meta(self, ctx, owner: str, item: str, *pairs):
-        """Update metadata item. Contoh: !inv meta Alice Sword rarity=epic note='cursed blade'"""
+        guild_id = ctx.guild.id
         metadata = {}
         for p in pairs:
             if "=" in p:
                 k, v = p.split("=", 1)
                 metadata[k.strip()] = v.strip()
 
-        ok = await inventory_service.update_metadata(owner, item, metadata)
+        ok = inventory_service.update_metadata(guild_id, owner, item, metadata)
         if ok:
             await ctx.send(f"📝 Metadata {item} diupdate: {metadata}")
         else:
