@@ -13,20 +13,19 @@ from cogs.world.timeline import log_event  # tetap dipakai untuk narasi/log
 # DB Helpers & Setup
 # ===============================
 
-def _ensure_tables():
-    # Tabel penyimpanan initiative (global)
-    execute("""
+def _ensure_tables(guild_id: int):
+    execute(guild_id, """
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_json TEXT DEFAULT '[]',  -- list of [name, score]
+        order_json TEXT DEFAULT '[]',
         ptr INTEGER DEFAULT 0,
         round INTEGER DEFAULT 1,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
-def _load_initiative():
-    row = fetchone("SELECT * FROM initiative LIMIT 1")
+def _load_initiative(guild_id: int):
+    row = fetchone(guild_id, "SELECT * FROM initiative LIMIT 1")
     if not row:
         return {"order": [], "ptr": 0, "round": 1}
     try:
@@ -39,11 +38,11 @@ def _load_initiative():
         "round": int(row["round"] or 1)
     }
 
-def _save_initiative(state: dict):
+def _save_initiative(guild_id: int, state: dict):
     order_json = json.dumps(state.get("order", []))
     ptr = int(state.get("ptr", 0))
     rnd = int(state.get("round", 1))
-    execute("""
+    execute(guild_id, """
     INSERT INTO initiative (id, order_json, ptr, round)
     VALUES (1,?,?,?)
     ON CONFLICT(id)
@@ -53,19 +52,14 @@ def _save_initiative(state: dict):
                   updated_at=CURRENT_TIMESTAMP;
     """, (order_json, ptr, rnd))
 
-def _clear_initiative():
-    execute("DELETE FROM initiative")
+def _clear_initiative(guild_id: int):
+    execute(guild_id, "DELETE FROM initiative")
 
 # ===============================
 # Utils
 # ===============================
 
-def _key(ctx):
-    # Global key
-    return "global"
-
 def _sorted_order(arr):
-    # Sort: skor desc, nama asc
     return sorted(arr, key=lambda x: (-int(x[1]), x[0].lower()))
 
 def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
@@ -99,24 +93,23 @@ def _make_embed(ctx, title: str, s: dict, highlight: bool = True):
 
 class InitiativeMemory(commands.Cog):
     """
-    Initiative tracker global (1 untuk semua channel/server).
+    Initiative tracker per server.
     """
     def __init__(self, bot):
         self.bot = bot
         self.state = {}
-        _ensure_tables()
 
     # ---------- internal helpers ----------
     def _ensure_state(self, ctx):
-        k = _key(ctx)
-        if k not in self.state:
-            # lazy load dari DB
-            self.state[k] = _load_initiative()
-        return self.state[k]
+        guild_id = ctx.guild.id
+        if guild_id not in self.state:
+            _ensure_tables(guild_id)
+            self.state[guild_id] = _load_initiative(guild_id)
+        return self.state[guild_id]
 
     def _persist(self, ctx):
-        k = _key(ctx)
-        _save_initiative(self.state[k])
+        guild_id = ctx.guild.id
+        _save_initiative(guild_id, self.state[guild_id])
 
     # ---------- group ----------
     @commands.group(name="init", invoke_without_command=True)
@@ -199,16 +192,16 @@ class InitiativeMemory(commands.Cog):
 
     @init_group.command(name="clear")
     async def init_clear(self, ctx):
-        k = _key(ctx)
-        self.state[k] = {"order": [], "ptr": 0, "round": 1}
+        guild_id = ctx.guild.id
+        self.state[guild_id] = {"order": [], "ptr": 0, "round": 1}
         self._persist(ctx)
         await ctx.send("🧹 Initiative direset.")
 
     # ---------- show / order ----------
     @init_group.command(name="show")
     async def init_show(self, ctx):
-        k = _key(ctx)
-        self.state[k] = _load_initiative()
+        guild_id = ctx.guild.id
+        self.state[guild_id] = _load_initiative(guild_id)
         s = self._ensure_state(ctx)
         self._persist(ctx)
         embed = _make_embed(ctx, "⚔️ Initiative Order", s)
@@ -295,8 +288,8 @@ class InitiativeMemory(commands.Cog):
         rnd = s.get("round", 1)
         current_turn = order[ptr][0] if order else "-"
 
-        # Ambil data musuh dari DB (global)
-        enemies = fetchall("SELECT name, hp FROM enemies")
+        guild_id = ctx.guild.id
+        enemies = fetchall(guild_id, "SELECT name, hp FROM enemies")
         total = len(enemies)
         alive = sum(1 for e in enemies if int(e["hp"] or 0) > 0)
         defeated = total - alive
@@ -307,7 +300,6 @@ class InitiativeMemory(commands.Cog):
                 "Gunakan `!victory force` untuk memaksa."
             )
 
-        # Ringkasan
         embed = discord.Embed(
             title="🎉 Victory!",
             color=discord.Color.green()
@@ -316,17 +308,15 @@ class InitiativeMemory(commands.Cog):
         embed.add_field(name="📜 Round Terakhir", value=str(rnd), inline=True)
         embed.add_field(name="✨ Giliran Terakhir", value=current_turn, inline=True)
 
-        # Reset initiative
-        self.state[_key(ctx)] = {"order": [], "ptr": 0, "round": 1}
+        self.state[guild_id] = {"order": [], "ptr": 0, "round": 1}
         self._persist(ctx)
 
-        # Clear musuh bila tidak keep
         if not keep_enemies:
-            execute("DELETE FROM enemies")
+            execute(guild_id, "DELETE FROM enemies")
 
         await ctx.send(embed=embed)
 
-    # ---------- Aliases global ----------
+    # ---------- Aliases ----------
     @commands.command(name="next", aliases=["n"])
     async def alias_next(self, ctx):
         await self.init_next(ctx)
