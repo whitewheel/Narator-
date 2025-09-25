@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from utils.db import save_memory, get_recent, template_for
-
 import json
 import re
 
@@ -28,8 +27,8 @@ class Item(commands.Cog):
         data["rules"]  = parts[8] if len(parts) > 8 else ""
         return data
 
-    def _get_item_by_name(self, name: str):
-        rows = get_recent("item", 100)
+    def _get_item_by_name(self, guild_id: int, name: str):
+        rows = get_recent(guild_id, "item", 100)
         for r in rows:
             try:
                 i = json.loads(r["value"])
@@ -45,15 +44,17 @@ class Item(commands.Cog):
 
     @item.command(name="add")
     async def item_add(self, ctx, *, entry: str):
+        guild_id = ctx.guild.id
         data = self._parse_entry(entry)
         if not data:
             return await ctx.send("⚠️ Format: `!item add Nama | Type | Effect | [Rarity] | [Value] | [Weight] | [Slot] | [Notes] | [Rules]`")
-        save_memory(ctx.author.id, "item", json.dumps(data), {"name": data["name"]})
+        save_memory(guild_id, ctx.author.id, "item", json.dumps(data), {"name": data["name"]})
         await ctx.send(f"🧰 Item **{data['name']}** ditambahkan.")
 
     @item.command(name="show")
     async def item_show(self, ctx):
-        rows = get_recent("item", 50)
+        guild_id = ctx.guild.id
+        rows = get_recent(guild_id, "item", 50)
         out = []
         for r in rows:
             try:
@@ -68,13 +69,14 @@ class Item(commands.Cog):
 
     @item.command(name="remove")
     async def item_remove(self, ctx, *, name: str):
-        rows = get_recent("item", 50)
+        guild_id = ctx.guild.id
+        rows = get_recent(guild_id, "item", 50)
         for r in rows:
             try:
                 i = json.loads(r["value"])
                 if i["name"].lower() == name.lower():
                     i["effect"] = "(deleted)"
-                    save_memory(ctx.author.id, "item", json.dumps(i), {"name": i["name"]})
+                    save_memory(guild_id, ctx.author.id, "item", json.dumps(i), {"name": i["name"]})
                     return await ctx.send(f"🗑️ Item **{i['name']}** dihapus.")
             except:
                 continue
@@ -82,7 +84,8 @@ class Item(commands.Cog):
 
     @item.command(name="detail")
     async def item_detail(self, ctx, *, name: str):
-        i = self._get_item_by_name(name)
+        guild_id = ctx.guild.id
+        i = self._get_item_by_name(guild_id, name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
         embed = discord.Embed(
@@ -101,7 +104,8 @@ class Item(commands.Cog):
 
     @commands.command(name="use")
     async def use_item(self, ctx, char: str, *, item_name: str):
-        i = self._get_item_by_name(item_name)
+        guild_id = ctx.guild.id
+        i = self._get_item_by_name(guild_id, item_name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
         rules = i.get("rules","")
