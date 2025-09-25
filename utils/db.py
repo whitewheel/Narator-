@@ -65,7 +65,7 @@ def get_recent(mtype=None, limit=10):
         rows = fetchall(
             """
             SELECT * FROM memories
-            WHERE type=?
+            WHERE type=? 
             ORDER BY id DESC LIMIT ?
             """,
             (mtype, limit)
@@ -275,6 +275,29 @@ def init_db() -> None:
         "favor": "INTEGER DEFAULT 0",
         "traits": "TEXT DEFAULT '{}'"
     })
+
+    # --- MIGRASI QUESTS (lama -> baru) ---
+    info = fetchall("PRAGMA table_info(quests)")
+    cols = {c["name"] for c in info}
+
+    if "name" not in cols:
+        execute("ALTER TABLE quests ADD COLUMN name TEXT")
+        if "title" in cols:
+            execute("UPDATE quests SET name = COALESCE(name, title)")
+
+    if "desc" not in cols:
+        execute("ALTER TABLE quests ADD COLUMN desc TEXT")
+        if "detail" in cols:
+            execute("UPDATE quests SET desc = COALESCE(desc, detail)")
+
+    _ensure_columns("quests", {
+        "assigned_to": "TEXT DEFAULT '[]'",
+        "rewards": "TEXT DEFAULT '{}'",
+        "favor": "TEXT DEFAULT '{}'",
+        "tags": "TEXT DEFAULT '{}'"
+    })
+
+    execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
 
     # 4) Indexes
     execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
