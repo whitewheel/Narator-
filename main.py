@@ -28,10 +28,6 @@ if not DISCORD_TOKEN:
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ ENV OPENAI_API_KEY kosong.")
 
-# Inisialisasi dummy global (guild_id = 0)
-init_db(0)
-logger.info("📦 DB system initialized (per-server).")
-
 # ====== GPT CLIENT ======
 client_gpt = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -89,6 +85,14 @@ except Exception:
 
 @bot.event
 async def on_ready():
+    # 🔧 Init DB untuk semua guild yang sudah join
+    for g in bot.guilds:
+        try:
+            init_db(g.id)
+            logger.info(f"📦 DB ready untuk guild {g.name} ({g.id})")
+        except Exception as e:
+            logger.error(f"❌ Gagal init DB untuk guild {g.id}: {e}")
+
     cmds = ", ".join(sorted(c.name for c in bot.commands))
     logger.info(f"🤖 Bot login sebagai {bot.user} | Commands: [{cmds}]")
 
