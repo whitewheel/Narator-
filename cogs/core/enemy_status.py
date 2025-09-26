@@ -116,7 +116,7 @@ class EnemyStatus(commands.Cog):
     async def enemy(self, ctx):
         await ctx.send(
             "Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, "
-            "`!edmg`, `!eheal`, `!ebuff`, `!edebuff`"
+            "`!enemy remove`, `!edmg`, `!eheal`, `!ebuff`, `!edebuff`"
         )
 
     # === Tambah / Update Enemy ===
@@ -161,6 +161,18 @@ class EnemyStatus(commands.Cog):
                 VALUES (?,?,?,?,?,?,?)
             """, (name, hp, hp, 10, xp_reward, gold_reward, json.dumps(loots)))
             await ctx.send(f"👹 Enemy **{name}** ditambahkan dengan {hp} HP.")
+
+    # === Remove Enemy ===
+    @enemy.command(name="remove")
+    async def enemy_remove(self, ctx, *, name: str):
+        """Hapus enemy dari database."""
+        guild_id = ctx.guild.id
+        row = fetchone(guild_id, "SELECT id FROM enemies WHERE name=?", (name,))
+        if not row:
+            return await ctx.send(f"❌ Enemy **{name}** tidak ditemukan.")
+
+        execute(guild_id, "DELETE FROM enemies WHERE name=?", (name,))
+        await ctx.send(f"🗑️ Enemy **{name}** berhasil dihapus.")
 
     # === Show Enemy ===
     @enemy.command(name="show")
