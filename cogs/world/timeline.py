@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 import discord
 from discord.ext import commands
-from utils.db import save_memory, get_recent 
+from utils.db import save_memory, get_recent
 
 TIMELINE_CATEGORY = "timeline"
 DEFAULT_LIMIT = 15
@@ -11,12 +11,13 @@ DISCORD_LIMIT = 2000
 
 # ===== Utils =====
 def _split_blocks(text: str, limit: int = DISCORD_LIMIT):
-    if len(text) <= limit: return [text]
+    if len(text) <= limit:
+        return [text]
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
 def _fmt_ts(ts_str: str) -> str:
     try:
-        dt = datetime.fromisoformat(ts_str.replace("Z",""))
+        dt = datetime.fromisoformat(ts_str.replace("Z", ""))
         return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
         return ts_str
@@ -41,10 +42,14 @@ def _fmt_event_row(row, ctx: commands.Context | None = None) -> str:
 
     ts = row.get("created_at", "-")
     bits = [f"[{_fmt_ts(ts)}] {etype.upper()} — {title} (code: {code})"]
-    if scene: bits.append(f"(scene: {scene})")
-    if quest: bits.append(f"(quest: {quest})")
-    if actors: bits.append(f"(actors: {', '.join(actors)})")
-    if tags: bits.append(f"(tags: {', '.join(tags)})")
+    if scene:
+        bits.append(f"(scene: {scene})")
+    if quest:
+        bits.append(f"(quest: {quest})")
+    if actors:
+        bits.append(f"(actors: {', '.join(actors)})")
+    if tags:
+        bits.append(f"(tags: {', '.join(tags)})")
     bits.append(f"(by {author_mention})")
     line_head = " ".join(bits)
 
@@ -53,28 +58,54 @@ def _fmt_event_row(row, ctx: commands.Context | None = None) -> str:
     return line_head
 
 # ===== Public Helper =====
-def log_event(user_id: int, *,
+def log_event(*args,
               code: str | None = None,
-              title: str, details: str = "", etype: str = "note",
-              scene: str | None = None, quest: str | None = None,
-              actors: list[str] | None = None, tags: list[str] | None = None):
-    """Helper agar cog lain bisa mencatat timeline global dengan kode unik."""
+              title: str | None = None,
+              details: str = "",
+              etype: str = "note",
+              scene: str | None = None,
+              quest: str | None = None,
+              actors: list[str] | None = None,
+              tags: list[str] | None = None,
+              **kwargs):
+    """
+    Catat event ke timeline.
+    Bisa dipanggil dengan:
+      log_event(user_id, title="...", ...)
+      log_event(guild_id, event="scene_create", data=..., tags=[...])
+    """
+
+    # fallback: kalau ada arg pertama → anggap itu author_id/guild_id
+    author_or_guild = args[0] if args else kwargs.get("author_id") or kwargs.get("guild_id") or 0
+
+    # alias: "event" → "title"
+    if not title and "event" in kwargs:
+        title = kwargs["event"]
+
+    # isi payload
     payload = {
-        "code": code,
-        "title": title,
-        "details": details,
-        "type": etype,
-        "scene": scene,
-        "quest": quest,
-        "actors": actors or [],
-        "tags": tags or [],
-        "author_id": user_id,
+        "code": code or kwargs.get("code"),
+        "title": title or "Event",
+        "details": details or kwargs.get("details", ""),
+        "type": etype or kwargs.get("etype", "note"),
+        "scene": scene or kwargs.get("scene"),
+        "quest": quest or kwargs.get("quest"),
+        "actors": actors or kwargs.get("actors", []),
+        "tags": tags or kwargs.get("tags", []),
+        "author_id": kwargs.get("author_id", author_or_guild),
     }
+
+    # simpan ke DB
     save_memory(
-        user_id,
+        author_or_guild,
         TIMELINE_CATEGORY,
-        json.dumps(payload),
-        {"title": title, "type": etype, "code": code, "author_id": user_id}
+        json.dumps(payload, ensure_ascii=False),
+        {
+            "title": payload["title"],
+            "type": payload["type"],
+            "code": payload["code"],
+            "author_id": payload["author_id"],
+        }
     )
 
 # ===== Cog =====
@@ -87,7 +118,7 @@ class Timeline(commands.Cog):
     @commands.group(name="timeline", invoke_without_command=True)
     async def timeline(self, ctx: commands.Context, limit: int = DEFAULT_LIMIT):
         """Tampilkan N event timeline terakhir (default 15)."""
-        rows = get_recent(TIMELINE_CATEGORY, limit)
+        rows = get_recent(ctx.guild.id, TIMELINE_CATEGORY, limit)
         if not rows:
             return await ctx.send("ℹ️ Timeline kosong.")
 
@@ -105,17 +136,18 @@ class Timeline(commands.Cog):
         if len(parts) == 3:
             code, title, details = parts
         elif len(parts) == 2:
-            code, title = parts; details = ""
+            code, title = parts
+            details = ""
         else:
             return await ctx.send("❌ Format salah. Pakai: CODE | Judul | detail")
 
-        log_event(ctx.author.id, code=code, title=title, details=details, etype="note")
+        log_event(ctx.guild.id, code=code, title=title, details=details, etype="note", author_id=ctx.author.id)
         await ctx.send(f"✅ Ditambahkan ke timeline: **{title}** (code: {code})")
 
     @timeline.command(name="full")
     async def timeline_full(self, ctx: commands.Context):
         """Tampilkan semua event timeline."""
-        rows = get_recent(TIMELINE_CATEGORY, 5000)
+        rows = get_recent(ctx.guild.id, TIMELINE_CATEGORY, 5000)
         if not rows:
             return await ctx.send("ℹ️ Timeline kosong.")
 
@@ -131,7 +163,7 @@ class Timeline(commands.Cog):
     @timeline.command(name="search")
     async def timeline_search(self, ctx: commands.Context, *, keyword: str):
         """Cari event di timeline berdasarkan kata kunci."""
-        rows = get_recent(TIMELINE_CATEGORY, 5000)
+        rows = get_recent(ctx.guild.id, TIMELINE_CATEGORY, 5000)
         if not rows:
             return await ctx.send("ℹ️ Timeline kosong.")
 
