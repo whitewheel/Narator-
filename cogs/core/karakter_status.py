@@ -201,5 +201,16 @@ class CharacterStatus(commands.Cog):
             )
         await ctx.send("\n".join(lines))
 
+    @status_group.command(name="remove")
+    async def status_remove(self, ctx, name: str):
+        """Hapus karakter dari database."""
+        guild_id = ctx.guild.id
+        row = fetchone(guild_id, "SELECT id FROM characters WHERE name=?", (name,))
+        if not row:
+            return await ctx.send(f"❌ Karakter **{name}** tidak ditemukan.")
+
+        execute(guild_id, "DELETE FROM characters WHERE name=?", (name,))
+        await ctx.send(f"🗑️ Karakter **{name}** berhasil dihapus.")
+
 async def setup(bot):
     await bot.add_cog(CharacterStatus(bot))
