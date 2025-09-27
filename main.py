@@ -59,6 +59,7 @@ class MyBot(commands.Bot):
             "cogs.world.encyclopedia",
             "cogs.world.timeline",
             "cogs.world.wiki",
+            "cogs.world.faction",
 
             # UTILITY
             "cogs.utility.roll",
