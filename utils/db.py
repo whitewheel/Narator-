@@ -263,11 +263,11 @@ def init_db(guild_id: int) -> None:
 
     # Favor table baru
     _ensure_table(guild_id, """
-    CREATE TABLE IF NOT EXISTS favor (
+    CREATE TABLE IF NOT EXISTS favors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
         faction TEXT,
-        value INTEGER DEFAULT 0,
+        favor INTEGER DEFAULT 0,
         notes TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, faction)
@@ -309,7 +309,7 @@ def init_db(guild_id: int) -> None:
         "traits": "TEXT DEFAULT '{}'"
     })
 
-    _ensure_columns(guild_id, "favor", {
+    _ensure_columns(guild_id, "favors", {
         "user_id": "TEXT DEFAULT '0'"
     })
 
