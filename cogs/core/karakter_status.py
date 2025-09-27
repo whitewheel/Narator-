@@ -5,6 +5,8 @@ from discord.ext import commands
 from services import status_service, inventory_service
 from utils.db import fetchall, fetchone, execute
 
+# ===== Utility =====
+
 def _bar(cur: int, mx: int, width: int = 12) -> str:
     if mx <= 0:
         return "░" * width
@@ -34,12 +36,27 @@ def _format_effect(e):
     d = e.get("duration", -1)
     return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
 
-async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
-    embed = discord.Embed(
-        title=title,
-        description="📜 Status Karakter",
-        color=discord.Color.blurple()
-    )
+def _status_text(cur: int, mx: int) -> str:
+    if mx <= 0:
+        return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if cur <= 0:
+        return "💀 Tewas"
+    elif pct >= 100:
+        return "💪 Segar"
+    elif pct >= 75:
+        return "🙂 Luka Ringan"
+    elif pct >= 50:
+        return "⚔️ Luka Sedang"
+    elif pct >= 25:
+        return "🤕 Luka Berat"
+    else:
+        return "☠️ Sekarat"
+
+# ===== Embed Builder =====
+
+async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
+    embed = discord.Embed(title=title, color=discord.Color.blurple())
     if not characters:
         embed.add_field(name="(kosong)", value="Gunakan `!status set` untuk menambah karakter.", inline=False)
         return embed
@@ -52,8 +69,6 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
         effects = json.loads(c.get("effects") or "[]")
         buffs = [e for e in effects if "buff" in e.get("type","").lower()]
         debuffs = [e for e in effects if "debuff" in e.get("type","").lower()]
-        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
-        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in debuffs]) or "-"
 
         base_stats = {
             "str": c["str"], "dex": c["dex"], "con": c["con"],
@@ -75,10 +90,11 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"| XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
         )
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
+        carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
 
         # equipment slot
         eq = json.loads(c.get("equipment") or "{}")
-        equip_lines = [
+        equip_block = "\n".join([
             f"🗡️ Main Hand: {eq.get('main_hand') or '-'}",
             f"🗡️ Off Hand: {eq.get('off_hand') or '-'}",
             f"👕 Armor Inner: {eq.get('armor_inner') or '-'}",
@@ -89,8 +105,7 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             f"🧬 Augment 1: {eq.get('augment1') or '-'}",
             f"🧬 Augment 2: {eq.get('augment2') or '-'}",
             f"🧬 Augment 3: {eq.get('augment3') or '-'}",
-        ]
-        equip_block = "\n".join(equip_lines)
+        ])
 
         # inventory
         items = inventory_service.get_inventory(ctx.guild.id, c["name"])
@@ -107,27 +122,28 @@ async def make_embed(characters: list, ctx, title="🧍 Karakter Status"):
             for comp in comp_list
         ]) or "-"
 
-        # carry system
-        carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
-
         value = (
-            f"{profile_line}\n"
-            f"❤️ HP: {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
-            f"🔋 Energy: {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
-            f"⚡ Stamina: {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
-            f"📊 Stats:\n{stats_line}\n\n"
-            f"🛡️ Combat: {combat_line}\n"
-            f"{carry_line}\n\n"
-            f"🎒 Equipment:\n{equip_block}\n\n"
-            f"📦 Inventory:\n{inv_line}\n\n"
-            f"✨ Buffs:\n{buffs_str}\n\n"
-            f"☠️ Debuffs:\n{debuffs_str}\n\n"
-            f"🐾 Companions:\n{comp_line}"
+            f"{profile_line}\n\n"
+            f"❤️ HP {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
+            f"🔋 Energy {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
+            f"⚡ Stamina {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
+            f"📊 Stats\n{stats_line}\n\n"
+            f"⚔️ Combat\n{combat_line}\n{carry_line}\n\n"
+            f"🎒 Equipment\n{equip_block}\n\n"
+            f"📦 Inventory\n{inv_line}"
         )
-        embed.add_field(name=c["name"], value=value, inline=False)
+        embed.add_field(name=f"🧍 {c['name']}", value=value, inline=False)
+
+        if buffs:
+            embed.add_field(name="✨ Buffs", value="\n".join([f"✅ {_format_effect(b)}" for b in buffs]), inline=False)
+        if debuffs:
+            embed.add_field(name="☠️ Debuffs", value="\n".join([f"❌ {_format_effect(d)}" for d in debuffs]), inline=False)
+        if comp_list:
+            embed.add_field(name="🐾 Companions", value=comp_line, inline=False)
 
     return embed
 
+# ===== Cog =====
 
 class CharacterStatus(commands.Cog):
     def __init__(self, bot):
@@ -147,37 +163,28 @@ class CharacterStatus(commands.Cog):
         row = fetchone(ctx.guild.id, "SELECT * FROM characters WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        embed = await make_embed([row], ctx, title=f"📜 Status {name}")
+        embed = await make_embed([row], ctx, title=f"🧍 Status {name}")
         await ctx.send(embed=embed)
 
     @commands.command(name="hp")
     async def show_hp(self, ctx, name: str):
-        await self.status_showhp(ctx, name)
+        row = fetchone(ctx.guild.id, "SELECT hp, hp_max FROM characters WHERE name=?", (name,))
+        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        hp_text = f"{row['hp']}/{row['hp_max']}"
+        await ctx.send(f"❤️ **{name}** HP: {hp_text} [{_bar(row['hp'], row['hp_max'])}]")
 
     @commands.command(name="ene")
     async def show_ene(self, ctx, name: str):
-        await self.status_showene(ctx, name)
+        row = fetchone(ctx.guild.id, "SELECT energy, energy_max FROM characters WHERE name=?", (name,))
+        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        en_text = f"{row['energy']}/{row['energy_max']}"
+        await ctx.send(f"🔋 **{name}** Energy: {en_text} [{_bar(row['energy'], row['energy_max'])}]")
 
     @commands.command(name="stam")
     async def show_stam(self, ctx, name: str):
-        await self.status_showstam(ctx, name)
-
-    async def status_showhp(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT hp, hp_max FROM characters WHERE name=?", (name,))
-        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        hp_text = f"{row['hp']}/{row['hp_max']}" if row['hp_max'] else str(row['hp'])
-        await ctx.send(f"❤️ **{name}** HP: {hp_text} [{_bar(row['hp'], row['hp_max'])}]")
-
-    async def status_showene(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT energy, energy_max FROM characters WHERE name=?", (name,))
-        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        en_text = f"{row['energy']}/{row['energy_max']}" if row['energy_max'] else str(row['energy'])
-        await ctx.send(f"🔋 **{name}** Energy: {en_text} [{_bar(row['energy'], row['energy_max'])}]")
-
-    async def status_showstam(self, ctx, name: str):
         row = fetchone(ctx.guild.id, "SELECT stamina, stamina_max FROM characters WHERE name=?", (name,))
         if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        st_text = f"{row['stamina']}/{row['stamina_max']}" if row['stamina_max'] else str(row['stamina'])
+        st_text = f"{row['stamina']}/{row['stamina_max']}"
         await ctx.send(f"⚡ **{name}** Stamina: {st_text} [{_bar(row['stamina'], row['stamina_max'])}]")
 
     # ==== Setters ====
@@ -298,19 +305,34 @@ class CharacterStatus(commands.Cog):
     @commands.command(name="party")
     async def party(self, ctx):
         guild_id = ctx.guild.id
-        rows = fetchall(guild_id, "SELECT * FROM characters")
-        if not rows:
-            return await ctx.send("ℹ️ Belum ada karakter.")
-        lines = []
-        for c in rows:
+        chars = fetchall(guild_id, "SELECT * FROM characters")
+        allies = fetchall(guild_id, "SELECT * FROM allies")
+        if not chars and not allies:
+            return await ctx.send("ℹ️ Belum ada karakter atau ally.")
+
+        lines = ["🧑‍🤝‍🧑 **Party Status**"]
+
+        for c in chars:
             hp_text = f"{c['hp']}/{c['hp_max']}"
             en_text = f"{c['energy']}/{c['energy_max']}"
             st_text = f"{c['stamina']}/{c['stamina_max']}"
             carry_line = f"⚖️ {c.get('carry_used',0):.1f}/{c.get('carry_capacity',0)}"
-            lines.append(
-                f"**{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} "
-                f"| {carry_line} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}"
-            )
+            buffs = json.loads(c.get("effects") or "[]")
+            buffs_line = ", ".join([e['text'] for e in buffs if 'buff' in e.get('type','')]) or ""
+            debuffs_line = ", ".join([e['text'] for e in buffs if 'debuff' in e.get('type','')]) or ""
+
+            line = f"🧍 **{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} | {carry_line} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}"
+            if buffs_line:
+                line += f" | ✨ {buffs_line}"
+            if debuffs_line:
+                line += f" | ☠️ {debuffs_line}"
+            lines.append(line)
+
+        for a in allies:
+            status = _status_text(a['hp'], a['hp_max'])
+            line = f"🤝 **{a['name']}** | {status}"
+            lines.append(line)
+
         await ctx.send("\n".join(lines))
 
     @status_group.command(name="remove")
