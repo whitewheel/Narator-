@@ -241,9 +241,17 @@ def embed_tick() -> discord.Embed:
 
 def embed_world() -> discord.Embed:
     e = _embed_base(_title("world", "World Commands"), color=discord.Color.from_rgb(153, 102, 255))
-    e.add_field(name="📜 Quest", value="`!quest add|list|detail|assign|reward|reveal|complete|fail|archive`", inline=False)
+    e.add_field(
+        name="📜 Quest",
+        value="`!quest add|show|gmshow|showarchived|detail|assign|reward|rewardvisible|reveal|complete|fail|archive`",
+        inline=False
+    )
     e.add_field(name="👤 NPC", value="`!npc add|list|favor|reveal|detail|sync|remove`", inline=False)
-    e.add_field(name="🪙 Favor", value="`!favor add|set|show|detail|remove`", inline=False)
+    e.add_field(
+        name="💠 Favor",
+        value="`!favor add|set|mod|show|detail|remove|player|factions|gmshow`",
+        inline=False
+    )
     e.add_field(name="📍 Scene", value="`!scene create|edit|pin|unpin|show|now`", inline=False)
     e.add_field(name="🧰 Items & Inventory", value="`!item ...` • `!inv ...` • `!status equip ...`", inline=False)
     e.add_field(name="🎁 Loot", value="`!loot list|take|takeall|drop`", inline=False)
@@ -257,10 +265,11 @@ def embed_quest() -> discord.Embed:
     e.add_field(
         name="Kelola Quest",
         value=(
-            "`!quest add <Judul> | <Deskripsi>`\n"
-            "`!quest list` • `!quest detail <Nama>`\n"
-            "`!quest assign <Quest> <Char1,Char2>`\n"
-            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2\" favor=\"Faction:+2\"`\n"
+            "`!quest add <Nama> | <Deskripsi> [--hidden]`\n"
+            "`!quest show [Nama]` • `!quest gmshow` • `!quest showarchived`\n"
+            "`!quest detail <Nama>` • `!quest assign <Quest> <Char1,Char2>`\n"
+            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2; Key x1\" favor=\"Faction:+2\"`\n"
+            "`!quest rewardvisible <Quest> on/off`\n"
             "`!quest reveal <Quest>` • `!quest complete <Quest>` • `!quest fail <Quest>` • `!quest archive <Quest>`"
         ),
         inline=False
@@ -271,7 +280,7 @@ def embed_npc() -> discord.Embed:
     e = _embed_base(_title("npc", "NPC Commands"), color=discord.Color.from_rgb(255, 99, 132))
     e.add_field(
         name="Kelola NPC",
-        value=(
+        value=( 
             "`!npc add <Nama> [Role]` • `!npc list`\n"
             "`!npc favor <Nama> <delta>` • `!npc reveal <Nama> <trait>`\n"
             "`!npc detail <Nama>` • `!npc sync` • `!npc remove <Nama>`"
@@ -286,7 +295,10 @@ def embed_favor() -> discord.Embed:
         name="Favor Commands",
         value=(
             "`!favor add|set <Faction> <value> [notes]`\n"
-            "`!favor show` • `!favor detail <Faction>` • `!favor remove <Faction>`"
+            "`!favor mod <Faction> <+/-N> [notes]`\n"
+            "`!favor show` • `!favor detail <Faction>` • `!favor remove <Faction>`\n"
+            "`!favor player <Nama>` • `!favor factions [Nama]`\n"
+            "`!favor gmshow` (admin only)"
         ),
         inline=False
     )
@@ -296,7 +308,7 @@ def embed_scene() -> discord.Embed:
     e = _embed_base(_title("scene", "Scene / Zone"), color=discord.Color.from_rgb(75, 192, 192))
     e.add_field(
         name="Scene Commands",
-        value=(
+        value=( 
             "`!scene create <Nama> | <Deskripsi> | [Factions] | [Danger]`\n"
             "`!scene edit <Nama> | field=value`\n"
             "`!scene pin` • `!scene unpin` • `!scene show` • `!scene now`"
@@ -309,7 +321,7 @@ def embed_item() -> discord.Embed:
     e = _embed_base(_title("item", "Items"), color=discord.Color.from_rgb(201, 203, 207))
     e.add_field(
         name="Item Master",
-        value=(
+        value=( 
             "`!item add <Nama> | <Slot> | <Type> | <Deskripsi>`\n"
             "`!item list` • `!item detail <Nama>` • `!item remove <Nama>`"
         ),
@@ -321,7 +333,7 @@ def embed_inventory() -> discord.Embed:
     e = _embed_base(_title("inventory", "Inventory"), color=discord.Color.from_rgb(255, 159, 64))
     e.add_field(
         name="Per-Character Inventory",
-        value=(
+        value=( 
             "`!inv add <Char> <Item> [qty]`\n"
             "`!inv remove <Char> <Item> [qty]`\n"
             "`!inv show <Char>` • `!inv party`"
@@ -334,7 +346,7 @@ def embed_equipment() -> discord.Embed:
     e = _embed_base(_title("equipment", "Equipment"), color=discord.Color.from_rgb(153, 102, 255))
     e.add_field(
         name="Equip / Unequip",
-        value=(
+        value=( 
             "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
             "Slot: `main_hand, off_hand, armor_inner, armor_outer, accessory1-3, augment1-3`"
         ),
@@ -346,7 +358,7 @@ def embed_loot() -> discord.Embed:
     e = _embed_base(_title("loot", "Loot Commands"), color=discord.Color.from_rgb(255, 206, 86))
     e.add_field(
         name="Loot Commands",
-        value=(
+        value=( 
             "`!loot list <Enemy>` • `!loot take <Enemy> <Item> <Char>`\n"
             "`!loot takeall <Enemy> <Char>` • `!loot drop <Enemy>`"
         ),
@@ -358,7 +370,7 @@ def embed_timeline() -> discord.Embed:
     e = _embed_base(_title("timeline", "Timeline"), color=discord.Color.from_rgb(201, 203, 207))
     e.add_field(
         name="Timeline Commands",
-        value=(
+        value=( 
             "`!timeline add CODE | Judul | Detail`\n"
             "`!timeline [N]` → tampilkan N event terakhir\n"
             "`!timeline search <keyword>` • `!timeline full`"
@@ -371,7 +383,7 @@ def embed_wiki() -> discord.Embed:
     e = _embed_base(_title("wiki", "Wiki Commands"), color=discord.Color.from_rgb(153, 102, 255))
     e.add_field(
         name="Wiki Commands",
-        value=(
+        value=( 
             "`!wiki list <Category>` • `!wiki get <Category> <Name>`\n"
             "`!wiki add <Category> <Name> | <Content>` • `!wiki remove <id>`"
         ),
@@ -383,7 +395,7 @@ def embed_classrace() -> discord.Embed:
     e = _embed_base(_title("classrace", "Class & Race"), color=discord.Color.from_rgb(75, 192, 192))
     e.add_field(
         name="Class & Race",
-        value=(
+        value=( 
             "`!classinfo <Name>` • `!setclass <Char> <ClassName>`\n"
             "`!raceinfo <Name>` • `!setrace <Char> <RaceName>`"
         ),
