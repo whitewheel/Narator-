@@ -36,7 +36,6 @@ CATEGORY_EMOJI = {
 
 CATEGORIES = [
     ("home", "Overview"),
-
     ("core", "Core (Ringkasan)"),
     ("status", "Status (Karakter)"),
     ("enemy", "Enemy"),
@@ -370,7 +369,7 @@ def embed_utility() -> discord.Embed:
 
 # Map kategori → builder
 EMBED_BUILDERS = {
-    "home": embed_home,
+    "home": lambda g=None: embed_home(g),   # ✅ fix
     "core": embed_core,
     "status": embed_status,
     "enemy": embed_enemy,
