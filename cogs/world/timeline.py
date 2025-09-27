@@ -95,17 +95,17 @@ def log_event(*args,
         "author_id": kwargs.get("author_id", author_or_guild),
     }
 
-    # simpan ke DB
+    # simpan ke DB (meta juga di-json.dumps supaya tidak error)
     save_memory(
         author_or_guild,
         TIMELINE_CATEGORY,
         json.dumps(payload, ensure_ascii=False),
-        {
+        json.dumps({
             "title": payload["title"],
             "type": payload["type"],
             "code": payload["code"],
             "author_id": payload["author_id"],
-        }
+        }, ensure_ascii=False)
     )
 
 # ===== Cog =====
