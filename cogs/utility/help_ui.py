@@ -103,10 +103,13 @@ def embed_core() -> discord.Embed:
     e.add_field(
         name=_title("enemy", "Enemy"),
         value=(
-            "`!enemy add <Nama> <HP> [--xp X] [--gold G] [--loot \"item|type|effect|rarity;...\"]`\n"
+            "`!enemy add <Nama> <HP> <EN> <ST> [--xp X] [--gold G] [--loot ...]`\n"
             "`!enemy show [Nama]` (player view) • `!enemy gmshow [Nama]`\n"
-            "`!enemy dmg|heal <Nama> <Jumlah>` • `!enemy loot <Nama>`\n"
-            "`!enemy buff|debuff <Nama> <Teks>` • `!enemy clearbuff|cleardebuff`\n"
+            "`!enemy reveal <OldName> <NewName>`\n"
+            "`!enemy dmg|heal <Nama> <Jumlah>` • `!edmg`, `!eheal`\n"
+            "`!enemy buff|debuff <Nama> <Teks>` • `!ebuff`, `!edebuff`\n"
+            "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`\n"
+            "`!enemy loot <Enemy> <Char>` • `!enemy reward <Enemy> <Char>`"
         ),
         inline=False
     )
@@ -150,7 +153,7 @@ def embed_status() -> discord.Embed:
         value=(
             "`!status dmg|heal <Nama> <Jumlah>`\n"
             "`!status addxp <Nama> <Jumlah>` • `!status addgold <Nama> <Jumlah>`\n"
-            "`!status equip <Nama> <Slot> <Item>`\n"
+            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
             "`!party` (ringkasan party)"
         ),
         inline=False
@@ -167,21 +170,30 @@ def embed_enemy() -> discord.Embed:
     e.add_field(
         name="Tambah & Lihat",
         value=(
-            "`!enemy add <Nama> <HP> [--xp X] [--gold G] [--loot ...]`\n"
-            "`!enemy show [Nama]` • `!enemy gmshow [Nama]`"
+            "`!enemy add <Nama> <HP> <EN> <ST> [--xp X] [--gold G] [--loot ...]`\n"
+            "`!enemy show [Nama]` • `!enemy gmshow [Nama]`\n"
+            "`!enemy reveal <OldName> <NewName>`"
         ),
         inline=False
     )
     e.add_field(
         name="Combat & Efek",
         value=(
-            "`!enemy dmg|heal <Nama> <Jumlah>`\n"
-            "`!enemy buff|debuff <Nama> <Teks>` • `!enemy clearbuff|cleardebuff`\n"
-            "`!enemy loot <Nama>`"
+            "`!enemy dmg|heal <Nama> <Jumlah>` • `!edmg`, `!eheal`\n"
+            "`!enemy buff|debuff <Nama> <Teks>` • `!ebuff`, `!edebuff`\n"
+            "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`"
         ),
         inline=False
     )
-    e.set_footer(text="Player hanya melihat kondisi musuh, GM punya detail HP.")
+    e.add_field(
+        name="Loot & Reward",
+        value=(
+            "`!enemy loot <Enemy> <Char>` → drop loot ke karakter\n"
+            "`!enemy reward <Enemy> <Char>` → berikan XP/Gold ke karakter"
+        ),
+        inline=False
+    )
+    e.set_footer(text="Player hanya melihat kondisi musuh, GM punya detail HP/EN/ST.")
     return e
 
 def embed_init() -> discord.Embed:
@@ -303,7 +315,7 @@ def embed_equipment() -> discord.Embed:
     e.add_field(
         name="Equip / Unequip",
         value=(
-            "`!status equip <Nama> <Slot> <Item>`\n"
+            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
             "Slot: `main_hand, off_hand, armor_inner, armor_outer, accessory1-3, augment1-3`"
         ),
         inline=False
@@ -369,7 +381,7 @@ def embed_utility() -> discord.Embed:
 
 # Map kategori → builder
 EMBED_BUILDERS = {
-    "home": lambda g=None: embed_home(g),   # ✅ fix
+    "home": lambda g=None: embed_home(g),
     "core": embed_core,
     "status": embed_status,
     "enemy": embed_enemy,
