@@ -17,7 +17,8 @@ CATEGORY_EMOJI = {
     "world": "🌍",
     "quest": "📜",
     "npc": "🧑‍🤝‍🧑",
-    "favor": "🪙",
+    "favor": "💠",
+    "faction": "🏷️",
     "scene": "📍",
     "item": "📦",
     "inventory": "🎒",
@@ -48,7 +49,8 @@ CATEGORIES = [
     ("world", "World (Ringkasan)"),
     ("quest", "Quest"),
     ("npc", "NPC"),
-    ("favor", "Favor / Faction"),
+    ("favor", "Favor"),
+    ("faction", "Faction"),
     ("scene", "Scene / Zone"),
     ("item", "Items"),
     ("inventory", "Inventory"),
@@ -80,7 +82,7 @@ def embed_home(guild: discord.Guild) -> discord.Embed:
         "Ikon di kiri bikin gampang diingat 😸\n\n"
         "**Kategori Utama:**\n"
         "• ⚔️ Core: Status, Enemy, Ally, Initiative, Tick\n"
-        "• 🌍 World: Quest, NPC, Favor, Scene, Items, Inventory, Equipment, Loot, Timeline, Wiki, Class/Race\n"
+        "• 🌍 World: Quest, NPC, Favor, Faction, Scene, Items, Inventory, Equipment, Loot, Timeline, Wiki, Class/Race\n"
         "• 🧰 Utility: Roll, Poll, Multi, Ask (GPT)\n"
         "• 🎭 GM Only: Command rahasia GM"
     )
@@ -252,6 +254,11 @@ def embed_world() -> discord.Embed:
         value="`!favor add|set|mod|show|detail|remove|player|factions|gmshow`",
         inline=False
     )
+    e.add_field(
+        name="🏷️ Faction",
+        value="`!faction add|list|gmshow|detail|remove|hide|type`",
+        inline=False
+    )
     e.add_field(name="📍 Scene", value="`!scene create|edit|pin|unpin|show|now`", inline=False)
     e.add_field(name="🧰 Items & Inventory", value="`!item ...` • `!inv ...` • `!status equip ...`", inline=False)
     e.add_field(name="🎁 Loot", value="`!loot list|take|takeall|drop`", inline=False)
@@ -268,7 +275,7 @@ def embed_quest() -> discord.Embed:
             "`!quest add <Nama> | <Deskripsi> [--hidden]`\n"
             "`!quest show [Nama]` • `!quest gmshow` • `!quest showarchived`\n"
             "`!quest detail <Nama>` • `!quest assign <Quest> <Char1,Char2>`\n"
-            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2; Key x1\" favor=\"Faction:+2\"`\n"
+            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2; Key x1\" favor=\"Khaj:+2\"`\n"
             "`!quest rewardvisible <Quest> on/off`\n"
             "`!quest reveal <Quest>` • `!quest complete <Quest>` • `!quest fail <Quest>` • `!quest archive <Quest>`"
         ),
@@ -299,6 +306,20 @@ def embed_favor() -> discord.Embed:
             "`!favor show` • `!favor detail <Faction>` • `!favor remove <Faction>`\n"
             "`!favor player <Nama>` • `!favor factions [Nama]`\n"
             "`!favor gmshow` (admin only)"
+        ),
+        inline=False
+    )
+    return e
+
+def embed_faction() -> discord.Embed:
+    e = _embed_base(_title("faction", "Faction Commands"), color=discord.Color.from_rgb(255, 140, 0))
+    e.add_field(
+        name="Faction Master",
+        value=(
+            "`!faction add <Nama> | <Deskripsi> | [Type]`\n"
+            "`!faction list` • `!faction gmshow`\n"
+            "`!faction detail <Nama>` • `!faction remove <Nama>`\n"
+            "`!faction hide <Nama> on/off` • `!faction type <Nama> <Type>`"
         ),
         inline=False
     )
@@ -426,6 +447,7 @@ EMBED_BUILDERS = {
     "quest": embed_quest,
     "npc": embed_npc,
     "favor": embed_favor,
+    "faction": embed_faction,
     "scene": embed_scene,
     "item": embed_item,
     "inventory": embed_inventory,
