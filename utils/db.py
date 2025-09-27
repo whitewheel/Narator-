@@ -280,11 +280,17 @@ def init_db(guild_id: int) -> None:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         desc TEXT,
+        type TEXT DEFAULT 'general',
         hidden INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
+
+    # ✅ Auto-migrasi tambahan kolom untuk factions
+    _ensure_columns(guild_id, "factions", {
+        "type": "TEXT DEFAULT 'general'"
+    })
 
     # 3) Auto-migrate kolom tambahan
     _ensure_columns(guild_id, "characters", {
