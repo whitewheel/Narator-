@@ -1,7 +1,7 @@
 import json
 from utils.db import execute, fetchone, fetchall
-from services import inventory_service, status_service
-from cogs.world.timeline import log_event   # konsisten
+from services import inventory_service, status_service, favor_service  # favor_service kita tambahkan
+from cogs.world.timeline import log_event
 
 ICONS = {
     "quest": "📜",
@@ -13,21 +13,22 @@ ICONS = {
 }
 
 # ---------- CRUD ----------
-def add_quest(guild_id: int, title, detail="", items_required=None, rewards=None, created_by=None, hidden=False, user_id=0):
+def add_quest(guild_id: int, title, detail="", rewards=None, hidden=False, user_id=0):
     """Tambah quest baru (per server)."""
     status = "hidden" if hidden else "open"
     execute(
         guild_id,
-        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived) VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived, rewards_visible) VALUES (?,?,?,?,?,?,?,?,?)",
         (
             title,
             detail,
             status,
             json.dumps([]),
-            json.dumps(rewards or {}),
+            json.dumps(rewards or {"xp":0,"gold":0,"loot":{},"favor":{}}),
             json.dumps({}),
             json.dumps({}),
-            0
+            0,
+            1
         ),
     )
     log_event(
@@ -43,15 +44,12 @@ def add_quest(guild_id: int, title, detail="", items_required=None, rewards=None
     return True
 
 def get_quest(guild_id: int, title):
-    """Ambil 1 quest berdasarkan nama."""
     return fetchone(guild_id, "SELECT * FROM quests WHERE name=?", (title,))
 
 def list_quests(guild_id: int, status="all", include_archived=False):
-    """Ambil semua quest per server, bisa filter status. Skip archived jika tidak diminta."""
     rows = fetchall(guild_id, "SELECT * FROM quests")
     if not rows:
         return f"{ICONS['quest']} Tidak ada quest."
-
     out = []
     for r in rows:
         if not include_archived and r.get("archived", 0) == 1:
@@ -68,7 +66,6 @@ def list_quests(guild_id: int, status="all", include_archived=False):
     return "\n".join(out)
 
 def update_status(guild_id: int, title, new_status, archive=False):
-    """Update status quest (dan archive kalau perlu)."""
     if archive:
         execute(guild_id, "UPDATE quests SET status=?, archived=1, updated_at=CURRENT_TIMESTAMP WHERE name=?",
                 (new_status, title))
@@ -78,20 +75,17 @@ def update_status(guild_id: int, title, new_status, archive=False):
     return True
 
 def set_rewards(guild_id: int, title, rewards: dict):
-    """Set rewards quest."""
     execute(guild_id, "UPDATE quests SET rewards=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
             (json.dumps(rewards), title))
     return True
 
 def assign_characters(guild_id: int, title, chars: list):
-    """Assign quest ke karakter tertentu."""
     execute(guild_id, "UPDATE quests SET assigned_to=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
             (json.dumps(chars), title))
     return True
 
 # ---------- Penyelesaian Quest ----------
 async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
-    """Selesaikan quest, kasih reward ke target characters."""
     quest = get_quest(guild_id, title)
     if not quest:
         return f"{ICONS['fail']} Quest tidak ditemukan."
@@ -138,6 +132,8 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
     if "favor" in rewards:
         fav_txt = []
         for fac, val in rewards["favor"].items():
+            # integrasi ke DB (favor_service)
+            await favor_service.add_favor(guild_id, targets, fac, val)
             fav_txt.append(f"{fac}: {val:+d}")
         msg_parts.append(f"{ICONS['favor']} Favor → " + ", ".join(fav_txt))
 
@@ -155,7 +151,6 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
     return "\n".join(msg_parts)
 
 def fail_quest(guild_id: int, title, user_id=0):
-    """Tandai quest gagal."""
     update_status(guild_id, title, "failed", archive=True)
     log_event(
         guild_id,
@@ -170,12 +165,10 @@ def fail_quest(guild_id: int, title, user_id=0):
     return True
 
 def archive_quest(guild_id: int, title):
-    """Arsipkan quest manual."""
     execute(guild_id, "UPDATE quests SET archived=1, updated_at=CURRENT_TIMESTAMP WHERE name=?", (title,))
     return True
 
 def get_detail(guild_id: int, title):
-    """Ambil detail quest untuk embed."""
     row = get_quest(guild_id, title)
     if not row:
         return None
