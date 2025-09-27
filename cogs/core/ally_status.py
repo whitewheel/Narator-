@@ -81,6 +81,27 @@ class AllyStatus(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # --- ensure table ---
+    def _ensure_table(self, guild_id: int):
+        execute(
+            guild_id,
+            """
+            CREATE TABLE IF NOT EXISTS allies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE,
+                hp INTEGER DEFAULT 0,
+                hp_max INTEGER DEFAULT 0,
+                energy INTEGER DEFAULT 0,
+                energy_max INTEGER DEFAULT 0,
+                stamina INTEGER DEFAULT 0,
+                stamina_max INTEGER DEFAULT 0,
+                ac INTEGER DEFAULT 10,
+                effects TEXT DEFAULT '[]',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
     @commands.group(name="ally", invoke_without_command=True)
     async def ally(self, ctx):
         await ctx.send(
@@ -93,6 +114,8 @@ class AllyStatus(commands.Cog):
     @ally.command(name="add")
     async def ally_add(self, ctx, name: str, hp: int, energy: int, stamina: int, ac: int = 10):
         guild_id = ctx.guild.id
+        self._ensure_table(guild_id)
+
         exists = fetchone(guild_id, "SELECT id FROM allies WHERE name=?", (name,))
         if exists:
             execute(guild_id, """
@@ -112,6 +135,8 @@ class AllyStatus(commands.Cog):
     @ally.command(name="show")
     async def ally_show(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
+        self._ensure_table(guild_id)
+
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
@@ -127,6 +152,8 @@ class AllyStatus(commands.Cog):
     @ally.command(name="gmshow")
     async def ally_gmshow(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
+        self._ensure_table(guild_id)
+
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
@@ -178,6 +205,8 @@ class AllyStatus(commands.Cog):
     @ally.command(name="remove")
     async def ally_remove(self, ctx, *, name: str):
         guild_id = ctx.guild.id
+        self._ensure_table(guild_id)
+
         row = fetchone(guild_id, "SELECT id FROM allies WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Ally **{name}** tidak ditemukan.")
@@ -187,6 +216,8 @@ class AllyStatus(commands.Cog):
     @ally.command(name="clear")
     async def ally_clear(self, ctx):
         guild_id = ctx.guild.id
+        self._ensure_table(guild_id)
+
         execute(guild_id, "DELETE FROM allies")
         await ctx.send("🧹 Semua ally dihapus.")
 
