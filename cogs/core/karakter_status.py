@@ -298,44 +298,44 @@ class CharacterStatus(commands.Cog):
         await ctx.send(f"✨ {name} memulihkan {amount} energy → {new_val}")
 
     # ==== Party & Remove ====
-@commands.command(name="party")
-async def party(self, ctx):
-    guild_id = ctx.guild.id
-    chars = fetchall(guild_id, "SELECT * FROM characters")
+    @commands.command(name="party")
+    async def party(self, ctx):
+        guild_id = ctx.guild.id
+        chars = fetchall(guild_id, "SELECT * FROM characters")
 
-    allies = []
-    if _table_exists(guild_id, "allies"):
-        allies = fetchall(guild_id, "SELECT * FROM allies")
+        allies = []
+        if _table_exists(guild_id, "allies"):
+            allies = fetchall(guild_id, "SELECT * FROM allies")
 
-    if not chars and not allies:
-        return await ctx.send("ℹ️ Belum ada karakter atau ally.")
+        if not chars and not allies:
+            return await ctx.send("ℹ️ Belum ada karakter atau ally.")
 
-    lines = ["🧑‍🤝‍🧑 **Party Status**"]
+        lines = ["🧑‍🤝‍🧑 **Party Status**"]
 
-    # karakter
-    for c in chars:
-        hp_text = f"{c['hp']}/{c['hp_max']}"
-        en_text = f"{c['energy']}/{c['energy_max']}"
-        st_text = f"{c['stamina']}/{c['stamina_max']}"
-        carry_line = f"⚖️ {c.get('carry_used',0):.1f}/{c.get('carry_capacity',0)}"
-        buffs = json.loads(c.get("effects") or "[]")
-        buffs_line = ", ".join([e['text'] for e in buffs if 'buff' in e.get('type','')]) or ""
-        debuffs_line = ", ".join([e['text'] for e in buffs if 'debuff' in e.get('type','')]) or ""
+        # karakter
+        for c in chars:
+            hp_text = f"{c['hp']}/{c['hp_max']}"
+            en_text = f"{c['energy']}/{c['energy_max']}"
+            st_text = f"{c['stamina']}/{c['stamina_max']}"
+            carry_line = f"⚖️ {c.get('carry_used',0):.1f}/{c.get('carry_capacity',0)}"
+            buffs = json.loads(c.get("effects") or "[]")
+            buffs_line = ", ".join([e['text'] for e in buffs if 'buff' in e.get('type','')]) or ""
+            debuffs_line = ", ".join([e['text'] for e in buffs if 'debuff' in e.get('type','')]) or ""
 
-        line = f"🧍 **{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} | {carry_line} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}"
-        if buffs_line:
-            line += f" | ✨ {buffs_line}"
-        if debuffs_line:
-            line += f" | ☠️ {debuffs_line}"
-        lines.append(line)
+            line = f"🧍 **{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text} | {carry_line} | Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')}"
+            if buffs_line:
+                line += f" | ✨ {buffs_line}"
+            if debuffs_line:
+                line += f" | ☠️ {debuffs_line}"
+            lines.append(line)
 
-    # allies
-    for a in allies:
-        status = _status_text(a['hp'], a['hp_max'])
-        line = f"🤝 **{a['name']}** | {status}"
-        lines.append(line)
+        # allies
+        for a in allies:
+            status = _status_text(a['hp'], a['hp_max'])
+            line = f"🤝 **{a['name']}** | {status}"
+            lines.append(line)
 
-    await ctx.send("\n".join(lines))
+        await ctx.send("\n".join(lines))
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
