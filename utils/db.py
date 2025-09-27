@@ -274,6 +274,18 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # Faction registry table
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS factions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        desc TEXT,
+        hidden INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
+
     # 3) Auto-migrate kolom tambahan
     _ensure_columns(guild_id, "characters", {
         "effects": "TEXT DEFAULT '[]'",
