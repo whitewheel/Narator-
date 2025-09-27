@@ -18,9 +18,6 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     filled = int(round(width * (cur / mx)))
     return "█" * filled + "░" * (width - filled)
 
-def _mod(score: int) -> int:
-    return math.floor(score / 5)
-
 def _apply_effects(base_stats, effects):
     stats = base_stats.copy()
     notes = []
@@ -257,8 +254,11 @@ class CharacterStatus(commands.Cog):
     # ==== XP & Gold ====
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
-        await status_service.add_xp(ctx.guild.id, name, amount)
-        await ctx.send(f"📈 {name} mendapat {amount} XP")
+        level_up = await status_service.add_xp(ctx.guild.id, name, amount)
+        if level_up:
+            await ctx.send(f"✨ {name} naik ke **Level {level_up}**!")
+        else:
+            await ctx.send(f"📈 {name} mendapat {amount} XP")
 
     @status_group.command(name="addgold")
     async def status_addgold(self, ctx, name: str, amount: int):
