@@ -1,6 +1,6 @@
 import json
 from utils.db import execute, fetchone, fetchall
-from services import inventory_service, status_service, favor_service  # favor_service kita tambahkan
+from services import inventory_service, status_service, favor_service
 from cogs.world.timeline import log_event
 
 ICONS = {
@@ -18,17 +18,19 @@ def add_quest(guild_id: int, title, detail="", rewards=None, hidden=False, user_
     status = "hidden" if hidden else "open"
     execute(
         guild_id,
-        "INSERT INTO quests (name, desc, status, assigned_to, rewards, favor, tags, archived, rewards_visible) VALUES (?,?,?,?,?,?,?,?,?)",
+        """INSERT INTO quests 
+           (name, desc, status, assigned_to, rewards, favor, tags, archived, rewards_visible) 
+           VALUES (?,?,?,?,?,?,?,?,?)""",
         (
             title,
             detail,
             status,
             json.dumps([]),
-            json.dumps(rewards or {"xp":0,"gold":0,"loot":{},"favor":{}}),
+            json.dumps(rewards or {"xp": 0, "gold": 0, "loot": {}, "favor": {}}),
             json.dumps({}),
             json.dumps({}),
             0,
-            1
+            1  # default visible
         ),
     )
     log_event(
@@ -39,7 +41,7 @@ def add_quest(guild_id: int, title, detail="", rewards=None, hidden=False, user_
         details=detail,
         etype="quest_add",
         actors=[title],
-        tags=["quest","add"]
+        tags=["quest", "add"]
     )
     return True
 
@@ -77,6 +79,11 @@ def update_status(guild_id: int, title, new_status, archive=False):
 def set_rewards(guild_id: int, title, rewards: dict):
     execute(guild_id, "UPDATE quests SET rewards=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
             (json.dumps(rewards), title))
+    return True
+
+def set_rewards_visible(guild_id: int, title, visible: bool):
+    execute(guild_id, "UPDATE quests SET rewards_visible=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
+            (1 if visible else 0, title))
     return True
 
 def assign_characters(guild_id: int, title, chars: list):
@@ -121,7 +128,7 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
                 await status_service.set_status(guild_id, "char", ch, "gold", new_val)
         msg_parts.append(f"💰 {rewards['gold']} Gold")
 
-    # Loot
+    # Loot (items)
     if "loot" in rewards:
         for item, qty in rewards["loot"].items():
             for ch in targets:
@@ -132,7 +139,6 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
     if "favor" in rewards:
         fav_txt = []
         for fac, val in rewards["favor"].items():
-            # integrasi ke DB (favor_service)
             await favor_service.add_favor(guild_id, targets, fac, val)
             fav_txt.append(f"{fac}: {val:+d}")
         msg_parts.append(f"{ICONS['favor']} Favor → " + ", ".join(fav_txt))
@@ -145,7 +151,7 @@ async def complete_quest(guild_id: int, title, targets: list = None, user_id=0):
         details=json.dumps(rewards),
         etype="quest_complete",
         actors=targets,
-        tags=["quest","complete"]
+        tags=["quest", "complete"]
     )
     
     return "\n".join(msg_parts)
@@ -160,7 +166,7 @@ def fail_quest(guild_id: int, title, user_id=0):
         details="",
         etype="quest_fail",
         actors=[title],
-        tags=["quest","fail"]
+        tags=["quest", "fail"]
     )
     return True
 
@@ -176,9 +182,10 @@ def get_detail(guild_id: int, title):
     assigned = json.loads(row.get("assigned_to") or "[]")
     return {
         "name": row["name"],
-        "detail": row.get("desc",""),
+        "detail": row.get("desc", ""),
         "status": row["status"],
         "rewards": rewards,
         "assigned_to": assigned,
         "archived": row.get("archived", 0),
+        "rewards_visible": row.get("rewards_visible", 1),
     }
