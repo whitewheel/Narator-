@@ -15,7 +15,7 @@ def _split_blocks(text: str, limit: int = DISCORD_LIMIT):
         return [text]
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
-def _fmt_ts(ts_str: str) -> str:
+def _fmt_ts(ts_str: str):
     try:
         dt = datetime.fromisoformat(ts_str.replace("Z", ""))
         return dt.strftime("%Y-%m-%d %H:%M")
@@ -58,47 +58,39 @@ def _fmt_event_row(row, ctx: commands.Context | None = None) -> str:
     return line_head
 
 # ===== Public Helper =====
-def log_event(*args,
-              code: str | None = None,
-              title: str | None = None,
-              details: str = "",
-              etype: str = "note",
-              scene: str | None = None,
-              quest: str | None = None,
-              actors: list[str] | None = None,
-              tags: list[str] | None = None,
-              **kwargs):
+def log_event(
+    guild_id: int,
+    author_id: int | None = None,
+    code: str | None = None,
+    title: str | None = None,
+    details: str = "",
+    etype: str = "note",
+    scene: str | None = None,
+    quest: str | None = None,
+    actors: list[str] | None = None,
+    tags: list[str] | None = None,
+):
     """
-    Catat event ke timeline.
-    Bisa dipanggil dengan:
-      log_event(user_id, title="...", ...)
-      log_event(guild_id, event="scene_create", data=..., tags=[...])
+    Catat event ke timeline (guild-based).
+    Selalu simpan di DB guild_id, author_id masuk kolom user_id.
     """
 
-    # fallback: kalau ada arg pertama → anggap itu author_id/guild_id
-    author_or_guild = args[0] if args else kwargs.get("author_id") or kwargs.get("guild_id") or 0
-
-    # alias: "event" → "title"
-    if not title and "event" in kwargs:
-        title = kwargs["event"]
-
-    # isi payload
     payload = {
-        "code": code or kwargs.get("code"),
+        "code": code,
         "title": title or "Event",
-        "details": details or kwargs.get("details", ""),
-        "type": etype or kwargs.get("etype", "note"),
-        "scene": scene or kwargs.get("scene"),
-        "quest": quest or kwargs.get("quest"),
-        "actors": actors or kwargs.get("actors", []),
-        "tags": tags or kwargs.get("tags", []),
-        "author_id": kwargs.get("author_id", author_or_guild),
+        "details": details,
+        "type": etype,
+        "scene": scene,
+        "quest": quest,
+        "actors": actors or [],
+        "tags": tags or [],
+        "author_id": author_id,
     }
 
-    # simpan ke DB (fix: meta di-dumps supaya tidak error)
     save_memory(
-        author_or_guild,
-        TIMELINE_CATEGORY,
+        guild_id,                      # 🔑 DB per guild
+        str(author_id or "0"),         # simpan siapa yang bikin event
+        TIMELINE_CATEGORY,             # type = timeline
         json.dumps(payload, ensure_ascii=False),
         json.dumps({
             "title": payload["title"],
@@ -110,7 +102,7 @@ def log_event(*args,
 
 # ===== Cog =====
 class Timeline(commands.Cog):
-    """Jurnal kampanye dengan kode unik untuk setiap event (global)."""
+    """Jurnal kampanye dengan kode unik untuk setiap event (per guild)."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -141,7 +133,7 @@ class Timeline(commands.Cog):
         else:
             return await ctx.send("❌ Format salah. Pakai: CODE | Judul | detail")
 
-        log_event(ctx.guild.id, code=code, title=title, details=details, etype="note", author_id=ctx.author.id)
+        log_event(ctx.guild.id, ctx.author.id, code=code, title=title, details=details, etype="note")
         await ctx.send(f"✅ Ditambahkan ke timeline: **{title}** (code: {code})")
 
     @timeline.command(name="full")
