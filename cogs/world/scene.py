@@ -100,7 +100,7 @@ class Scene(commands.Cog):
         execute(
             guild_id,
             "UPDATE scenes SET desc=?, factions=?, danger=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
-            (desc, json.dumps(factions), danger or row.get("danger", "-"), name)
+            (desc, json.dumps(factions), (danger or row.get("danger") or "-"), name)
         )
 
         log_event(
