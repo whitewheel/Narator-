@@ -250,14 +250,6 @@ class CharacterStatus(commands.Cog):
         new_val = await status_service.use_resource(ctx.guild.id, "char", name, "hp", amount, regen=True)
         await ctx.send(f"✨ {name} dipulihkan {amount} HP → HP sekarang {new_val}")
 
-    @commands.command(name="dmg")
-    async def alias_dmg(self, ctx, name: str, amount: int):
-        await self.status_dmg(ctx, name, amount)
-
-    @commands.command(name="heal")
-    async def alias_heal(self, ctx, name: str, amount: int):
-        await self.status_heal(ctx, name, amount)
-
     # ==== XP & Gold ====
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
