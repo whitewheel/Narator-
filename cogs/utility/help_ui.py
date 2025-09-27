@@ -97,6 +97,8 @@ def embed_core() -> discord.Embed:
             "`!status setlevel <Nama> <Lv>` • `!status setac <Nama> <AC>`\n"
             "`!status setcarry <Nama> <Capacity>`\n"
             "`!status dmg|heal <Nama> <Jumlah>` • `!party`\n"
+            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
+            "Alias: `!hp <Nama>` • `!ene <Nama>` • `!stam <Nama>`"
         ),
         inline=False
     )
@@ -154,6 +156,7 @@ def embed_status() -> discord.Embed:
             "`!status dmg|heal <Nama> <Jumlah>`\n"
             "`!status addxp <Nama> <Jumlah>` • `!status addgold <Nama> <Jumlah>`\n"
             "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
+            "Alias: `!hp <Nama>` • `!ene <Nama>` • `!stam <Nama>`\n"
             "`!party` (ringkasan party)"
         ),
         inline=False
