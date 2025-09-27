@@ -1,4 +1,3 @@
-# cogs/utility/help_ui.py
 import discord
 from discord.ext import commands
 
@@ -11,6 +10,7 @@ CATEGORY_EMOJI = {
     "core": "⚔️",
     "status": "🧍",
     "enemy": "👹",
+    "ally": "🤝",
     "init": "⏱️",
     "tick": "⏳",
 
@@ -32,6 +32,8 @@ CATEGORY_EMOJI = {
     "poll": "📊",
     "multi": "🗂️",
     "ask": "🤖",
+
+    "gm": "🎭",
 }
 
 CATEGORIES = [
@@ -39,6 +41,7 @@ CATEGORIES = [
     ("core", "Core (Ringkasan)"),
     ("status", "Status (Karakter)"),
     ("enemy", "Enemy"),
+    ("ally", "Ally"),
     ("init", "Initiative"),
     ("tick", "Tick Effects"),
 
@@ -56,10 +59,7 @@ CATEGORIES = [
     ("classrace", "Class & Race"),
 
     ("utility", "Utility"),
-    ("roll", "Roll"),
-    ("poll", "Poll"),
-    ("multi", "Multi-Command"),
-    ("ask", "GPT Ask"),
+    ("gm", "GM Only"),
 ]
 
 def _title(icon_key: str, label: str) -> str:
@@ -79,9 +79,10 @@ def embed_home(guild: discord.Guild) -> discord.Embed:
         "Gunakan **dropdown** di bawah untuk memilih kategori bantuan.\n"
         "Ikon di kiri bikin gampang diingat 😸\n\n"
         "**Kategori Utama:**\n"
-        "• ⚔️ Core: Status, Enemy, Initiative, Tick\n"
+        "• ⚔️ Core: Status, Enemy, Ally, Initiative, Tick\n"
         "• 🌍 World: Quest, NPC, Favor, Scene, Items, Inventory, Equipment, Loot, Timeline, Wiki, Class/Race\n"
         "• 🧰 Utility: Roll, Poll, Multi, Ask (GPT)\n"
+        "• 🎭 GM Only: Command rahasia GM"
     )
     e.set_footer(text="Tip: ketik !help <kategori> untuk detail, contoh: !help quest")
     return e
@@ -100,40 +101,6 @@ def embed_core() -> discord.Embed:
             "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
             "Alias: `!hp <Nama>` • `!ene <Nama>` • `!stam <Nama>`"
         ),
-        inline=False
-    )
-    e.add_field(
-        name=_title("enemy", "Enemy"),
-        value=(
-            "`!enemy add <Nama> <HP> <EN> <ST> [--xp X] [--gold G] [--loot ...]`\n"
-            "`!enemy show [Nama]` (player view) • `!enemy gmshow [Nama]`\n"
-            "`!enemy reveal <OldName> <NewName>`\n"
-            "`!enemy dmg|heal <Nama> <Jumlah>` • `!edmg`, `!eheal`\n"
-            "`!enemy buff|debuff <Nama> <Teks>` • `!ebuff`, `!edebuff`\n"
-            "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`\n"
-            "`!enemy loot <Enemy> <Char>` • `!enemy reward <Enemy> <Char>`"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name=_title("init", "Initiative"),
-        value=(
-            "`!init add <Nama> <Skor>` • `!init addmany \"Alice 18, Goblin 12\"`\n"
-            "`!init show` (alias: !order) • `!init next` (alias: !n)\n"
-            "`!init setptr <index>` • `!init round [n]`\n"
-            "`!init remove <Nama>` • `!init clear` • `!init shuffle`\n"
-            "`!engage` • `!victory [keep] [force]`\n"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name=_title("tick", "Tick Effects"),
-        value="`!tick` → kurangi durasi buff/debuff semua karakter & musuh.",
-        inline=False
-    )
-    e.add_field(
-        name="💡 Alias Cepat",
-        value="`!dmg` • `!heal` • `!ene-` • `!ene+` • `!stam-` • `!stam+`",
         inline=False
     )
     return e
@@ -182,8 +149,8 @@ def embed_enemy() -> discord.Embed:
     e.add_field(
         name="Combat & Efek",
         value=(
-            "`!enemy dmg|heal <Nama> <Jumlah>` • `!edmg`, `!eheal`\n"
-            "`!enemy buff|debuff <Nama> <Teks>` • `!ebuff`, `!edebuff`\n"
+            "`!enemy dmg|heal <Nama> <Jumlah>`\n"
+            "`!enemy buff|debuff <Nama> <Teks>`\n"
             "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`"
         ),
         inline=False
@@ -197,6 +164,56 @@ def embed_enemy() -> discord.Embed:
         inline=False
     )
     e.set_footer(text="Player hanya melihat kondisi musuh, GM punya detail HP/EN/ST.")
+    return e
+
+def embed_ally() -> discord.Embed:
+    e = _embed_base(_title("ally", "Ally Commands"), color=discord.Color.from_rgb(100, 200, 100))
+    e.add_field(
+        name="Tambah & Lihat",
+        value=(
+            "`!ally add <Nama> <HP> <EN> <ST> [AC]`\n"
+            "`!ally show [Nama]` (player view)\n"
+            "`!ally gmshow [Nama]` (GM view detail)"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Combat & Efek",
+        value=(
+            "`!ally dmg|heal <Nama> <Jumlah>`\n"
+            "`!ally buff|debuff <Nama> <Teks>`\n"
+            "`!ally clearbuff <Nama>` • `!ally cleardebuff <Nama>`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Kelola",
+        value="`!ally remove <Nama>` • `!ally clear`",
+        inline=False
+    )
+    return e
+
+def embed_gm() -> discord.Embed:
+    e = _embed_base(_title("gm", "GM Commands"), color=discord.Color.from_rgb(200, 50, 200))
+    e.add_field(
+        name="Enemy Shortcuts",
+        value="`!edmg <Enemy> <N>` • `!eheal <Enemy> <N>`\n"
+              "`!ebuff <Enemy> <Text>` • `!edebuff <Enemy> <Text>`",
+        inline=False
+    )
+    e.add_field(
+        name="Ally Shortcuts",
+        value="`!admg <Ally> <N>` • `!aheal <Ally> <N>`\n"
+              "`!abuff <Ally> <Text>` • `!adebuff <Ally> <Text>`",
+        inline=False
+    )
+    e.add_field(
+        name="Utility GM",
+        value="`!enemy reward <Enemy> <Char>` • `!enemy reveal <Old> <New>`\n"
+              "`!ally clear` • `!enemy clear`",
+        inline=False
+    )
+    e.set_footer(text="⚠️ Command ini hanya untuk GM, jangan dishare ke player.")
     return e
 
 def embed_init() -> discord.Embed:
@@ -326,7 +343,7 @@ def embed_equipment() -> discord.Embed:
     return e
 
 def embed_loot() -> discord.Embed:
-    e = _embed_base(_title("loot", "Loot"), color=discord.Color.from_rgb(255, 206, 86))
+    e = _embed_base(_title("loot", "Loot Commands"), color=discord.Color.from_rgb(255, 206, 86))
     e.add_field(
         name="Loot Commands",
         value=(
@@ -351,7 +368,7 @@ def embed_timeline() -> discord.Embed:
     return e
 
 def embed_wiki() -> discord.Embed:
-    e = _embed_base(_title("wiki", "Wiki"), color=discord.Color.from_rgb(153, 102, 255))
+    e = _embed_base(_title("wiki", "Wiki Commands"), color=discord.Color.from_rgb(153, 102, 255))
     e.add_field(
         name="Wiki Commands",
         value=(
@@ -388,6 +405,8 @@ EMBED_BUILDERS = {
     "core": embed_core,
     "status": embed_status,
     "enemy": embed_enemy,
+    "ally": embed_ally,
+    "gm": embed_gm,
     "init": embed_init,
     "tick": embed_tick,
 
