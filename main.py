@@ -122,12 +122,12 @@ async def ask(ctx, *, prompt: str = None):
     msg = await ctx.send("🤖...")
     try:
         response = client_gpt.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4o",  # ✅ ganti ke gpt-4o
             messages=[
                 {"role": "system", "content": "Kamu adalah asisten yang ramah."},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=1500,
+            max_tokens=1500,  # ✅ tetap pakai max_tokens
         )
         answer = response.choices[0].message.content
         logger.info(f"💬 GPT Prompt: {prompt}")
