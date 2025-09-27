@@ -95,7 +95,7 @@ def log_event(*args,
         "author_id": kwargs.get("author_id", author_or_guild),
     }
 
-    # simpan ke DB (meta juga di-json.dumps supaya tidak error)
+    # simpan ke DB (fix: meta di-dumps supaya tidak error)
     save_memory(
         author_or_guild,
         TIMELINE_CATEGORY,
