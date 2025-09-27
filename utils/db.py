@@ -261,6 +261,19 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # Favor table baru
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS favor (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        faction TEXT,
+        value INTEGER DEFAULT 0,
+        notes TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, faction)
+    );
+    """)
+
     # 3) Auto-migrate kolom tambahan
     _ensure_columns(guild_id, "characters", {
         "effects": "TEXT DEFAULT '[]'",
@@ -286,13 +299,18 @@ def init_db(guild_id: int) -> None:
         "rewards": "TEXT DEFAULT '{}'",
         "favor": "TEXT DEFAULT '{}'",
         "tags": "TEXT DEFAULT '{}'",
-        "archived": "INTEGER DEFAULT 0"
+        "archived": "INTEGER DEFAULT 0",
+        "rewards_visible": "INTEGER DEFAULT 1"
     })
 
     _ensure_columns(guild_id, "npc", {
         "role": "TEXT",
         "favor": "INTEGER DEFAULT 0",
         "traits": "TEXT DEFAULT '{}'"
+    })
+
+    _ensure_columns(guild_id, "favor", {
+        "user_id": "TEXT DEFAULT '0'"
     })
 
     # Indexes
