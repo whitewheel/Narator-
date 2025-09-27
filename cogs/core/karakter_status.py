@@ -81,12 +81,12 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         final_stats, notes = _apply_effects(base_stats, effects)
         note_line = f" ({', '.join(notes)})" if notes else ""
         stats_line = (
-            f"STR {final_stats['str']} ({_mod(final_stats['str']):+d}) | "
-            f"DEX {final_stats['dex']} ({_mod(final_stats['dex']):+d}) | "
-            f"CON {final_stats['con']} ({_mod(final_stats['con']):+d})\n"
-            f"INT {final_stats['int']} ({_mod(final_stats['int']):+d}) | "
-            f"WIS {final_stats['wis']} ({_mod(final_stats['wis']):+d}) | "
-            f"CHA {final_stats['cha']} ({_mod(final_stats['cha']):+d}){note_line}"
+            f"STR {final_stats['str']} | "
+            f"DEX {final_stats['dex']} | "
+            f"CON {final_stats['con']}\n"
+            f"INT {final_stats['int']} | "
+            f"WIS {final_stats['wis']} | "
+            f"CHA {final_stats['cha']}{note_line}"
         )
 
         profile_line = (
