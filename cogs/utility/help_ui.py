@@ -23,7 +23,6 @@ CATEGORY_EMOJI = {
     "item": "📦",
     "inventory": "🎒",
     "equipment": "🛡️",
-    "loot": "🎁",
     "timeline": "⏳",
     "wiki": "📚",
     "classrace": "🧑‍🎓",
@@ -55,7 +54,6 @@ CATEGORIES = [
     ("item", "Items"),
     ("inventory", "Inventory"),
     ("equipment", "Equipment"),
-    ("loot", "Loot"),
     ("timeline", "Timeline"),
     ("wiki", "Wiki"),
     ("classrace", "Class & Race"),
@@ -82,29 +80,11 @@ def embed_home(guild: discord.Guild) -> discord.Embed:
         "Ikon di kiri bikin gampang diingat 😸\n\n"
         "**Kategori Utama:**\n"
         "• ⚔️ Core: Status, Enemy, Ally, Initiative, Tick\n"
-        "• 🌍 World: Quest, NPC, Favor, Faction, Scene, Items, Inventory, Equipment, Loot, Timeline, Wiki, Class/Race\n"
+        "• 🌍 World: Quest, NPC, Favor, Faction, Scene, Items, Inventory, Equipment, Timeline, Wiki, Class/Race\n"
         "• 🧰 Utility: Roll, Poll, Multi, Ask (GPT)\n"
         "• 🎭 GM Only: Command rahasia GM"
     )
     e.set_footer(text="Tip: ketik !help <kategori> untuk detail, contoh: !help quest")
-    return e
-
-def embed_core() -> discord.Embed:
-    e = _embed_base(_title("core", "Core Commands"), color=discord.Color.from_rgb(255, 99, 132))
-    e.add_field(
-        name=_title("status", "Karakter"),
-        value=(
-            "`!status set <Nama> <HP> <EN> <ST>` • `!status show [Nama]`\n"
-            "`!status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
-            "`!status setclass <Nama> <Class>` • `!status setrace <Nama> <Race>`\n"
-            "`!status setlevel <Nama> <Lv>` • `!status setac <Nama> <AC>`\n"
-            "`!status setcarry <Nama> <Capacity>`\n"
-            "`!status dmg|heal <Nama> <Jumlah>` • `!party`\n"
-            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
-            "Alias: `!hp <Nama>` • `!ene <Nama>` • `!stam <Nama>`"
-        ),
-        inline=False
-    )
     return e
 
 def embed_status() -> discord.Embed:
@@ -113,26 +93,42 @@ def embed_status() -> discord.Embed:
         name="Profil & Setup",
         value=(
             "`!status set <Nama> <HP> <EN> <ST>`\n"
+            "Contoh: `!status set Udab 20 10 15`\n\n"
             "`!status setcore <Nama> <STR> <DEX> <CON> <INT> <WIS> <CHA>`\n"
+            "Contoh: `!status setcore Udab 14 12 13 10 8 9`\n\n"
             "`!status setclass <Nama> <Class>` • `!status setrace <Nama> <Race>`\n"
-            "`!status setlevel <Nama> <Lv>` • `!status setac <Nama> <AC>` • `!status setcarry <Nama> <Capacity>`"
+            "Contoh: `!status setclass Udab Warrior`\n"
+            "Contoh: `!status setrace Udab Human`\n\n"
+            "`!status setlevel <Nama> <Lv>` • `!status setac <Nama> <AC>`\n"
+            "Contoh: `!status setlevel Udab 3`\n"
+            "Contoh: `!status setac Udab 14`\n\n"
+            "`!status setcarry <Nama> <Capacity>`\n"
+            "Contoh: `!status setcarry Udab 25`"
         ),
         inline=False
     )
     e.add_field(
         name="Combat & Progress",
         value=(
-            "`!status dmg|heal <Nama> <Jumlah>`\n"
-            "`!status addxp <Nama> <Jumlah>` • `!status addgold <Nama> <Jumlah>`\n"
-            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
-            "Alias: `!hp <Nama>` • `!ene <Nama>` • `!stam <Nama>`\n"
-            "`!party` (ringkasan party)"
+            "`!dmg <Nama> <Jumlah>` • `!heal <Nama> <Jumlah>`\n"
+            "Contoh: `!dmg Udab 5`\n"
+            "Contoh: `!heal Udab 3`\n\n"
+            "`!addxp <Nama> <Jumlah>` • `!subxp <Nama> <Jumlah>`\n"
+            "Contoh: `!addxp Udab 100`\n"
+            "Contoh: `!subxp Udab 50`\n\n"
+            "`!addgold <Nama> <Jumlah>` • `!subgold <Nama> <Jumlah>`\n"
+            "Contoh: `!addgold Udab 50`\n"
+            "Contoh: `!subgold Udab 20`\n\n"
+            "`!buff <Nama> <Teks>` • `!debuff <Nama> <Teks>`\n"
+            "Contoh: `!buff Udab Bless +2 STR`\n"
+            "Contoh: `!debuff Udab Poison -2 CON`\n\n"
+            "`!party` → ringkasan party"
         ),
         inline=False
     )
     e.add_field(
-        name="Slot Equipment",
-        value="`main_hand, off_hand, armor_inner, armor_outer, accessory1-3, augment1-3`",
+        name="Remove",
+        value="`!status remove <Nama>`\nContoh: `!status remove Udab`",
         inline=False
     )
     return e
@@ -142,30 +138,32 @@ def embed_enemy() -> discord.Embed:
     e.add_field(
         name="Tambah & Lihat",
         value=(
-            "`!enemy add <Nama> <HP> <EN> <ST> [--xp X] [--gold G] [--loot ...]`\n"
+            "`!enemy add <Nama>`\n"
+            "Contoh: `!enemy add Rustborn`\n\n"
             "`!enemy show [Nama]` • `!enemy gmshow [Nama]`\n"
-            "`!enemy reveal <OldName> <NewName>`"
+            "`!enemy remove <Nama>`"
         ),
         inline=False
     )
     e.add_field(
         name="Combat & Efek",
         value=(
-            "`!enemy dmg|heal <Nama> <Jumlah>`\n"
-            "`!enemy buff|debuff <Nama> <Teks>`\n"
-            "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`"
+            "`!edmg <Nama> <Jumlah>` • `!eheal <Nama> <Jumlah>`\n"
+            "Contoh: `!edmg Rustborn 7`\n\n"
+            "`!ebuff <Nama> <Teks>` • `!edebuff <Nama> <Teks>`\n"
+            "Contoh: `!ebuff Rustborn Rage +2 STR`"
         ),
         inline=False
     )
     e.add_field(
         name="Loot & Reward",
         value=(
-            "`!enemy loot <Enemy> <Char>` → drop loot ke karakter\n"
-            "`!enemy reward <Enemy> <Char>` → berikan XP/Gold ke karakter"
+            "`!enemy loot <Nama>`\n"
+            "`!enemy reward <Nama>`\n"
+            "Contoh: `!enemy reward Rustborn`"
         ),
         inline=False
     )
-    e.set_footer(text="Player hanya melihat kondisi musuh, GM punya detail HP/EN/ST.")
     return e
 
 def embed_ally() -> discord.Embed:
@@ -173,18 +171,19 @@ def embed_ally() -> discord.Embed:
     e.add_field(
         name="Tambah & Lihat",
         value=(
-            "`!ally add <Nama> <HP> <EN> <ST> [AC]`\n"
-            "`!ally show [Nama]` (player view)\n"
-            "`!ally gmshow [Nama]` (GM view detail)"
+            "`!ally add <Nama>`\n"
+            "Contoh: `!ally add Nyx`\n\n"
+            "`!ally show [Nama]` • `!ally gmshow [Nama]`"
         ),
         inline=False
     )
     e.add_field(
         name="Combat & Efek",
         value=(
-            "`!ally dmg|heal <Nama> <Jumlah>`\n"
-            "`!ally buff|debuff <Nama> <Teks>`\n"
-            "`!ally clearbuff <Nama>` • `!ally cleardebuff <Nama>`"
+            "`!admg <Nama> <Jumlah>` • `!aheal <Nama> <Jumlah>`\n"
+            "Contoh: `!admg Nyx 3`\n\n"
+            "`!abuff <Nama> <Teks>` • `!adebuff <Nama> <Teks>`\n"
+            "Contoh: `!abuff Nyx Haste +2 DEX`"
         ),
         inline=False
     )
@@ -198,24 +197,30 @@ def embed_ally() -> discord.Embed:
 def embed_gm() -> discord.Embed:
     e = _embed_base(_title("gm", "GM Commands"), color=discord.Color.from_rgb(200, 50, 200))
     e.add_field(
+        name="History",
+        value="`!undo` → batalkan aksi terakhir",
+        inline=False
+    )
+    e.add_field(
         name="Enemy Shortcuts",
-        value="`!edmg <Enemy> <N>` • `!eheal <Enemy> <N>`\n"
-              "`!ebuff <Enemy> <Text>` • `!edebuff <Enemy> <Text>`",
+        value=(
+            "`!edmg <Enemy> <N>`\n"
+            "`!eheal <Enemy> <N>`\n"
+            "`!ebuff <Enemy> <Text>`\n"
+            "`!edebuff <Enemy> <Text>`"
+        ),
         inline=False
     )
     e.add_field(
         name="Ally Shortcuts",
-        value="`!admg <Ally> <N>` • `!aheal <Ally> <N>`\n"
-              "`!abuff <Ally> <Text>` • `!adebuff <Ally> <Text>`",
+        value=(
+            "`!admg <Ally> <N>`\n"
+            "`!aheal <Ally> <N>`\n"
+            "`!abuff <Ally> <Text>`\n"
+            "`!adebuff <Ally> <Text>`"
+        ),
         inline=False
     )
-    e.add_field(
-        name="Utility GM",
-        value="`!enemy reward <Enemy> <Char>` • `!enemy reveal <Old> <New>`\n"
-              "`!ally clear` • `!enemy clear`",
-        inline=False
-    )
-    e.set_footer(text="⚠️ Command ini hanya untuk GM, jangan dishare ke player.")
     return e
 
 def embed_init() -> discord.Embed:
@@ -223,10 +228,12 @@ def embed_init() -> discord.Embed:
     e.add_field(
         name="Urutan & Kontrol",
         value=(
-            "`!init add <Nama> <Skor>` • `!init addmany \"Alice 18, Goblin 12\"`\n"
+            "`!init add <Nama> <Skor>`\n"
+            "Contoh: `!init add Udab 15`\n\n"
+            "`!init addmany \"Alice 18, Goblin 12\"`\n"
             "`!init show` • `!init next` • `!init setptr <index>`\n"
             "`!init remove <Nama>` • `!init clear` • `!init shuffle`\n"
-            "`!init round [n]` • `!engage` • `!victory [keep] [force]`"
+            "`!init round [n]` • `!init engage` • `!init victory`"
         ),
         inline=False
     )
@@ -236,35 +243,9 @@ def embed_tick() -> discord.Embed:
     e = _embed_base(_title("tick", "Tick Effects"), color=discord.Color.from_rgb(201, 203, 207))
     e.add_field(
         name="Kurangi Durasi Buff/Debuff",
-        value="`!tick` → tampilkan expired & sisa durasi semua efek.",
+        value="`!tick` → kurangi durasi semua efek dan tampilkan expired.",
         inline=False
     )
-    return e
-
-def embed_world() -> discord.Embed:
-    e = _embed_base(_title("world", "World Commands"), color=discord.Color.from_rgb(153, 102, 255))
-    e.add_field(
-        name="📜 Quest",
-        value="`!quest add|show|gmshow|showarchived|detail|assign|reward|rewardvisible|reveal|complete|fail|archive`",
-        inline=False
-    )
-    e.add_field(name="👤 NPC", value="`!npc add|list|favor|reveal|detail|sync|remove`", inline=False)
-    e.add_field(
-        name="💠 Favor",
-        value="`!favor add|set|mod|show|detail|remove|player|factions|gmshow`",
-        inline=False
-    )
-    e.add_field(
-        name="🏷️ Faction",
-        value="`!faction add|list|gmshow|detail|remove|hide|type`",
-        inline=False
-    )
-    e.add_field(name="📍 Scene", value="`!scene create|edit|pin|unpin|show|now`", inline=False)
-    e.add_field(name="🧰 Items & Inventory", value="`!item ...` • `!inv ...` • `!status equip ...`", inline=False)
-    e.add_field(name="🎁 Loot", value="`!loot list|take|takeall|drop`", inline=False)
-    e.add_field(name="⏳ Timeline", value="`!timeline add|search|full`", inline=False)
-    e.add_field(name="📚 Wiki", value="`!wiki list|get|add|remove`", inline=False)
-    e.add_field(name="🧑‍🎓 Class & Race", value="`!classinfo|!setclass` • `!raceinfo|!setrace`", inline=False)
     return e
 
 def embed_quest() -> discord.Embed:
@@ -272,12 +253,18 @@ def embed_quest() -> discord.Embed:
     e.add_field(
         name="Kelola Quest",
         value=(
-            "`!quest add <Nama> | <Deskripsi> [--hidden]`\n"
-            "`!quest show [Nama]` • `!quest gmshow` • `!quest showarchived`\n"
-            "`!quest detail <Nama>` • `!quest assign <Quest> <Char1,Char2>`\n"
-            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2; Key x1\" favor=\"Khaj:+2\"`\n"
+            "`!quest add <Nama> | <Deskripsi>`\n"
+            "Contoh: `!quest add Cari Antibiotik | Bantu Ka'ruun mencari antibiotik.`\n\n"
+            "`!quest show` • `!quest gmshow` • `!quest showarchived`\n"
+            "`!quest detail <Nama>`\n"
+            "Contoh: `!quest detail Cari Antibiotik`\n\n"
+            "`!quest assign <Quest> <Char1,Char2>`\n"
+            "Contoh: `!quest assign Cari Antibiotik Udab,Nyx`\n\n"
+            "`!quest reward <Quest> xp=100 gold=50 items=\"Potion x2; Key x1\" favor=\"Mutaris:+2\"`\n"
+            "Contoh: `!quest reward Cari Antibiotik xp=200 gold=100 items=\"Antibiotik x1\" favor=\"Mutaris:+2\"`\n\n"
             "`!quest rewardvisible <Quest> on/off`\n"
-            "`!quest reveal <Quest>` • `!quest complete <Quest>` • `!quest fail <Quest>` • `!quest archive <Quest>`"
+            "`!quest reveal <Quest>` • `!quest complete <Quest>`\n"
+            "`!quest fail <Quest>` • `!quest archive <Quest>`"
         ),
         inline=False
     )
@@ -288,17 +275,19 @@ def embed_npc() -> discord.Embed:
     e.add_field(
         name="Kelola NPC",
         value=(
-            "`!npc add <Nama> [Role]` • `!npc list`\n"
+            "`!npc add <Nama> [Role]`\n"
+            "Contoh: `!npc add Ka'ruun | Pemimpin Mutaris`\n\n"
+            "`!npc list`\n"
             "`!npc detail <Nama>` • `!npc remove <Nama>` • `!npc sync`\n\n"
             "**Traits & Info:**\n"
-            "`!npc trait_add <Nama> key=value [--visible]`\n"
+            "`!npc trait_add <Nama> key=value`\n"
+            "Contoh: `!npc trait_add Ka'ruun Bijak`\n\n"
             "`!npc trait_remove <Nama> <key>`\n"
             "`!npc reveal <Nama> <Trait>` • `!npc allreveal <Nama>`\n"
-            "`!npc info <Nama> <Teks> [--hidden]`"
+            "`!npc info <Nama> <Teks>`"
         ),
         inline=False
     )
-    e.set_footer(text="Traits & Info bisa diset hidden, GM bisa reveal satu-satu atau allreveal.")
     return e
 
 def embed_favor() -> discord.Embed:
@@ -306,11 +295,13 @@ def embed_favor() -> discord.Embed:
     e.add_field(
         name="Favor Commands",
         value=(
-            "`!favor add|set <Faction> <value> [notes]`\n"
-            "`!favor mod <Faction> <+/-N> [notes]`\n"
-            "`!favor show` • `!favor detail <Faction>` • `!favor remove <Faction>`\n"
-            "`!favor player <Nama>` • `!favor factions [Nama]`\n"
-            "`!favor gmshow` (admin only)"
+            "`!favor add <Char> <Faction> <Value>`\n"
+            "Contoh: `!favor add Udab Mutaris 3`\n\n"
+            "`!favor set <Char> <Faction> <Value>`\n"
+            "`!favor mod <Char> <Faction> +/-N`\n"
+            "Contoh: `!favor mod Udab Mutaris +2`\n\n"
+            "`!favor show <Char>` • `!favor detail <Faction>`\n"
+            "`!favor factions` • `!favor gmshow`"
         ),
         inline=False
     )
@@ -322,9 +313,11 @@ def embed_faction() -> discord.Embed:
         name="Faction Master",
         value=(
             "`!faction add <Nama> | <Deskripsi> | [Type]`\n"
+            "Contoh: `!faction add ArthaDyne | Korporasi biotek elit | corporate`\n\n"
             "`!faction list` • `!faction gmshow`\n"
             "`!faction detail <Nama>` • `!faction remove <Nama>`\n"
-            "`!faction hide <Nama> on/off` • `!faction type <Nama> <Type>`"
+            "`!faction hide <Nama> on/off`\n"
+            "`!faction type <Nama> <Type>`"
         ),
         inline=False
     )
@@ -334,10 +327,14 @@ def embed_scene() -> discord.Embed:
     e = _embed_base(_title("scene", "Scene / Zone"), color=discord.Color.from_rgb(75, 192, 192))
     e.add_field(
         name="Scene Commands",
-        value=( 
-            "`!scene create <Nama> | <Deskripsi> | [Factions] | [Danger]`\n"
+        value=(
+            "`!scene create <Nama> | <Deskripsi>`\n"
+            "Contoh: `!scene create Sewer01 | Lorong bawah tanah berbau menyengat`\n\n"
             "`!scene edit <Nama> | field=value`\n"
-            "`!scene pin` • `!scene unpin` • `!scene show` • `!scene now`"
+            "Contoh: `!scene edit Sewer01 | danger=high`\n\n"
+            "`!scene list` • `!scene recall <Nama>`\n"
+            "`!scene pin <Nama>` • `!scene unpin`\n"
+            "`!scene show <Nama>` • `!scene now`"
         ),
         inline=False
     )
@@ -347,9 +344,18 @@ def embed_item() -> discord.Embed:
     e = _embed_base(_title("item", "Items"), color=discord.Color.from_rgb(201, 203, 207))
     e.add_field(
         name="Item Master",
-        value=( 
-            "`!item add <Nama> | <Slot> | <Type> | <Deskripsi>`\n"
-            "`!item list` • `!item detail <Nama>` • `!item remove <Nama>`"
+        value=(
+            "`!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
+            "Contoh: `!item add Rust Shiv | Weapon | Pisau karatan | Common | 0 | 1.0 | main_hand | Senjata awal | +1 dmg`\n\n"
+            "`!item show all`\n"
+            "`!item show weapon`\n\n"
+            "`!item remove <Nama>`\n"
+            "`!item detail <Nama>`\n"
+            "`!item edit <Nama> | key=value`\n"
+            "Contoh: `!item edit Rust Shiv | weight=1.2 rarity=Uncommon`\n\n"
+            "`!item info <Nama>`\n"
+            "`!use <Char> <Item>`\n"
+            "Contoh: `!use Udab Rust Shiv`"
         ),
         inline=False
     )
@@ -358,11 +364,22 @@ def embed_item() -> discord.Embed:
 def embed_inventory() -> discord.Embed:
     e = _embed_base(_title("inventory", "Inventory"), color=discord.Color.from_rgb(255, 159, 64))
     e.add_field(
-        name="Per-Character Inventory",
-        value=( 
+        name="Inventory Commands",
+        value=(
             "`!inv add <Char> <Item> [qty]`\n"
+            "Contoh: `!inv add Udab Rust Shiv 1`\n\n"
             "`!inv remove <Char> <Item> [qty]`\n"
-            "`!inv show <Char>` • `!inv party`"
+            "Contoh: `!inv remove Udab Rust Shiv 1`\n\n"
+            "`!inv drop <Char> <Item> [qty]`\n"
+            "`!inv clear <Char>`\n"
+            "`!inv show <Char>`\n\n"
+            "`!inv transfer <Char1> <Char2> <Item> [qty]`\n"
+            "Contoh: `!inv transfer Udab Nyx Rust Shiv 1`\n\n"
+            "`!inv meta <Char> <Item> key=value`\n"
+            "Contoh: `!inv meta Udab Rust Shiv weight=1.0 rarity=Common`\n\n"
+            "`!inv use <Char> <Item>`\n"
+            "Contoh: `!inv use Udab Sample Antibiotik`\n\n"
+            "`!inv recalc_all`"
         ),
         inline=False
     )
@@ -372,21 +389,13 @@ def embed_equipment() -> discord.Embed:
     e = _embed_base(_title("equipment", "Equipment"), color=discord.Color.from_rgb(153, 102, 255))
     e.add_field(
         name="Equip / Unequip",
-        value=( 
-            "`!status equip <Nama> <Slot> <Item>` • `!status unequip <Nama> <Slot>`\n"
+        value=(
+            "`!equip set <Char> <Slot> <Item>`\n"
+            "Contoh: `!equip set Udab main_hand Rust Shiv`\n\n"
+            "`!equip remove <Char> <Slot>`\n"
+            "Contoh: `!equip remove Udab main_hand`\n\n"
+            "`!equip show <Char>`\n"
             "Slot: `main_hand, off_hand, armor_inner, armor_outer, accessory1-3, augment1-3`"
-        ),
-        inline=False
-    )
-    return e
-
-def embed_loot() -> discord.Embed:
-    e = _embed_base(_title("loot", "Loot Commands"), color=discord.Color.from_rgb(255, 206, 86))
-    e.add_field(
-        name="Loot Commands",
-        value=( 
-            "`!loot list <Enemy>` • `!loot take <Enemy> <Item> <Char>`\n"
-            "`!loot takeall <Enemy> <Char>` • `!loot drop <Enemy>`"
         ),
         inline=False
     )
@@ -396,10 +405,12 @@ def embed_timeline() -> discord.Embed:
     e = _embed_base(_title("timeline", "Timeline"), color=discord.Color.from_rgb(201, 203, 207))
     e.add_field(
         name="Timeline Commands",
-        value=( 
-            "`!timeline add CODE | Judul | Detail`\n"
-            "`!timeline [N]` → tampilkan N event terakhir\n"
-            "`!timeline search <keyword>` • `!timeline full`"
+        value=(
+            "`!timeline add <Teks>`\n"
+            "Contoh: `!timeline add Udab bertemu Ka'ruun di Khaj`\n\n"
+            "`!timeline search <keyword>`\n"
+            "Contoh: `!timeline search Udab`\n\n"
+            "`!timeline full`"
         ),
         inline=False
     )
@@ -409,9 +420,14 @@ def embed_wiki() -> discord.Embed:
     e = _embed_base(_title("wiki", "Wiki Commands"), color=discord.Color.from_rgb(153, 102, 255))
     e.add_field(
         name="Wiki Commands",
-        value=( 
-            "`!wiki list <Category>` • `!wiki get <Category> <Name>`\n"
-            "`!wiki add <Category> <Name> | <Content>` • `!wiki remove <id>`"
+        value=(
+            "`!wiki list`\n"
+            "`!wiki get <Nama>`\n"
+            "Contoh: `!wiki get Khaj`\n\n"
+            "`!wiki add <Nama> | <Konten>`\n"
+            "Contoh: `!wiki add Khaj | Wilayah bawah tanah Mutaris.`\n\n"
+            "`!wiki remove <Nama>`\n"
+            "Contoh: `!wiki remove Khaj`"
         ),
         inline=False
     )
@@ -421,9 +437,15 @@ def embed_classrace() -> discord.Embed:
     e = _embed_base(_title("classrace", "Class & Race"), color=discord.Color.from_rgb(75, 192, 192))
     e.add_field(
         name="Class & Race",
-        value=( 
-            "`!classinfo <Name>` • `!setclass <Char> <ClassName>`\n"
-            "`!raceinfo <Name>` • `!setrace <Char> <RaceName>`"
+        value=(
+            "`!classinfo <Name>`\n"
+            "Contoh: `!classinfo Rustborn`\n\n"
+            "`!setclass <Char> <ClassName>`\n"
+            "Contoh: `!setclass Udab Warrior`\n\n"
+            "`!raceinfo <Name>`\n"
+            "Contoh: `!raceinfo Exoform`\n\n"
+            "`!setrace <Char> <RaceName>`\n"
+            "Contoh: `!setrace Udab Human`"
         ),
         inline=False
     )
@@ -431,24 +453,21 @@ def embed_classrace() -> discord.Embed:
 
 def embed_utility() -> discord.Embed:
     e = _embed_base(_title("utility", "Utility"), color=discord.Color.from_rgb(100, 100, 100))
-    e.add_field(name=_title("roll", "Roll"), value="`!roll 2d20+5` • `!roll as <Char> d20+str vs 14`", inline=False)
-    e.add_field(name=_title("poll", "Poll"), value="`!poll \"Judul\" | Opsi A | Opsi B`", inline=False)
-    e.add_field(name=_title("multi", "Multi-Command"), value="`!multi \"!dmg Goblin 3; !heal Alice 4\"`", inline=False)
-    e.add_field(name=_title("ask", "GPT Ask"), value="`!ask Tulis deskripsi cyberpunk Baturaja.`", inline=False)
+    e.add_field(name=_title("roll", "Roll"), value="`!roll 1d20+3`\nContoh: `!roll 2d6+4`", inline=False)
+    e.add_field(name=_title("poll", "Poll"), value="`!poll \"Judul\" opsi1 opsi2`\nContoh: `!poll \"Pilih jalan\" kiri kanan`", inline=False)
+    e.add_field(name=_title("multi", "Multi-Command"), value="`!multi !dmg Goblin 3 x3`", inline=False)
+    e.add_field(name=_title("ask", "GPT Ask"), value="`!ask Ceritakan tentang Technonesia`", inline=False)
     return e
 
 # Map kategori → builder
 EMBED_BUILDERS = {
     "home": lambda g=None: embed_home(g),
-    "core": embed_core,
     "status": embed_status,
     "enemy": embed_enemy,
     "ally": embed_ally,
     "gm": embed_gm,
     "init": embed_init,
     "tick": embed_tick,
-
-    "world": embed_world,
     "quest": embed_quest,
     "npc": embed_npc,
     "favor": embed_favor,
@@ -457,11 +476,9 @@ EMBED_BUILDERS = {
     "item": embed_item,
     "inventory": embed_inventory,
     "equipment": embed_equipment,
-    "loot": embed_loot,
     "timeline": embed_timeline,
     "wiki": embed_wiki,
     "classrace": embed_classrace,
-
     "utility": embed_utility,
     "roll": lambda: embed_utility(),
     "poll": lambda: embed_utility(),
