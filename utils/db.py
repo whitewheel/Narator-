@@ -324,8 +324,10 @@ def init_db(guild_id: int) -> None:
 
     _ensure_columns(guild_id, "npc", {
         "role": "TEXT",
-        "favor": "INTEGER DEFAULT 0",
-        "traits": "TEXT DEFAULT '{}'"
+        "traits": "TEXT DEFAULT '{}'",
+        "info": "TEXT DEFAULT '{\"value\": \"\", \"visible\": 1}'",
+        "status": "TEXT DEFAULT 'Alive'",
+        "affiliation": "TEXT"
     })
 
     _ensure_columns(guild_id, "favors", {
