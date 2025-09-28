@@ -48,6 +48,7 @@ class MyBot(commands.Bot):
             "cogs.core.race_manager",
             "cogs.core.class_manager",
             "cogs.core.tick",
+            "cogs.core.ally_status",
             "cogs.core.equipment", 
 
             # WORLD SYSTEM
