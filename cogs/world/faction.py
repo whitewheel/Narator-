@@ -1,4 +1,3 @@
-# cogs/world/faction.py
 import discord
 from discord.ext import commands
 from services import faction_service
@@ -20,7 +19,7 @@ class Faction(commands.Cog):
 
     @commands.group(name="faction", invoke_without_command=True)
     async def faction(self, ctx):
-        await ctx.send("Gunakan: `!faction add|list|detail|remove|hide|show|gmshow`")
+        await ctx.send("Gunakan: `!faction add|list|detail|remove|hide|show|gmshow|type`")
 
     @faction.command(name="add")
     async def faction_add(self, ctx, *, entry: str):
@@ -48,15 +47,16 @@ class Faction(commands.Cog):
             color=discord.Color.blue()
         )
         for r in rows:
-            icon = FACTION_ICONS.get(r.get("type","general"), "🏷️")
+            icon = FACTION_ICONS.get(r.get("type", "general"), "🏷️")
             embed.add_field(
                 name=f"{icon} **{r['name']}**",
-                value=r.get("desc","-"),
+                value=r.get("desc", "-"),
                 inline=False
             )
         await ctx.send(embed=embed)
 
     @faction.command(name="gmshow")
+    @commands.has_permissions(administrator=True)
     async def faction_gmshow(self, ctx):
         """List semua faction termasuk hidden"""
         guild_id = ctx.guild.id
@@ -69,11 +69,11 @@ class Faction(commands.Cog):
             color=discord.Color.purple()
         )
         for r in rows:
-            status = "🙈 Hidden" if r.get("hidden",0) == 1 else "👁️ Visible"
-            icon = FACTION_ICONS.get(r.get("type","general"), "🏷️")
+            status = "🙈 Hidden" if r.get("hidden", 0) == 1 else "👁️ Visible"
+            icon = FACTION_ICONS.get(r.get("type", "general"), "🏷️")
             embed.add_field(
                 name=f"{icon} **{r['name']}** ({status})",
-                value=r.get("desc","-"),
+                value=r.get("desc", "-"),
                 inline=False
             )
         await ctx.send(embed=embed)
@@ -85,33 +85,44 @@ class Faction(commands.Cog):
         f = faction_service.get_faction(guild_id, name)
         if not f:
             return await ctx.send("❌ Faction tidak ditemukan.")
-        status = "🙈 Hidden" if f.get("hidden",0) == 1 else "👁️ Visible"
-        icon = FACTION_ICONS.get(f.get("type","general"), "🏷️")
+        status = "🙈 Hidden" if f.get("hidden", 0) == 1 else "👁️ Visible"
+        icon = FACTION_ICONS.get(f.get("type", "general"), "🏷️")
         embed = discord.Embed(
             title=f"{icon} Faction: {f['name']}",
-            description=f.get("desc","-"),
+            description=f.get("desc", "-"),
             color=discord.Color.gold()
         )
         embed.add_field(name="Status", value=status, inline=True)
-        embed.add_field(name="Type", value=f.get("type","general"), inline=True)
+        embed.add_field(name="Type", value=f.get("type", "general"), inline=True)
         await ctx.send(embed=embed)
 
     @faction.command(name="remove")
+    @commands.has_permissions(administrator=True)
     async def faction_remove(self, ctx, *, name: str):
         guild_id = ctx.guild.id
         msg = faction_service.remove_faction(guild_id, name)
         await ctx.send(msg)
 
     @faction.command(name="hide")
+    @commands.has_permissions(administrator=True)
     async def faction_hide(self, ctx, *, name: str):
         guild_id = ctx.guild.id
         msg = faction_service.hide_faction(guild_id, name, hidden=1)
         await ctx.send(msg)
 
     @faction.command(name="show")
+    @commands.has_permissions(administrator=True)
     async def faction_show(self, ctx, *, name: str):
         guild_id = ctx.guild.id
         msg = faction_service.hide_faction(guild_id, name, hidden=0)
+        await ctx.send(msg)
+
+    @faction.command(name="type")
+    @commands.has_permissions(administrator=True)
+    async def faction_type(self, ctx, name: str, ftype: str):
+        """Ubah type faction (city/region/corp/gang/etc)"""
+        guild_id = ctx.guild.id
+        msg = faction_service.set_faction_type(guild_id, name, ftype)
         await ctx.send(msg)
 
 async def setup(bot):
