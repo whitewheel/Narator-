@@ -163,35 +163,55 @@ class CharacterStatus(commands.Cog):
     @status_group.command(name="show")
     async def status_show(self, ctx, name: str):
         guild_id = ctx.guild.id
-        # refresh carry 1 karakter sebelum tampil
         inventory_service.calc_carry(guild_id, name)
-
         row = fetchone(guild_id, "SELECT * FROM characters WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
         embed = await make_embed([row], ctx, title=f"🧍 Status {name}")
         await ctx.send(embed=embed)
 
-    @commands.command(name="hp")
-    async def show_hp(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT hp, hp_max FROM characters WHERE name=?", (name,))
-        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        hp_text = f"{row['hp']}/{row['hp_max']}"
-        await ctx.send(f"❤️ **{name}** HP: {hp_text} [{_bar(row['hp'], row['hp_max'])}]")
+    # ==== Combat (HP) ====
+    @commands.command(name="dmg")
+    async def status_dmg(self, ctx, name: str, amount: int):
+        new_val = await status_service.damage(ctx.guild.id, "char", name, amount)
+        await ctx.send(f"💥 {name} menerima {amount} damage → HP sekarang {new_val}")
 
-    @commands.command(name="ene")
-    async def show_ene(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT energy, energy_max FROM characters WHERE name=?", (name,))
-        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        en_text = f"{row['energy']}/{row['energy_max']}"
-        await ctx.send(f"🔋 **{name}** Energy: {en_text} [{_bar(row['energy'], row['energy_max'])}]")
+    @commands.command(name="heal")
+    async def status_heal(self, ctx, name: str, amount: int):
+        new_val = await status_service.heal(ctx.guild.id, "char", name, amount)
+        await ctx.send(f"✨ {name} dipulihkan {amount} HP → HP sekarang {new_val}")
 
-    @commands.command(name="stam")
-    async def show_stam(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT stamina, stamina_max FROM characters WHERE name=?", (name,))
-        if not row: return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        st_text = f"{row['stamina']}/{row['stamina_max']}"
-        await ctx.send(f"⚡ **{name}** Stamina: {st_text} [{_bar(row['stamina'], row['stamina_max'])}]")
+    # ==== Buff & Debuff ====
+    @commands.command(name="buff")
+    async def add_buff(self, ctx, name: str, *, text: str):
+        effects = await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=True)
+        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+
+    @commands.command(name="debuff")
+    async def add_debuff(self, ctx, name: str, *, text: str):
+        effects = await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=False)
+        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+
+    # ==== Resource Commands (Stamina & Energy) ====
+    @commands.command(name="addstm")
+    async def stamina_regen(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "stamina", amount, regen=True)
+        await ctx.send(f"✨ {name} memulihkan {amount} stamina → {new_val}")
+
+    @commands.command(name="usestm")
+    async def stamina_use(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "stamina", amount)
+        await ctx.send(f"⚡ {name} menggunakan {amount} stamina → tersisa {new_val}")
+
+    @commands.command(name="addene")
+    async def energy_regen(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount, regen=True)
+        await ctx.send(f"✨ {name} memulihkan {amount} energy → {new_val}")
+
+    @commands.command(name="useene")
+    async def energy_use(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount)
+        await ctx.send(f"🔋 {name} menggunakan {amount} energy → tersisa {new_val}")
 
     # ==== Setters ====
     @status_group.command(name="set")
@@ -245,17 +265,6 @@ class CharacterStatus(commands.Cog):
         execute(guild_id, "UPDATE characters SET carry_capacity=? WHERE name=?", (capacity, name))
         await ctx.send(f"⚖️ Kapasitas carry {name} → {capacity}")
 
-    # ==== Combat ====
-    @status_group.command(name="dmg")
-    async def status_dmg(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "hp", amount)
-        await ctx.send(f"💥 {name} menerima {amount} damage → HP sekarang {new_val}")
-
-    @status_group.command(name="heal")
-    async def status_heal(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "hp", amount, regen=True)
-        await ctx.send(f"✨ {name} dipulihkan {amount} HP → HP sekarang {new_val}")
-
     # ==== XP & Gold ====
     @status_group.command(name="addxp")
     async def status_addxp(self, ctx, name: str, amount: int):
@@ -292,27 +301,6 @@ class CharacterStatus(commands.Cog):
         execute(guild_id, "UPDATE characters SET gold=? WHERE name=?", (new_val, name))
         await ctx.send(f"💸 {name} mengeluarkan {amount} gold → sisa {new_val}")
 
-    # ==== Resource Commands ====
-    @commands.command(name="stam-")
-    async def stamina_use(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "stamina", amount)
-        await ctx.send(f"⚡ {name} menggunakan {amount} stamina → tersisa {new_val}")
-
-    @commands.command(name="stam+")
-    async def stamina_regen(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "stamina", amount, regen=True)
-        await ctx.send(f"✨ {name} memulihkan {amount} stamina → {new_val}")
-
-    @commands.command(name="ene-")
-    async def energy_use(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount)
-        await ctx.send(f"🔋 {name} menggunakan {amount} energy → tersisa {new_val}")
-
-    @commands.command(name="ene+")
-    async def energy_regen(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount, regen=True)
-        await ctx.send(f"✨ {name} memulihkan {amount} energy → {new_val}")
-
     # ==== Party & Remove ====
     @commands.command(name="party")
     async def party(self, ctx):
@@ -329,9 +317,7 @@ class CharacterStatus(commands.Cog):
         lines = ["🧑‍🤝‍🧑 **Party Status**"]
 
         for c in chars:
-            # refresh carry untuk tiap karakter
             inventory_service.calc_carry(guild_id, c["name"])
-
             hp_text = f"{c['hp']}/{c['hp_max']}"
             en_text = f"{c['energy']}/{c['energy_max']}"
             st_text = f"{c['stamina']}/{c['stamina_max']}"
