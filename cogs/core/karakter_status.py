@@ -151,13 +151,22 @@ class CharacterStatus(commands.Cog):
     async def status_group(self, ctx):
         guild_id = ctx.guild.id
         rows = fetchall(guild_id, "SELECT * FROM characters")
+
+        # refresh semua carry sebelum tampil
+        for r in rows:
+            inventory_service.calc_carry(guild_id, r["name"])
+
         embed = await make_embed(rows, ctx)
         await ctx.send(embed=embed)
 
     # ==== Show Commands ====
     @status_group.command(name="show")
     async def status_show(self, ctx, name: str):
-        row = fetchone(ctx.guild.id, "SELECT * FROM characters WHERE name=?", (name,))
+        guild_id = ctx.guild.id
+        # refresh carry 1 karakter sebelum tampil
+        inventory_service.calc_carry(guild_id, name)
+
+        row = fetchone(guild_id, "SELECT * FROM characters WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
         embed = await make_embed([row], ctx, title=f"🧍 Status {name}")
@@ -320,6 +329,9 @@ class CharacterStatus(commands.Cog):
         lines = ["🧑‍🤝‍🧑 **Party Status**"]
 
         for c in chars:
+            # refresh carry untuk tiap karakter
+            inventory_service.calc_carry(guild_id, c["name"])
+
             hp_text = f"{c['hp']}/{c['hp_max']}"
             en_text = f"{c['energy']}/{c['energy_max']}"
             st_text = f"{c['stamina']}/{c['stamina_max']}"
