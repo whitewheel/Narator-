@@ -1,14 +1,17 @@
-# services/status_service.py
 import json
 from utils.db import execute, fetchone, fetchall
 
 # ===============================
 # STATUS SERVICE (per-server)
 # ===============================
-# target_type: "char" atau "enemy"
+# target_type: "char", "enemy", atau "ally"
 
 def _table(target_type: str) -> str:
-    return "enemies" if target_type == "enemy" else "characters"
+    if target_type == "enemy":
+        return "enemies"
+    elif target_type == "ally":
+        return "allies"
+    return "characters"
 
 ICONS = {
     "buff": "✨",
@@ -35,6 +38,10 @@ def _baseline_row(table: str, name: str) -> dict:
     if table == "enemies":
         base.update({
             "xp_reward": 0, "gold_reward": 0, "loot": "[]"
+        })
+    elif table == "allies":
+        base.update({
+            "effects": "[]"
         })
     return base
 
@@ -137,8 +144,8 @@ async def clear_effects(guild_id: int, target_type, name, is_buff=True):
     return keep
 
 async def tick_all_effects(guild_id: int):
-    results = {"char": {}, "enemy": {}}
-    for ttype, table in [("char", "characters"), ("enemy", "enemies")]:
+    results = {"char": {}, "enemy": {}, "ally": {}}
+    for ttype, table in [("char", "characters"), ("enemy", "enemies"), ("ally", "allies")]:
         rows = fetchall(guild_id, f"SELECT * FROM {table}")
         for r in rows:
             effects = json.loads(r.get("effects") or "[]")
@@ -164,7 +171,7 @@ async def tick_all_effects(guild_id: int):
     return results
 
 # ===============================
-# EQUIPMENT
+# EQUIPMENT (char only)
 # ===============================
 async def set_equipment(guild_id: int, name, slot: str, item: str):
     row = _ensure_exists(guild_id, "characters", name)
@@ -175,7 +182,7 @@ async def set_equipment(guild_id: int, name, slot: str, item: str):
     return eq
 
 # ===============================
-# COMPANIONS
+# COMPANIONS (char only)
 # ===============================
 async def add_companion(guild_id: int, name, comp: dict):
     row = _ensure_exists(guild_id, "characters", name)
@@ -208,7 +215,7 @@ async def set_status(guild_id: int, target_type, name, field: str, value):
     return value
 
 # ===============================
-# GOLD & XP HELPERS
+# GOLD & XP HELPERS (char only)
 # ===============================
 async def add_gold(guild_id: int, name, amount: int):
     row = _ensure_exists(guild_id, "characters", name)
