@@ -9,7 +9,12 @@ class NPC(commands.Cog):
 
     @commands.group(name="npc", invoke_without_command=True)
     async def npc(self, ctx):
-        await ctx.send("Gunakan: `!npc add`, `!npc list`, `!npc remove`, `!npc favor`, `!npc reveal`, `!npc detail`, `!npc sync`")
+        await ctx.send(
+            "Gunakan: `!npc add`, `!npc list`, `!npc remove`, "
+            "`!npc trait_add`, `!npc trait_remove`, "
+            "`!npc reveal`, `!npc allreveal`, "
+            "`!npc info`, `!npc detail`, `!npc sync`"
+        )
 
     # === Tambah NPC ===
     @npc.command(name="add")
@@ -23,16 +28,48 @@ class NPC(commands.Cog):
         msg = await npc_service.list_npc(ctx.guild.id)
         await ctx.send(msg)
 
-    # === Update Favor ===
-    @npc.command(name="favor")
-    async def npc_favor(self, ctx, name: str, amount: int):
-        msg = await npc_service.update_favor(ctx.guild.id, name, amount, ctx.author.id)
+    # === Tambah Trait ===
+    @npc.command(name="trait_add")
+    async def npc_trait_add(self, ctx, name: str, *, entry: str):
+        """
+        Format: !npc trait_add <nama> key=value [--visible]
+        """
+        parts = entry.split("=")
+        if len(parts) < 2:
+            return await ctx.send("❌ Format salah. Gunakan: key=value")
+        key = parts[0].strip()
+        value = parts[1].strip()
+        visible = "--visible" in entry
+        msg = await npc_service.add_trait(ctx.guild.id, name, key, value, visible, ctx.author.id)
+        await ctx.send(msg)
+
+    # === Hapus Trait ===
+    @npc.command(name="trait_remove")
+    async def npc_trait_remove(self, ctx, name: str, trait_key: str):
+        msg = await npc_service.remove_trait(ctx.guild.id, name, trait_key, ctx.author.id)
         await ctx.send(msg)
 
     # === Reveal Trait ===
     @npc.command(name="reveal")
     async def npc_reveal(self, ctx, name: str, trait_key: str):
         msg = await npc_service.reveal_trait(ctx.guild.id, name, trait_key, ctx.author.id)
+        await ctx.send(msg)
+
+    # === Reveal Semua Trait + Info ===
+    @npc.command(name="allreveal")
+    async def npc_allreveal(self, ctx, *, name: str):
+        msg = await npc_service.all_reveal(ctx.guild.id, name, ctx.author.id)
+        await ctx.send(msg)
+
+    # === Update Info ===
+    @npc.command(name="info")
+    async def npc_info(self, ctx, name: str, *, entry: str):
+        """
+        Format: !npc info <nama> <teks> [--hidden]
+        """
+        hidden = "--hidden" in entry
+        text = entry.replace("--hidden", "").strip()
+        msg = await npc_service.set_info(ctx.guild.id, name, text, hidden, ctx.author.id)
         await ctx.send(msg)
 
     # === Detail NPC (embed cantik) ===
@@ -47,18 +84,47 @@ class NPC(commands.Cog):
             description=f"Peran: **{npc.get('role','-')}**",
             color=discord.Color.greyple()
         )
-        embed.add_field(name="💠 Favor", value=str(npc.get("favor", 0)), inline=True)
 
+        # Status & Affiliation kalau ada
+        if npc.get("status"):
+            embed.add_field(name="📌 Status", value=npc["status"], inline=True)
+        if npc.get("affiliation"):
+            embed.add_field(name="🏳️ Affiliation", value=npc["affiliation"], inline=True)
+
+        # Traits
         traits = npc.get("traits")
         if traits:
             try:
                 traits = json.loads(traits)
-                visible = [f"- {k}: {v}" for k, v in traits.items()]
+                visible = []
+                for k, v in traits.items():
+                    if isinstance(v, dict):
+                        if v.get("visible"):
+                            visible.append(f"- {k}: {v['value']}")
+                        else:
+                            visible.append(f"- {k}: ???")
+                    else:
+                        visible.append(f"- {k}: {v}")
                 embed.add_field(name="👁️ Traits", value="\n".join(visible) or "-", inline=False)
             except Exception:
                 embed.add_field(name="👁️ Traits", value="-", inline=False)
         else:
             embed.add_field(name="👁️ Traits", value="-", inline=False)
+
+        # Info (bisa hidden)
+        info = npc.get("info")
+        if info:
+            try:
+                info_data = json.loads(info)
+                if isinstance(info_data, dict) and not info_data.get("visible", True):
+                    embed.add_field(name="📖 Info", value="???", inline=False)
+                else:
+                    text = info_data["value"] if isinstance(info_data, dict) else str(info_data)
+                    embed.add_field(name="📖 Info", value=text, inline=False)
+            except Exception:
+                embed.add_field(name="📖 Info", value=str(info), inline=False)
+        else:
+            embed.add_field(name="📖 Info", value="-", inline=False)
 
         await ctx.send(embed=embed)
 
