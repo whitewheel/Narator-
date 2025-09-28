@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from services import inventory_service, item_service
-from utils.db import fetchone
+from utils.db import fetchone, fetchall
 
 class Inventory(commands.Cog):
     def __init__(self, bot):
@@ -11,7 +11,7 @@ class Inventory(commands.Cog):
     async def inv_group(self, ctx):
         await ctx.send(
             "Gunakan: `!inv add`, `!inv remove`, `!inv drop`, `!inv clear`, "
-            "`!inv show`, `!inv transfer`, `!inv meta`, `!inv use`"
+            "`!inv show`, `!inv transfer`, `!inv meta`, `!inv use`, `!inv recalc_all`"
         )
 
     # === Tambah item ===
@@ -194,6 +194,24 @@ class Inventory(commands.Cog):
             embed.add_field(name="Efek Mekanik", value="\n".join(result_lines), inline=False)
 
         await ctx.send(embed=embed)
+
+    # === Recalculate carry semua karakter (tanpa party) ===
+    @inv_group.command(name="recalc_all")
+    async def inv_recalc_all(self, ctx):
+        guild_id = ctx.guild.id
+        chars = fetchall(guild_id, "SELECT name, carry_capacity FROM characters")
+        if not chars:
+            return await ctx.send("ℹ️ Belum ada karakter.")
+
+        lines = []
+        for c in chars:
+            if c["name"].lower() == "party":
+                continue  # skip party
+            total = inventory_service.calc_carry(guild_id, c["name"])
+            cap = c.get("carry_capacity", 0)
+            lines.append(f"⚖️ {c['name']}: {total:.1f} / {cap:.1f}")
+
+        await ctx.send("\n".join(lines))
 
 async def setup(bot):
     await bot.add_cog(Inventory(bot))
