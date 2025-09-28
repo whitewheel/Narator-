@@ -23,11 +23,11 @@ RARITY_ORDER = {
 }
 
 RARITY_ICON = {
-    "Common": "🟩",      # hijau
-    "Uncommon": "🟦",   # biru
-    "Rare": "🟪",       # ungu
-    "Very Rare": "🟨",  # kuning
-    "Legendary": "🟥"   # merah
+    "Common": "🟢",
+    "Uncommon": "🔵",
+    "Rare": "🟣",
+    "Very Rare": "🟡",
+    "Legendary": "🔴"
 }
 
 def ensure_table(guild_id: int):
