@@ -5,7 +5,6 @@ class StatusAlias(commands.Cog):
     """
     QoL alias untuk command status & enemy (gabung).
     !dmg / !heal otomatis pilih karakter atau musuh.
-    !ene / !stam punya alias + / - untuk tambah/kurang.
     """
 
     def __init__(self, bot):
@@ -50,56 +49,6 @@ class StatusAlias(commands.Cog):
             return
         if await self._call_enemy(ctx, "heal", name, amount, target):
             return
-        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
-
-    # ==== Energy ====
-    @commands.command(name="ene", aliases=["ene-", "ene+"])
-    async def ene_cmd(self, ctx, name: str, amount: int = None):
-        """
-        !ene <Nama> → cek Energy
-        !ene- <Nama> <jumlah> → kurangi energy
-        !ene+ <Nama> <jumlah> → tambah energy
-        """
-        if ctx.invoked_with == "ene-":
-            if await self._call_status(ctx, "useenergy", name, amount):
-                return
-            if await self._call_enemy(ctx, "useenergy", name, amount):
-                return
-        elif ctx.invoked_with == "ene+":
-            if await self._call_status(ctx, "regenenergy", name, amount):
-                return
-            if await self._call_enemy(ctx, "regenenergy", name, amount):
-                return
-        else:
-            if await self._call_status(ctx, "showene", name):
-                return
-            if await self._call_enemy(ctx, "showene", name):
-                return
-        await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
-
-    # ==== Stamina ====
-    @commands.command(name="stam", aliases=["stam-", "stam+"])
-    async def stam_cmd(self, ctx, name: str, amount: int = None):
-        """
-        !stam <Nama> → cek Stamina
-        !stam- <Nama> <jumlah> → kurangi stamina
-        !stam+ <Nama> <jumlah> → tambah stamina
-        """
-        if ctx.invoked_with == "stam-":
-            if await self._call_status(ctx, "usestam", name, amount):
-                return
-            if await self._call_enemy(ctx, "usestam", name, amount):
-                return
-        elif ctx.invoked_with == "stam+":
-            if await self._call_status(ctx, "regenstam", name, amount):
-                return
-            if await self._call_enemy(ctx, "regenstam", name, amount):
-                return
-        else:
-            if await self._call_status(ctx, "showstam", name):
-                return
-            if await self._call_enemy(ctx, "showstam", name):
-                return
         await ctx.send(f"⚠️ {name} tidak ditemukan di Character maupun Enemy.")
 
     # ==== Tambahan QoL ====
