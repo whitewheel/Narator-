@@ -124,7 +124,7 @@ class AllyStatus(commands.Cog):
 
     # === Add Ally ===
     @ally.command(name="add")
-    async def ally_add(self, ctx, name: str, hp: int, energy: int, stamina: int, ac: int = 10):
+    async def ally_add(self, ctx, name: str, hp: int, energy: int, stamina: int):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
 
@@ -132,15 +132,15 @@ class AllyStatus(commands.Cog):
         if exists:
             execute(guild_id, """
                 UPDATE allies
-                SET hp=?, hp_max=?, energy=?, energy_max=?, stamina=?, stamina_max=?, ac=?, updated_at=CURRENT_TIMESTAMP
+                SET hp=?, hp_max=?, energy=?, energy_max=?, stamina=?, stamina_max=?, ac=10, updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
-            """, (hp, hp, energy, energy, stamina, stamina, ac, exists["id"]))
+            """, (hp, hp, energy, energy, stamina, stamina, exists["id"]))
             await ctx.send(f"♻️ Ally **{name}** diperbarui.")
         else:
             execute(guild_id, """
                 INSERT INTO allies (name, hp, hp_max, energy, energy_max, stamina, stamina_max, ac)
-                VALUES (?,?,?,?,?,?,?,?)
-            """, (name, hp, hp, energy, energy, stamina, stamina, ac))
+                VALUES (?,?,?,?,?,?,?,10)
+            """, (name, hp, hp, energy, energy, stamina, stamina))
             await ctx.send(f"🤝 Ally **{name}** ditambahkan.")
 
     # === Show Ally ===
