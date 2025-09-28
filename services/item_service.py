@@ -39,7 +39,7 @@ def ensure_table(guild_id: int):
             effect TEXT,
             rarity TEXT DEFAULT 'Common',
             value INTEGER DEFAULT 0,
-            weight REAL DEFAULT 0.0,
+            weight REAL DEFAULT 0.1,
             slot TEXT,
             notes TEXT,
             rules TEXT,
@@ -48,17 +48,17 @@ def ensure_table(guild_id: int):
     """)
 
 def add_item(guild_id: int, data: dict):
-    """Tambah atau update item di katalog (per-server). Wajib ada weight > 0."""
+    """Tambah atau update item di katalog (per-server)."""
     ensure_table(guild_id)
 
     # --- Validasi weight ---
-    weight = data.get("weight", 0.0)
+    weight = data.get("weight", 0.1)
     try:
         weight = float(weight)
     except Exception:
-        return False
+        weight = 0.1
     if weight <= 0:
-        return False
+        weight = 0.1
 
     execute(guild_id, """
         INSERT INTO items (name, type, effect, rarity, value, weight, slot, notes, rules)
@@ -86,6 +86,15 @@ def add_item(guild_id: int, data: dict):
     ))
     return True
 
+def update_item(guild_id: int, name: str, updates: dict):
+    """Update sebagian field item (dipakai untuk !item edit)."""
+    row = get_item(guild_id, name)
+    if not row:
+        return False
+
+    row.update(updates)
+    return add_item(guild_id, row)
+
 def get_item(guild_id: int, name: str):
     """Ambil detail 1 item dengan ikon."""
     row = fetchone(guild_id, "SELECT * FROM items WHERE name=?", (name,))
@@ -97,7 +106,7 @@ def get_item(guild_id: int, name: str):
 
 def list_items(guild_id: int, limit: int = 50):
     """Ambil semua item, urut per Type → Rarity → Nama (A–Z), dengan ikon rarity."""
-    rows = fetchall(guild_id, "SELECT * FROM items LIMIT ?", (limit,))
+    rows = fetchall(guild_id, "SELECT * FROM items", ())
     if not rows:
         return []
 
@@ -128,7 +137,7 @@ def list_items(guild_id: int, limit: int = 50):
 
         out.append("")  # spasi antar kategori
 
-    return out
+    return out[:limit] if limit else out
 
 def remove_item(guild_id: int, name: str):
     """Hapus item dari katalog."""
