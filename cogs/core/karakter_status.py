@@ -3,6 +3,7 @@ import json
 import discord
 from discord.ext import commands
 from services import status_service, inventory_service
+from services.equipment_service import SLOT_ICONS, SLOTS
 from utils.db import fetchall, fetchone, execute
 
 # ===== Utility =====
@@ -95,17 +96,12 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
 
         # equipment slot
         eq = json.loads(c.get("equipment") or "{}")
+        if not eq:
+            eq = {s: "" for s in SLOTS}
+
         equip_block = "\n".join([
-            f"🗡️ Main Hand: {eq.get('main_hand') or '-'}",
-            f"🗡️ Off Hand: {eq.get('off_hand') or '-'}",
-            f"👕 Armor Inner: {eq.get('armor_inner') or '-'}",
-            f"🛡️ Armor Outer: {eq.get('armor_outer') or '-'}",
-            f"💍 Accessory 1: {eq.get('accessory1') or '-'}",
-            f"💍 Accessory 2: {eq.get('accessory2') or '-'}",
-            f"💍 Accessory 3: {eq.get('accessory3') or '-'}",
-            f"🧬 Augment 1: {eq.get('augment1') or '-'}",
-            f"🧬 Augment 2: {eq.get('augment2') or '-'}",
-            f"🧬 Augment 3: {eq.get('augment3') or '-'}",
+            f"{SLOT_ICONS.get(slot,'▫️')} {slot}: {eq.get(slot) or '(kosong)'}"
+            for slot in SLOTS
         ])
 
         # inventory
@@ -286,34 +282,6 @@ class CharacterStatus(commands.Cog):
         new_val = max(0, current - amount)
         execute(guild_id, "UPDATE characters SET gold=? WHERE name=?", (new_val, name))
         await ctx.send(f"💸 {name} mengeluarkan {amount} gold → sisa {new_val}")
-
-    # ==== Equipment ====
-    @status_group.command(name="equip")
-    async def status_equip(self, ctx, name: str, slot: str, *, item: str):
-        guild_id = ctx.guild.id
-        inv = inventory_service.get_inventory(guild_id, name)
-        entry = next((it for it in inv if it["item"].lower() == item.lower()), None)
-        if not entry or entry["qty"] <= 0:
-            return await ctx.send(f"❌ {name} tidak punya {item} di inventory.")
-
-        inventory_service.remove_item(guild_id, name, entry["item"], 1, user_id=str(ctx.author.id))
-        await status_service.set_equipment(guild_id, name, slot, item)
-        await ctx.send(f"🛡️ {name} mengenakan {item} di slot {slot}. (item keluar dari inventory)")
-
-    @status_group.command(name="unequip")
-    async def status_unequip(self, ctx, name: str, slot: str):
-        guild_id = ctx.guild.id
-        row = fetchone(guild_id, "SELECT equipment FROM characters WHERE name=?", (name,))
-        if not row:
-            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
-        eq = json.loads(row.get("equipment") or "{}")
-        item = eq.get(slot)
-        if not item:
-            return await ctx.send(f"❌ Slot {slot} kosong.")
-
-        inventory_service.add_item(guild_id, name, item, 1, user_id=str(ctx.author.id))
-        await status_service.set_equipment(guild_id, name, slot, None)
-        await ctx.send(f"❌ {name} melepas {item} dari slot {slot}. (item kembali ke inventory)")
 
     # ==== Resource Commands ====
     @commands.command(name="stam-")
