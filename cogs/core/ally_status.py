@@ -21,22 +21,31 @@ def _format_effect(e):
     d = e.get("duration", -1)
     return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
 
-def _status_text(cur: int, mx: int) -> str:
-    if mx <= 0:
-        return "❓ Tidak diketahui"
+def _hp_status(cur: int, mx: int) -> str:
+    if mx <= 0: return "❓ Tidak diketahui"
     pct = (cur / mx) * 100
-    if cur <= 0:
-        return "💀 Tewas"
-    elif pct >= 100:
-        return "💪 Segar"
-    elif pct >= 75:
-        return "🙂 Luka Ringan"
-    elif pct >= 50:
-        return "⚔️ Luka Sedang"
-    elif pct >= 25:
-        return "🤕 Luka Berat"
-    else:
-        return "☠️ Sekarat"
+    if cur <= 0: return "💀 Tewas"
+    elif pct >= 100: return "💪 Segar"
+    elif pct >= 75: return "🙂 Luka Ringan"
+    elif pct >= 50: return "⚔️ Luka Sedang"
+    elif pct >= 25: return "🤕 Luka Berat"
+    else: return "☠️ Sekarat"
+
+def _energy_status(cur: int, mx: int) -> str:
+    if mx <= 0: return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if pct >= 75: return "⚡ Penuh tenaga"
+    elif pct >= 50: return "😐 Cukup bertenaga"
+    elif pct >= 25: return "😓 Hampir habis tenaga"
+    else: return "🥵 Kehabisan tenaga"
+
+def _stamina_status(cur: int, mx: int) -> str:
+    if mx <= 0: return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if pct >= 75: return "🏃 Masih segar"
+    elif pct >= 50: return "😤 Terengah-engah"
+    elif pct >= 25: return "😩 Hampir kelelahan"
+    else: return "🥴 Ambruk kelelahan"
 
 # ===== Embed Builder =====
 
@@ -68,7 +77,9 @@ def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
             )
         else:
             value = (
-                f"❤️ Kondisi: {_status_text(a['hp'], a['hp_max'])}\n"
+                f"❤️ Kondisi: {_hp_status(a['hp'], a['hp_max'])}\n"
+                f"🔋 Energi: {_energy_status(a['energy'], a['energy_max'])}\n"
+                f"⚡ Stamina: {_stamina_status(a['stamina'], a['stamina_max'])}\n\n"
                 f"✨ Buffs:\n{buffs_str}\n\n"
                 f"☠️ Debuffs:\n{debuffs_str}"
             )
@@ -124,7 +135,6 @@ class AllyStatus(commands.Cog):
                 SET hp=?, hp_max=?, energy=?, energy_max=?, stamina=?, stamina_max=?, ac=?, updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
             """, (hp, hp, energy, energy, stamina, stamina, ac, exists["id"]))
-
             await ctx.send(f"♻️ Ally **{name}** diperbarui.")
         else:
             execute(guild_id, """
@@ -174,14 +184,14 @@ class AllyStatus(commands.Cog):
         new_hp = await status_service.damage(ctx.guild.id, "ally", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"💥 {name} menerima {amount} damage → {new_hp} HP")
+        await ctx.send(f"💥 {name} menerima damage")
 
     @ally.command(name="heal")
     async def ally_heal(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} dipulihkan {amount} HP → {new_hp} HP")
+        await ctx.send(f"✨ {name} dipulihkan")
 
     # === Resource Ops (Stamina & Energy) ===
     @ally.command(name="stam-")
@@ -189,28 +199,28 @@ class AllyStatus(commands.Cog):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"⚡ {name} menggunakan {amount} stamina → tersisa {new_val}")
+        await ctx.send(f"⚡ {name} kehilangan stamina")
 
     @ally.command(name="stam+")
     async def ally_stam_regen(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} memulihkan {amount} stamina → {new_val}")
+        await ctx.send(f"✨ {name} memulihkan stamina")
 
     @ally.command(name="ene-")
     async def ally_ene_use(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"🔋 {name} menggunakan {amount} energi → tersisa {new_val}")
+        await ctx.send(f"🔋 {name} kehilangan energi")
 
     @ally.command(name="ene+")
     async def ally_ene_regen(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} memulihkan {amount} energi → {new_val}")
+        await ctx.send(f"✨ {name} memulihkan energi")
 
     # === Buff / Debuff ===
     @ally.command(name="buff")
@@ -259,14 +269,14 @@ class AllyStatus(commands.Cog):
         new_hp = await status_service.damage(ctx.guild.id, "ally", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"💥 [GM] {name} menerima {amount} damage → {new_hp} HP")
+        await ctx.send(f"💥 [GM] {name} menerima damage")
 
     @commands.command(name="aheal")
     async def ally_heal_short(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
         if new_hp is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} dipulihkan {amount} HP → {new_hp} HP")
+        await ctx.send(f"✨ [GM] {name} dipulihkan")
 
     @commands.command(name="abuff")
     async def ally_buff_short(self, ctx, name: str, *, text: str):
@@ -283,28 +293,28 @@ class AllyStatus(commands.Cog):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"⚡ [GM] {name} kehilangan {amount} stamina → {new_val}")
+        await ctx.send(f"⚡ [GM] {name} kehilangan stamina")
 
     @commands.command(name="astam+")
     async def ally_stam_regen_short(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} memulihkan {amount} stamina → {new_val}")
+        await ctx.send(f"✨ [GM] {name} memulihkan stamina")
 
     @commands.command(name="aene-")
     async def ally_ene_use_short(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"🔋 [GM] {name} kehilangan {amount} energi → {new_val}")
+        await ctx.send(f"🔋 [GM] {name} kehilangan energi")
 
     @commands.command(name="aene+")
     async def ally_ene_regen_short(self, ctx, name: str, amount: int):
         new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
         if new_val is None:
             return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} memulihkan {amount} energi → {new_val}")
+        await ctx.send(f"✨ [GM] {name} memulihkan energi")
 
 async def setup(bot):
     await bot.add_cog(AllyStatus(bot))
