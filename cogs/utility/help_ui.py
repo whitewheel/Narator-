@@ -287,13 +287,18 @@ def embed_npc() -> discord.Embed:
     e = _embed_base(_title("npc", "NPC Commands"), color=discord.Color.from_rgb(255, 99, 132))
     e.add_field(
         name="Kelola NPC",
-        value=( 
+        value=(
             "`!npc add <Nama> [Role]` • `!npc list`\n"
-            "`!npc favor <Nama> <delta>` • `!npc reveal <Nama> <trait>`\n"
-            "`!npc detail <Nama>` • `!npc sync` • `!npc remove <Nama>`"
+            "`!npc detail <Nama>` • `!npc remove <Nama>` • `!npc sync`\n\n"
+            "**Traits & Info:**\n"
+            "`!npc trait_add <Nama> key=value [--visible]`\n"
+            "`!npc trait_remove <Nama> <key>`\n"
+            "`!npc reveal <Nama> <Trait>` • `!npc allreveal <Nama>`\n"
+            "`!npc info <Nama> <Teks> [--hidden]`"
         ),
         inline=False
     )
+    e.set_footer(text="Traits & Info bisa diset hidden, GM bisa reveal satu-satu atau allreveal.")
     return e
 
 def embed_favor() -> discord.Embed:
