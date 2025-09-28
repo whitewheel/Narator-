@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
-from services import inventory_service
-from utils.db import fetchone  # untuk ambil carry dari tabel characters
+from services import inventory_service, item_service
+from utils.db import fetchone
 
 class Inventory(commands.Cog):
     def __init__(self, bot):
@@ -11,14 +11,13 @@ class Inventory(commands.Cog):
     async def inv_group(self, ctx):
         await ctx.send(
             "Gunakan: `!inv add`, `!inv remove`, `!inv drop`, `!inv clear`, "
-            "`!inv show`, `!inv transfer`, `!inv meta`"
+            "`!inv show`, `!inv transfer`, `!inv meta`, `!inv use`"
         )
 
     # === Tambah item ===
     @inv_group.command(name="add")
     async def inv_add(self, ctx, owner: str, item: str, qty: int = 1, *meta_pairs):
         guild_id = ctx.guild.id
-        # parse metadata tambahan: contoh weight=2.5 rarity=epic
         metadata = {}
         for p in meta_pairs:
             if "=" in p:
@@ -70,7 +69,7 @@ class Inventory(commands.Cog):
 
         await ctx.send(f"🧹 Semua item di inventory **{owner}** telah dibersihkan.")
 
-    # === Lihat inventory ===
+    # === Lihat inventory (ikon + nama + qty + efek) ===
     @inv_group.command(name="show")
     async def inv_show(self, ctx, owner: str = "party"):
         guild_id = ctx.guild.id
@@ -88,16 +87,18 @@ class Inventory(commands.Cog):
         if char:
             cap = char.get("carry_capacity", 0) or 0
             used = char.get("carry_used", 0) or 0
-            embed.description = f"⚖️ Carry: {used:.1f} / {cap:.1f}"
+            embed.description = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**"
 
         for it in items:
-            meta = it["meta"]
-            meta_line = ", ".join([f"{k}: {v}" for k, v in meta.items()]) if meta else "-"
+            item = item_service.get_item(guild_id, it["item"])
+            icon = item.get("icon", "📦") if item else "📦"
+            effect = item.get("effect", "-") if item else "-"
             embed.add_field(
-                name=f"{it['item']} x{it['qty']}",
-                value=meta_line,
+                name=f"{icon} {it['item']} x{it['qty']}",
+                value=f"✨ {effect}",
                 inline=False
             )
+
         await ctx.send(embed=embed)
 
     # === Transfer item ===
@@ -125,6 +126,74 @@ class Inventory(commands.Cog):
             await ctx.send(f"📝 Metadata {item} diupdate: {metadata}")
         else:
             await ctx.send(f"❌ Item {item} milik {owner} tidak ditemukan.")
+
+    # === Gunakan item (consumable) ===
+    @inv_group.command(name="use")
+    async def inv_use(self, ctx, owner: str, *, item_name: str):
+        guild_id = ctx.guild.id
+
+        # cek item di katalog
+        i = item_service.get_item(guild_id, item_name)
+        if not i:
+            return await ctx.send(f"❌ Item **{item_name}** tidak ditemukan di katalog.")
+
+        # cek inventory
+        inv = inventory_service.get_inventory(guild_id, owner)
+        entry = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
+        if not entry or entry["qty"] <= 0:
+            return await ctx.send(f"❌ {owner} tidak punya item {item_name}.")
+
+        # kurangi 1 qty
+        ok = inventory_service.remove_item(guild_id, owner, entry["item"], 1, user_id=str(ctx.author.id))
+        if not ok:
+            return await ctx.send(f"❌ Gagal mengurangi {item_name} dari {owner}.")
+
+        # hasil efek
+        effect = i.get("effect", "-")
+        rules = i.get("rules", "")
+        result_lines = []
+
+        if rules:
+            for rule in rules.split(";"):
+                r = rule.strip()
+                if not r:
+                    continue
+                if r.startswith("+") or r.startswith("-"):
+                    if "HP" in r.upper():
+                        import re
+                        amount = int(re.findall(r"[+-]?[0-9]+", r)[0])
+                        if "+" in r:
+                            result_lines.append(f"❤️ {owner} dipulihkan {amount} HP.")
+                        else:
+                            result_lines.append(f"💥 {owner} menerima {abs(amount)} damage.")
+                elif r.lower().startswith("gold:"):
+                    val = int(r.split(":")[1])
+                    result_lines.append(f"💰 {owner} gold berubah {val:+d}.")
+                elif r.lower().startswith("xp:"):
+                    val = int(r.split(":")[1])
+                    result_lines.append(f"⭐ {owner} XP bertambah {val}.")
+                elif r.lower().startswith("quest:"):
+                    result_lines.append(f"📜 Quest event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("favor:"):
+                    result_lines.append(f"🤝 Favor event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("scene:"):
+                    result_lines.append(f"🌍 Scene event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("npc:"):
+                    result_lines.append(f"👤 NPC event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("gm:"):
+                    result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
+
+        # buat embed hasil
+        narasi = f"✨ **{owner}** menggunakan **{i['name']}**. {effect}"
+        embed = discord.Embed(
+            title=f"🎒 {owner} menggunakan item!",
+            description=narasi,
+            color=discord.Color.green()
+        )
+        if result_lines:
+            embed.add_field(name="Efek Mekanik", value="\n".join(result_lines), inline=False)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Inventory(bot))
