@@ -35,7 +35,7 @@ class Item(commands.Cog):
         await ctx.send(
             "📦 **Item Commands**\n"
             "• `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
-            "• `!item show`\n"
+            "• `!item show [all|weapon|armor|consumable|accessory|gadget|misc]`\n"
             "• `!item remove <Nama>`\n"
             "• `!item detail <Nama>`\n"
             "• `!use <Char> <Item>`\n\n"
@@ -57,11 +57,33 @@ class Item(commands.Cog):
         await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
 
     @item.command(name="show")
-    async def item_show(self, ctx):
+    async def item_show(self, ctx, *, type_name: str = None):
         guild_id = ctx.guild.id
-        items = item_service.list_items(guild_id, limit=20)
+
+        # ambil list
+        if type_name and type_name.lower() == "all":
+            items = item_service.list_items(guild_id, limit=9999)
+        else:
+            items = item_service.list_items(guild_id, limit=20)
+
         if not items:
             return await ctx.send("Tidak ada item.")
+
+        # filter by type (weapon/armor/consumable/etc)
+        if type_name and type_name.lower() not in ("all",):
+            block = []
+            collect = False
+            for line in items:
+                if line.startswith("__**"):  # header kategori
+                    collect = (type_name.lower() in line.lower())
+                elif collect and line.strip():
+                    block.append(line)
+
+            if not block:
+                return await ctx.send(f"Tidak ada item dengan kategori **{type_name}**.")
+            return await ctx.send("\n".join(block))
+
+        # kalau default → kirim hasil normal
         await ctx.send("\n".join(items))
 
     @item.command(name="remove")
