@@ -9,10 +9,8 @@ class Item(commands.Cog):
 
     def _parse_entry(self, raw: str):
         parts = [p.strip() for p in raw.split("|")]
-        # minimal: Nama | Type | Effect | Rarity | Value | Weight
         if len(parts) < 6:
             return None
-        # validasi weight harus angka
         try:
             weight = float(parts[5])
         except ValueError:
@@ -38,6 +36,8 @@ class Item(commands.Cog):
             "• `!item show [all|weapon|armor|consumable|accessory|gadget|misc]`\n"
             "• `!item remove <Nama>`\n"
             "• `!item detail <Nama>`\n"
+            "• `!item edit <Nama> | key=value [key=value...]`\n"
+            "• `!item info <Nama>`\n"
             "• `!use <Char> <Item>`\n\n"
             "⚠️ Kolom **Weight** wajib diisi (angka). Contoh:\n"
             "`!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
@@ -48,19 +48,13 @@ class Item(commands.Cog):
         guild_id = ctx.guild.id
         data = self._parse_entry(entry)
         if not data:
-            return await ctx.send(
-                "⚠️ Format salah!\n"
-                "Gunakan: `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
-                "Contoh: `!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
-            )
+            return await ctx.send("⚠️ Format salah! Gunakan `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`")
         item_service.add_item(guild_id, data)
         await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
 
     @item.command(name="show")
     async def item_show(self, ctx, *, type_name: str = None):
         guild_id = ctx.guild.id
-
-        # ambil list
         if type_name and type_name.lower() == "all":
             items = item_service.list_items(guild_id, limit=9999)
         else:
@@ -69,12 +63,11 @@ class Item(commands.Cog):
         if not items:
             return await ctx.send("Tidak ada item.")
 
-        # filter by type (weapon/armor/consumable/etc)
         if type_name and type_name.lower() not in ("all",):
             block = []
             collect = False
             for line in items:
-                if line.startswith("__**"):  # header kategori
+                if line.startswith("__**"):
                     collect = (type_name.lower() in line.lower())
                 elif collect and line.strip():
                     block.append(line)
@@ -83,7 +76,6 @@ class Item(commands.Cog):
                 return await ctx.send(f"Tidak ada item dengan kategori **{type_name}**.")
             return await ctx.send("\n".join(block))
 
-        # kalau default → kirim hasil normal
         await ctx.send("\n".join(items))
 
     @item.command(name="remove")
@@ -114,6 +106,45 @@ class Item(commands.Cog):
         embed.add_field(name="Slot", value=str(i.get("slot","-")), inline=True)
         embed.add_field(name="Notes", value=i.get("notes","-"), inline=False)
         await ctx.send(embed=embed)
+
+    # === Edit item global ===
+    @item.command(name="edit")
+    async def item_edit(self, ctx, *, entry: str):
+        guild_id = ctx.guild.id
+        try:
+            name, rest = entry.split("|", 1)
+        except ValueError:
+            return await ctx.send("⚠️ Format salah! Gunakan: `!item edit Nama | key=value [key=value...]`")
+
+        name = name.strip()
+        updates = {}
+        for p in rest.split():
+            if "=" in p:
+                k, v = p.split("=", 1)
+                updates[k.strip()] = v.strip()
+
+        found = item_service.get_item(guild_id, name)
+        if not found:
+            return await ctx.send(f"❌ Item {name} tidak ditemukan.")
+
+        found.update(updates)
+        if "weight" in updates:
+            try:
+                found["weight"] = float(updates["weight"])
+            except:
+                return await ctx.send("⚠️ Weight harus angka.")
+
+        item_service.add_item(guild_id, found)
+        await ctx.send(f"📝 Item **{name}** diperbarui: {updates}")
+
+    # === Info singkat item ===
+    @item.command(name="info")
+    async def item_info(self, ctx, *, name: str):
+        guild_id = ctx.guild.id
+        i = item_service.get_item(guild_id, name)
+        if not i:
+            return await ctx.send("❌ Item tidak ditemukan.")
+        await ctx.send(f"{i.get('icon','📦')} **{i['name']}** | {i['rarity']} | ⚖️ {i['weight']} | ✨ {i.get('effect','-')}")
 
     @commands.command(name="use")
     async def use_item(self, ctx, char: str, *, item_name: str):
