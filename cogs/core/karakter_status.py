@@ -260,21 +260,60 @@ class CharacterStatus(commands.Cog):
         else:
             await ctx.send(f"📈 {name} mendapat {amount} XP")
 
+    @status_group.command(name="subxp")
+    async def status_subxp(self, ctx, name: str, amount: int):
+        guild_id = ctx.guild.id
+        row = fetchone(guild_id, "SELECT xp FROM characters WHERE name=?", (name,))
+        if not row:
+            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        current = row["xp"] or 0
+        new_val = max(0, current - amount)
+        execute(guild_id, "UPDATE characters SET xp=? WHERE name=?", (new_val, name))
+        await ctx.send(f"📉 {name} kehilangan {amount} XP → sisa {new_val}")
+
     @status_group.command(name="addgold")
     async def status_addgold(self, ctx, name: str, amount: int):
         await status_service.add_gold(ctx.guild.id, name, amount)
         await ctx.send(f"💰 {name} mendapat {amount} gold")
 
+    @status_group.command(name="subgold")
+    async def status_subgold(self, ctx, name: str, amount: int):
+        guild_id = ctx.guild.id
+        row = fetchone(guild_id, "SELECT gold FROM characters WHERE name=?", (name,))
+        if not row:
+            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        current = row["gold"] or 0
+        new_val = max(0, current - amount)
+        execute(guild_id, "UPDATE characters SET gold=? WHERE name=?", (new_val, name))
+        await ctx.send(f"💸 {name} mengeluarkan {amount} gold → sisa {new_val}")
+
     # ==== Equipment ====
     @status_group.command(name="equip")
     async def status_equip(self, ctx, name: str, slot: str, *, item: str):
-        await status_service.set_equipment(ctx.guild.id, name, slot, item)
-        await ctx.send(f"🛡️ {name} mengenakan {item} di slot {slot}")
+        guild_id = ctx.guild.id
+        inv = inventory_service.get_inventory(guild_id, name)
+        entry = next((it for it in inv if it["item"].lower() == item.lower()), None)
+        if not entry or entry["qty"] <= 0:
+            return await ctx.send(f"❌ {name} tidak punya {item} di inventory.")
+
+        inventory_service.remove_item(guild_id, name, entry["item"], 1, user_id=str(ctx.author.id))
+        await status_service.set_equipment(guild_id, name, slot, item)
+        await ctx.send(f"🛡️ {name} mengenakan {item} di slot {slot}. (item keluar dari inventory)")
 
     @status_group.command(name="unequip")
     async def status_unequip(self, ctx, name: str, slot: str):
-        await status_service.set_equipment(ctx.guild.id, name, slot, None)
-        await ctx.send(f"❌ {name} melepas equipment slot {slot}")
+        guild_id = ctx.guild.id
+        row = fetchone(guild_id, "SELECT equipment FROM characters WHERE name=?", (name,))
+        if not row:
+            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        eq = json.loads(row.get("equipment") or "{}")
+        item = eq.get(slot)
+        if not item:
+            return await ctx.send(f"❌ Slot {slot} kosong.")
+
+        inventory_service.add_item(guild_id, name, item, 1, user_id=str(ctx.author.id))
+        await status_service.set_equipment(guild_id, name, slot, None)
+        await ctx.send(f"❌ {name} melepas {item} dari slot {slot}. (item kembali ke inventory)")
 
     # ==== Resource Commands ====
     @commands.command(name="stam-")
@@ -312,7 +351,6 @@ class CharacterStatus(commands.Cog):
 
         lines = ["🧑‍🤝‍🧑 **Party Status**"]
 
-        # karakter
         for c in chars:
             hp_text = f"{c['hp']}/{c['hp_max']}"
             en_text = f"{c['energy']}/{c['energy_max']}"
@@ -329,7 +367,6 @@ class CharacterStatus(commands.Cog):
                 line += f" | ☠️ {debuffs_line}"
             lines.append(line)
 
-        # allies
         for a in allies:
             status = _status_text(a['hp'], a['hp_max'])
             line = f"🤝 **{a['name']}** | {status}"
