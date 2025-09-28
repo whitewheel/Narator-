@@ -44,7 +44,6 @@ class MyBot(commands.Bot):
             "cogs.core.karakter_status",
             "cogs.core.enemy_status",
             "cogs.core.inventory",
-            "cogs.core.status_alias",
             "cogs.core.history",
             "cogs.core.race_manager",
             "cogs.core.class_manager",
