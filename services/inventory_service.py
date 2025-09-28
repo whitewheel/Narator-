@@ -1,6 +1,7 @@
 import json
 from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # pakai log_event biar konsisten
+from services import item_service
 
 # ===============================
 # INVENTORY SERVICE (per-server) + ICONS + Carry System + Hard Limit
@@ -17,13 +18,15 @@ ICONS = {
 
 # ---------- Carry Calculation ----------
 def calc_carry(guild_id: int, owner: str):
-    """Hitung total weight dari inventory owner dan update ke characters.carry_used"""
+    """Hitung total weight dari inventory + equipment owner dan update ke characters.carry_used"""
+    total_weight = 0.0
+
+    # --- Inventory items ---
     rows = fetchall(
         guild_id,
         "SELECT qty, metadata FROM inventory WHERE owner=?",
         (owner,)
     )
-    total_weight = 0.0
     for r in rows:
         try:
             meta = json.loads(r["metadata"] or "{}")
@@ -31,6 +34,23 @@ def calc_carry(guild_id: int, owner: str):
             total_weight += weight * r["qty"]
         except Exception:
             continue
+
+    # --- Equipment items ---
+    row = fetchone(guild_id, "SELECT equipment FROM characters WHERE name=?", (owner,))
+    if row and row.get("equipment"):
+        try:
+            eq = json.loads(row["equipment"] or "{}")
+            for slot, item_name in eq.items():
+                if not item_name:
+                    continue
+                item = item_service.get_item(guild_id, item_name)
+                if item:
+                    try:
+                        total_weight += float(item.get("weight", 0))
+                    except Exception:
+                        continue
+        except Exception:
+            pass
 
     execute(
         guild_id,
@@ -43,20 +63,35 @@ def calc_carry(guild_id: int, owner: str):
 def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0"):
     """Tambah item ke inventory (owner = karakter / 'party')."""
 
-    # --- Ambil kapasitas karakter (kalau ada) ---
-    char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
-    weight = 0
-    try:
-        weight = float(metadata.get("weight", 0)) if metadata else 0
-    except Exception:
-        weight = 0
+    # --- Ambil detail dari katalog kalau weight kosong ---
+    if not metadata or "weight" not in metadata:
+        item = item_service.get_item(guild_id, item_name)
+        metadata = metadata or {}
+        if item:
+            metadata.setdefault("weight", item.get("weight", 0.1))
+            metadata.setdefault("slot", item.get("slot", None))
+            metadata.setdefault("rarity", item.get("rarity", "Common"))
+            metadata.setdefault("effect", item.get("effect", ""))
+        else:
+            metadata.setdefault("weight", 0.1)
 
+    # --- Validasi berat ---
+    try:
+        weight = float(metadata.get("weight", 0.1))
+    except Exception:
+        weight = 0.1
+    if weight <= 0:
+        weight = 0.1
+        metadata["weight"] = weight
+
+    # --- Cek kapasitas karakter (kalau ada) ---
+    char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
     if char and char.get("carry_capacity", 0) > 0:
         projected = float(char.get("carry_used", 0) or 0) + (weight * qty)
         if projected > char["carry_capacity"]:
-            # Overloaded → tolak penambahan
-            return False
+            return False  # overload
 
+    # --- Tambah / update inventory ---
     row = fetchone(
         guild_id,
         "SELECT * FROM inventory WHERE owner=? AND item=?",
@@ -147,7 +182,6 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
     ok = add_item(guild_id, to_owner, item_name, qty, metadata=meta, user_id=user_id)
 
     if not ok:
-        # jika gagal karena overload, kembalikan item ke from_owner
         add_item(guild_id, from_owner, item_name, qty, metadata=meta, user_id=user_id)
         return False
 
