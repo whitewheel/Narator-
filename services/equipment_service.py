@@ -15,8 +15,24 @@ SLOTS = [
     "augment1", "augment2", "augment3",
 ]
 
+# Ikon default untuk setiap slot
+SLOT_ICONS = {
+    "main_hand": "🗡️",
+    "off_hand": "🔪",
+    "armor_inner": "👕",
+    "armor_outer": "🛡️",
+    "accessory1": "💍",
+    "accessory2": "💍",
+    "accessory3": "💍",
+    "augment1": "🧬",
+    "augment2": "🧬",
+    "augment3": "🧬",
+}
+
+
 def _get_char(guild_id: int, char: str):
     return fetchone(guild_id, "SELECT * FROM characters WHERE name=?", (char,))
+
 
 def _update_equipment(guild_id: int, char: str, eq: dict):
     execute(
@@ -24,6 +40,7 @@ def _update_equipment(guild_id: int, char: str, eq: dict):
         "UPDATE characters SET equipment=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
         (json.dumps(eq), char)
     )
+
 
 def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0"):
     """Equip item dari inventory ke slot equipment karakter (cek carry)."""
@@ -84,6 +101,7 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
 
     return True, f"⚔️ {char} sekarang memakai {item_name} di slot {slot}."
 
+
 def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     """Unequip item dari slot ke inventory karakter (boleh overload)."""
     slot = slot.lower()
@@ -95,7 +113,9 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
         return False, f"❌ Karakter {char} tidak ditemukan."
 
     eq = json.loads(c.get("equipment") or "{}")
-    if not eq or not eq.get(slot):
+    if not eq:
+        eq = {s: "" for s in SLOTS}
+    if not eq.get(slot):
         return False, f"❌ Slot {slot} kosong."
 
     item_name = eq[slot]
@@ -123,6 +143,7 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
 
     return True, f"🛑 {char} melepas {item_name} dari slot {slot}."
 
+
 def show_equipment(guild_id: int, char: str):
     """Ambil daftar equipment karakter."""
     c = _get_char(guild_id, char)
@@ -136,10 +157,11 @@ def show_equipment(guild_id: int, char: str):
     out = []
     for s in SLOTS:
         item = eq.get(s, "")
+        icon = SLOT_ICONS.get(s, "▫️")
         if item:
             it = item_service.get_item(guild_id, item)
-            icon = it["icon"] if it else "📦"
-            out.append(f"{icon} **{s}**: {item}")
+            item_icon = it["icon"] if it else "📦"
+            out.append(f"{icon} **{s}**: {item_icon} {item}")
         else:
-            out.append(f"▫️ **{s}**: (kosong)")
+            out.append(f"{icon} **{s}**: (kosong)")
     return out
