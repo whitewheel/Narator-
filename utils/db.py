@@ -92,6 +92,7 @@ def template_for(mtype: str) -> dict:
         "item": {"name": "", "desc": ""},
         "favor": {"faction": "", "points": 0},
         "enemy": {"name": "", "hp": 0, "xp_reward": 0},
+        "ally": {"name": "", "hp": 0}
     }
     return templates.get(mtype, {})
 
@@ -123,7 +124,7 @@ def init_db(guild_id: int) -> None:
             schema = f.read()
         _exec_script(guild_id, schema)
 
-    # 2) Tabel dasar (server-specific)
+    # 2) Characters
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS characters (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,30 +154,24 @@ def init_db(guild_id: int) -> None:
         buffs TEXT DEFAULT '[]',
         debuffs TEXT DEFAULT '[]',
         effects TEXT DEFAULT '[]',
-        equipment TEXT DEFAULT '{
-            "main_hand": null,
-            "off_hand": null,
-            "armor_inner": null,
-            "armor_outer": null,
-            "accessory1": null,
-            "accessory2": null,
-            "accessory3": null,
-            "augment1": null,
-            "augment2": null,
-            "augment3": null
-        }',
+        equipment TEXT DEFAULT '{}',
         companions TEXT DEFAULT '[]',
         inventory TEXT DEFAULT '[]',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
+    # 3) Enemies
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS enemies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         hp INTEGER DEFAULT 0,
         hp_max INTEGER DEFAULT 0,
+        energy INTEGER DEFAULT 0,
+        energy_max INTEGER DEFAULT 0,
+        stamina INTEGER DEFAULT 0,
+        stamina_max INTEGER DEFAULT 0,
         ac INTEGER DEFAULT 10,
         effects TEXT DEFAULT '[]',
         xp_reward INTEGER DEFAULT 0,
@@ -186,6 +181,49 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    _ensure_columns(guild_id, "enemies", {
+        "hp": "INTEGER DEFAULT 0",
+        "hp_max": "INTEGER DEFAULT 0",
+        "energy": "INTEGER DEFAULT 0",
+        "energy_max": "INTEGER DEFAULT 0",
+        "stamina": "INTEGER DEFAULT 0",
+        "stamina_max": "INTEGER DEFAULT 0",
+        "ac": "INTEGER DEFAULT 10",
+        "effects": "TEXT DEFAULT '[]'",
+        "xp_reward": "INTEGER DEFAULT 0",
+        "gold_reward": "INTEGER DEFAULT 0",
+        "loot": "TEXT DEFAULT '[]'"
+    })
+
+    # 4) Allies
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS allies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        hp INTEGER DEFAULT 0,
+        hp_max INTEGER DEFAULT 0,
+        energy INTEGER DEFAULT 0,
+        energy_max INTEGER DEFAULT 0,
+        stamina INTEGER DEFAULT 0,
+        stamina_max INTEGER DEFAULT 0,
+        ac INTEGER DEFAULT 10,
+        effects TEXT DEFAULT '[]',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_columns(guild_id, "allies", {
+        "hp": "INTEGER DEFAULT 0",
+        "hp_max": "INTEGER DEFAULT 0",
+        "energy": "INTEGER DEFAULT 0",
+        "energy_max": "INTEGER DEFAULT 0",
+        "stamina": "INTEGER DEFAULT 0",
+        "stamina_max": "INTEGER DEFAULT 0",
+        "ac": "INTEGER DEFAULT 10",
+        "effects": "TEXT DEFAULT '[]'"
+    })
+
+    # 5) Quests
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS quests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,6 +239,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 6) NPC
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS npc (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,6 +251,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 7) Inventory
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS inventory (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -223,6 +263,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 8) History
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,6 +273,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 9) Timeline
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS timeline (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -240,6 +282,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 10) Initiative
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS initiative (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -250,6 +293,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+    # 11) Memories
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -261,7 +305,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-    # Favor table baru
+    # 12) Favors
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS favors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -275,7 +319,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-    # Faction registry table
+    # 13) Factions
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS factions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -288,12 +332,11 @@ def init_db(guild_id: int) -> None:
     """)
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
 
-    # ✅ Auto-migrasi tambahan kolom untuk factions
+    # Auto-migrate
     _ensure_columns(guild_id, "factions", {
         "type": "TEXT DEFAULT 'general'"
     })
 
-    # 3) Auto-migrate kolom tambahan
     _ensure_columns(guild_id, "characters", {
         "effects": "TEXT DEFAULT '[]'",
         "equipment": "TEXT DEFAULT '{}' ",
