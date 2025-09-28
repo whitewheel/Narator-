@@ -107,10 +107,10 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         # inventory
         items = inventory_service.get_inventory(ctx.guild.id, c["name"])
         inv_line = "\n".join([
-            f"{it['item']} x{it['qty']} ({', '.join([f'{k}:{v}' for k,v in it['meta'].items()])})"
-            if it['meta'] else f"{it['item']} x{it['qty']}"
+            f"({it['qty']}x) {it['item']}"
             for it in items
         ]) or "-"
+
 
         # companions
         comp_list = json.loads(c.get("companions") or "[]")
