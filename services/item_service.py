@@ -14,6 +14,22 @@ ICONS = {
     "misc": "📦",
 }
 
+RARITY_ORDER = {
+    "Common": 1,
+    "Uncommon": 2,
+    "Rare": 3,
+    "Very Rare": 4,
+    "Legendary": 5
+}
+
+RARITY_ICON = {
+    "Common": "🟩",      # hijau
+    "Uncommon": "🟦",   # biru
+    "Rare": "🟪",       # ungu
+    "Very Rare": "🟨",  # kuning
+    "Legendary": "🟥"   # merah
+}
+
 def ensure_table(guild_id: int):
     execute(guild_id, """
         CREATE TABLE IF NOT EXISTS items (
@@ -80,12 +96,38 @@ def get_item(guild_id: int, name: str):
     return item
 
 def list_items(guild_id: int, limit: int = 50):
-    """Ambil semua item (dengan ikon)."""
-    rows = fetchall(guild_id, "SELECT * FROM items ORDER BY updated_at DESC LIMIT ?", (limit,))
-    out = []
+    """Ambil semua item, urut per Type → Rarity → Nama (A–Z), dengan ikon rarity."""
+    rows = fetchall(guild_id, "SELECT * FROM items LIMIT ?", (limit,))
+    if not rows:
+        return []
+
+    categories = {}
     for r in rows:
-        icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
-        out.append(f"{icon} **{r['name']}** ({r.get('rarity','Common')})")
+        type_key = (r.get("type") or "Misc").capitalize()
+        rarity = r.get("rarity", "Common")
+        base_icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
+        rarity_icon = RARITY_ICON.get(rarity, "⬜")
+        entry = {
+            "name": r["name"],
+            "rarity": rarity,
+            "text": f"{rarity_icon} {base_icon} **{r['name']}** ({rarity})"
+        }
+        categories.setdefault(type_key, []).append(entry)
+
+    out = []
+    for cat in sorted(categories.keys()):
+        out.append(f"__**{cat}**__")
+
+        sorted_entries = sorted(
+            categories[cat],
+            key=lambda e: (RARITY_ORDER.get(e["rarity"], 99), e["name"].lower())
+        )
+
+        for e in sorted_entries:
+            out.append(e["text"])
+
+        out.append("")  # spasi antar kategori
+
     return out
 
 def remove_item(guild_id: int, name: str):
