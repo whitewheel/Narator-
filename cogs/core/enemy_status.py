@@ -116,7 +116,8 @@ class EnemyStatus(commands.Cog):
         await ctx.send(
             "Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, "
             "`!enemy remove`, `!enemy reveal`, `!enemy loot`, "
-            "`!enemy clearbuff`, `!enemy cleardebuff`, `!enemy reward`"
+            "`!enemy clearbuff`, `!enemy cleardebuff`, `!enemy reward`, "
+            "`!enemy stam-`, `!enemy stam+`, `!enemy ene-`, `!enemy ene+`"
         )
 
     # === Tambah / Update Enemy ===
@@ -240,13 +241,42 @@ class EnemyStatus(commands.Cog):
     # === Clear Effects ===
     @enemy.command(name="clearbuff")
     async def enemy_clearbuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "enemy", name, only_buff=True)
+        await status_service.clear_effects(ctx.guild.id, "enemy", name, is_buff=True)
         await ctx.send(f"✨ Semua buff pada {name} dihapus.")
 
     @enemy.command(name="cleardebuff")
     async def enemy_cleardebuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "enemy", name, only_debuff=True)
+        await status_service.clear_effects(ctx.guild.id, "enemy", name, is_buff=False)
         await ctx.send(f"☠️ Semua debuff pada {name} dihapus.")
+
+    # === Resource Ops (Stamina & Energy) ===
+    @enemy.command(name="stam-")
+    async def enemy_stam_use(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "stamina", amount)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"⚡ {name} kehilangan {amount} stamina → {new_val}")
+
+    @enemy.command(name="stam+")
+    async def enemy_stam_regen(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "stamina", amount, regen=True)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ {name} memulihkan {amount} stamina → {new_val}")
+
+    @enemy.command(name="ene-")
+    async def enemy_ene_use(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "energy", amount)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"🔋 {name} kehilangan {amount} energi → {new_val}")
+
+    @enemy.command(name="ene+")
+    async def enemy_ene_regen(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "energy", amount, regen=True)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ {name} memulihkan {amount} energi → {new_val}")
 
     # === GM Short Aliases ===
     @commands.command(name="edmg")
@@ -270,6 +300,34 @@ class EnemyStatus(commands.Cog):
     async def enemy_debuff_short(self, ctx, name: str, *, text: str):
         await status_service.add_effect(ctx.guild.id, "enemy", name, text, is_buff=False)
         await ctx.send(f"☠️ [GM] Debuff ditambahkan ke {name}: {text}")
+
+    @commands.command(name="estam-")
+    async def enemy_stam_use_short(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "stamina", amount)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"⚡ [GM] {name} kehilangan {amount} stamina → {new_val}")
+
+    @commands.command(name="estam+")
+    async def enemy_stam_regen_short(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "stamina", amount, regen=True)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ [GM] {name} memulihkan {amount} stamina → {new_val}")
+
+    @commands.command(name="eene-")
+    async def enemy_ene_use_short(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "energy", amount)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"🔋 [GM] {name} kehilangan {amount} energi → {new_val}")
+
+    @commands.command(name="eene+")
+    async def enemy_ene_regen_short(self, ctx, name: str, amount: int):
+        new_val = await status_service.use_resource(ctx.guild.id, "enemy", name, "energy", amount, regen=True)
+        if new_val is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        await ctx.send(f"✨ [GM] {name} memulihkan {amount} energi → {new_val}")
 
 async def setup(bot):
     await bot.add_cog(EnemyStatus(bot))
