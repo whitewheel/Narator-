@@ -181,7 +181,7 @@ async def set_info(guild_id: int, name: str, text: str, hidden=False, user_id=No
 # ===== LIST & SYNC =====
 
 async def list_npc(guild_id: int):
-    rows = fetchall(guild_id, "SELECT * FROM npc")
+    rows = fetchall(guild_id, "SELECT * FROM npc ORDER BY name COLLATE NOCASE ASC")
     if not rows:
         return f"{ICONS['npc']} Tidak ada NPC."
     out = []
