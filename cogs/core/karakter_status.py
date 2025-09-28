@@ -55,6 +55,22 @@ def _status_text(cur: int, mx: int) -> str:
     else:
         return "☠️ Sekarat"
 
+def _energy_status(cur: int, mx: int) -> str:
+    if mx <= 0: return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if pct >= 75: return "⚡ Penuh tenaga"
+    elif pct >= 50: return "😐 Cukup bertenaga"
+    elif pct >= 25: return "😓 Hampir habis tenaga"
+    else: return "🥵 Kehabisan tenaga"
+
+def _stamina_status(cur: int, mx: int) -> str:
+    if mx <= 0: return "❓ Tidak diketahui"
+    pct = (cur / mx) * 100
+    if pct >= 75: return "🏃 Masih segar"
+    elif pct >= 50: return "😤 Terengah-engah"
+    elif pct >= 25: return "😩 Hampir kelelahan"
+    else: return "🥴 Ambruk kelelahan"
+
 # ===== Embed Builder =====
 
 async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
@@ -110,7 +126,6 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             f"({it['qty']}x) {it['item']}"
             for it in items
         ]) or "-"
-
 
         # companions
         comp_list = json.loads(c.get("companions") or "[]")
@@ -184,12 +199,12 @@ class CharacterStatus(commands.Cog):
     # ==== Buff & Debuff ====
     @commands.command(name="buff")
     async def add_buff(self, ctx, name: str, *, text: str):
-        effects = await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=True)
+        await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=True)
         await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
 
     @commands.command(name="debuff")
     async def add_debuff(self, ctx, name: str, *, text: str):
-        effects = await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=False)
+        await status_service.add_effect(ctx.guild.id, "char", name, text, is_buff=False)
         await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
 
     # ==== Resource Commands (Stamina & Energy) ====
@@ -302,45 +317,45 @@ class CharacterStatus(commands.Cog):
         await ctx.send(f"💸 {name} mengeluarkan {amount} gold → sisa {new_val}")
 
     # ==== Party & Remove ====
-        @commands.command(name="party")
-        async def party(self, ctx):
-            guild_id = ctx.guild.id
-            chars = fetchall(guild_id, "SELECT * FROM characters")
+    @commands.command(name="party")
+    async def party(self, ctx):
+        guild_id = ctx.guild.id
+        chars = fetchall(guild_id, "SELECT * FROM characters")
 
-            allies = []
-            if _table_exists(guild_id, "allies"):
-                allies = fetchall(guild_id, "SELECT * FROM allies")
+        allies = []
+        if _table_exists(guild_id, "allies"):
+            allies = fetchall(guild_id, "SELECT * FROM allies")
 
-            if not chars and not allies:
-                return await ctx.send("ℹ️ Belum ada karakter atau ally.")
+        if not chars and not allies:
+            return await ctx.send("ℹ️ Belum ada karakter atau ally.")
 
-            lines = ["🧑‍🤝‍🧑 **Party Status**"]
+        lines = ["🧑‍🤝‍🧑 **Party Status**"]
 
-            # === Player characters ===
-            for c in chars:
-                inventory_service.calc_carry(guild_id, c["name"])
-                hp_text = f"{c['hp']}/{c['hp_max']} [{_bar(c['hp'], c['hp_max'])}]"
-                en_text = f"{c['energy']}/{c['energy_max']} [{_bar(c['energy'], c['energy_max'])}]"
-                st_text = f"{c['stamina']}/{c['stamina_max']} [{_bar(c['stamina'], c['stamina_max'])}]"
+        # === Player characters ===
+        for c in chars:
+            inventory_service.calc_carry(guild_id, c["name"])
+            hp_text = f"{c['hp']}/{c['hp_max']} [{_bar(c['hp'], c['hp_max'])}]"
+            en_text = f"{c['energy']}/{c['energy_max']} [{_bar(c['energy'], c['energy_max'])}]"
+            st_text = f"{c['stamina']}/{c['stamina_max']} [{_bar(c['stamina'], c['stamina_max'])}]"
 
-                line = f"🧍 **{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text}"
-                lines.append(line)
+            line = f"🧍 **{c['name']}** | ❤️ {hp_text} | 🔋 {en_text} | ⚡ {st_text}"
+            lines.append(line)
 
-            # === Allies ===
-            for a in allies:
-                hp_status = _hp_status(a['hp'], a['hp_max'])
-                en_status = _energy_status(a['energy'], a['energy_max'])
-                st_status = _stamina_status(a['stamina'], a['stamina_max'])
+        # === Allies ===
+        for a in allies:
+            hp_status = _status_text(a['hp'], a['hp_max'])
+            en_status = _energy_status(a['energy'], a['energy_max'])
+            st_status = _stamina_status(a['stamina'], a['stamina_max'])
 
-                line = (
-                    f"🤝 **{a['name']}** | "
-                    f"❤️ - {hp_status} | "
-                    f"🔋 - {en_status} | "
-                    f"⚡ - {st_status}"
-                )
-                lines.append(line)
+            line = (
+                f"🤝 **{a['name']}** | "
+                f"❤️ - {hp_status} | "
+                f"🔋 - {en_status} | "
+                f"⚡ - {st_status}"
+            )
+            lines.append(line)
 
-            await ctx.send("\n".join(lines))
+        await ctx.send("\n".join(lines))
 
     @status_group.command(name="remove")
     async def status_remove(self, ctx, name: str):
