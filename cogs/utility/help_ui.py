@@ -205,22 +205,41 @@ def embed_ally() -> discord.Embed:
 def embed_shop() -> discord.Embed:
     e = _embed_base(_title("shop", "Shop / Merchant"), color=discord.Color.from_rgb(240, 180, 50))
     e.add_field(
-        name="Kelola Shop",
+        name="Lihat Dagangan",
+        value=(
+            "`!shop list <NPC> [Char]` → lihat daftar item untuk player\n"
+            "Contoh: `!shop list Ka'ruun Udab`\n\n"
+            "`!shop gmlist <NPC>` → lihat versi lengkap (GM only)"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Kelola Dagangan",
         value=(
             "`!shop add <NPC> <Item> <Harga> [Stock]`\n"
             "Contoh: `!shop add Ka'ruun Antibiotik 50 3`\n\n"
             "`!shop remove <NPC> <Item>`\n"
-            "`!shop edit <NPC> <Item> | key=value`\n"
-            "Contoh: `!shop edit Ka'ruun Antibiotik | price=75 stock=10`"
+            "Contoh: `!shop remove Ka'ruun Antibiotik`\n\n"
+            "`!shop clear <NPC>` → hapus semua dagangan NPC"
         ),
         inline=False
     )
     e.add_field(
         name="Belanja",
         value=(
-            "`!shop show <NPC>` → lihat daftar item\n\n"
-            "`!shop buy <Char> <NPC> <Item> [qty]`\n"
-            "Contoh: `!shop buy Udab Ka'ruun Antibiotik 1`"
+            "`!shop buy <NPC> <Char> <Item> [Qty]`\n"
+            "Contoh: `!shop buy Ka'ruun Udab Antibiotik 1`\n\n"
+            "💡 Item otomatis masuk ke inventory karakter.\n"
+            "❌ Jika gold tidak cukup / carry overload → transaksi gagal."
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Lock / Unlock",
+        value=(
+            "`!shop unlock <NPC> <Item> [favor=<Faction>:<Val>] [quest=<Quest>]`\n"
+            "Contoh: `!shop unlock Ka'ruun Antibiotik favor=Mutaris:2 quest=Antibiotik`\n\n"
+            "Item akan tampil sebagai terkunci (💰 - | Stock -) sampai syarat tercapai."
         ),
         inline=False
     )
