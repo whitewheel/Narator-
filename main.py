@@ -47,7 +47,7 @@ class MyBot(commands.Bot):
             "cogs.core.history",
             "cogs.core.race_manager",
             "cogs.core.class_manager",
-            "cogs.core.shop.py",
+            "cogs.core.shop",
             "cogs.core.tick",
             "cogs.core.ally_status",
             "cogs.core.equipment", 
