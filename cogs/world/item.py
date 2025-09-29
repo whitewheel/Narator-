@@ -110,10 +110,8 @@ class Item(commands.Cog):
         if not items:
             return await ctx.send("Tidak ada item.")
 
-        # Default = all
         if not type_name:
             type_name = "all"
-
         type_name = type_name.lower()
 
         # === Filter kategori spesifik ===
@@ -129,35 +127,39 @@ class Item(commands.Cog):
             if not items:
                 return await ctx.send(f"❌ Tidak ada item dengan kategori **{type_name}**.")
 
-        # === Buat embed pagination ===
+        # === Bikin halaman ===
         per_page = 10
         pages = []
-        for i in range(0, len(items), per_page):
-            chunk = items[i:i+per_page]
+        buffer = []
+
+        for line in items:
+            if line.startswith("__**"):  # header kategori
+                if buffer:
+                    pages.append(buffer)
+                    buffer = []
+                buffer.append(line)
+            else:
+                buffer.append(line)
+                if len(buffer) >= per_page:
+                    pages.append(buffer)
+                    buffer = []
+        if buffer:
+            pages.append(buffer)
+
+        embeds = []
+        for idx, chunk in enumerate(pages):
             embed = discord.Embed(
-                title=f"📦 Item Catalog",
+                title="📦 Item Catalog",
                 description=f"Kategori: {type_name.title()}",
                 color=discord.Color.teal()
             )
-            for line in chunk:
-                if "|" in line:
-                    name, val = line.split("|", 1)
-                    embed.add_field(
-                        name=name.strip(),
-                        value=safe_field_value(val.strip()),
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name=line[:50],
-                        value=safe_field_value(line),
-                        inline=False
-                    )
-            embed.set_footer(text=f"Page {i//per_page+1}/{(len(items)-1)//per_page+1}")
-            pages.append(embed)
+            value_text = "\n".join(chunk)
+            embed.add_field(name="Items", value=safe_field_value(value_text), inline=False)
+            embed.set_footer(text=f"Page {idx+1}/{len(pages)}")
+            embeds.append(embed)
 
-        view = ItemPaginator(pages)
-        await ctx.send(embed=pages[0], view=view)
+        view = ItemPaginator(embeds)
+        await ctx.send(embed=embeds[0], view=view)
 
     @item.command(name="remove")
     async def item_remove(self, ctx, *, name: str):
