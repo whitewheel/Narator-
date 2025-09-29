@@ -67,7 +67,7 @@ class Item(commands.Cog):
             "slot": parts[6] if len(parts) > 6 else None,
             "notes": parts[7] if len(parts) > 7 else "",
             "rules": parts[8] if len(parts) > 8 else "",
-            "requirement": parts[9] if len(parts) > 9 else "",  # baru
+            "requirement": parts[9] if len(parts) > 9 else "",  # opsional
         }
 
     @commands.group(name="item", invoke_without_command=True)
@@ -192,7 +192,11 @@ class Item(commands.Cog):
         )
         embed.add_field(name="Efek", value=i.get("effect","-"), inline=False)
         embed.add_field(name="Rules", value=i.get("rules","-"), inline=False)
-        embed.add_field(name="Requirement", value=i.get("requirement","-"), inline=False)  # baru
+        embed.add_field(
+            name="Requirement",
+            value=i.get("requirement") if i.get("requirement") else "-",
+            inline=False
+        )
         embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
         embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
         embed.add_field(name="Berat", value=str(i.get("weight",0)), inline=True)
@@ -237,7 +241,7 @@ class Item(commands.Cog):
         i = item_service.get_item(guild_id, name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
-        req = f" | Req: {i['requirement']}" if i.get("requirement") else ""
+        req = f" | Req: {i['requirement']}" if i.get("requirement") else " | Req: -"
         await ctx.send(f"{i.get('icon','📦')} **{i['name']}** | {i['rarity']} | ⚖️ {i['weight']} | ✨ {i.get('effect','-')}{req}")
 
     @commands.command(name="use")
