@@ -396,8 +396,8 @@ def embed_item() -> discord.Embed:
     e.add_field(
         name="Item Master",
         value=(
-            "`!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
-            "Contoh: `!item add Rust Shiv | Weapon | Pisau karatan | Common | 0 | 1.0 | main_hand | Senjata awal | +1 dmg`\n\n"
+            "`!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement`\n"
+            "Contoh: `!item add Rust Shiv | Weapon | Pisau karatan | Common | 0 | 1.0 | main_hand | Senjata awal | +1 dmg | DEX+3`\n\n"
             "`!item show all`\n"
             "`!item show weapon`\n\n"
             "`!item remove <Nama>`\n"
