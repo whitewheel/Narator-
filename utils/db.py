@@ -345,6 +345,24 @@ def init_db(guild_id: int) -> None:
         UNIQUE(npc_name, item)
     );
     """)
+
+        # 15) Items
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        type TEXT,
+        effect TEXT,
+        rarity TEXT DEFAULT 'Common',
+        value INTEGER DEFAULT 0,
+        weight REAL DEFAULT 0.1,
+        slot TEXT,
+        notes TEXT,
+        rules TEXT,
+        requirement TEXT,  -- baru
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
 
@@ -391,6 +409,10 @@ def init_db(guild_id: int) -> None:
 
     _ensure_columns(guild_id, "favors", {
         "char_name": "TEXT"
+    })
+    
+    _ensure_columns(guild_id, "items", {
+        "requirement": "TEXT"
     })
 
     # Indexes
