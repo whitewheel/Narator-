@@ -51,7 +51,6 @@ class MyBot(commands.Bot):
             "cogs.core.tick",
             "cogs.core.ally_status",
             "cogs.core.equipment", 
-            shop.py
 
             # WORLD SYSTEM
             "cogs.world.quest",
