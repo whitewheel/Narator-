@@ -17,6 +17,7 @@ CATEGORY_EMOJI = {
     "world": "🌍",
     "quest": "📜",
     "npc": "🧑‍🤝‍🧑",
+    "shop": "🏪",
     "favor": "💠",
     "faction": "🏷️",
     "scene": "📍",
@@ -48,6 +49,7 @@ CATEGORIES = [
     ("world", "World (Ringkasan)"),
     ("quest", "Quest"),
     ("npc", "NPC"),
+    ("shop", "Shop / Merchant"),
     ("favor", "Favor"),
     ("faction", "Faction"),
     ("scene", "Scene / Zone"),
@@ -80,7 +82,7 @@ def embed_home(guild: discord.Guild) -> discord.Embed:
         "Ikon di kiri bikin gampang diingat 😸\n\n"
         "**Kategori Utama:**\n"
         "• ⚔️ Core: Status, Enemy, Ally, Initiative, Tick\n"
-        "• 🌍 World: Quest, NPC, Favor, Faction, Scene, Items, Inventory, Equipment, Timeline, Wiki, Class/Race\n"
+        "• 🌍 World: Quest, NPC, Shop, Favor, Faction, Scene, Items, Inventory, Equipment, Timeline, Wiki, Class/Race\n"
         "• 🧰 Utility: Roll, Poll, Multi, Ask (GPT)\n"
         "• 🎭 GM Only: Command rahasia GM"
     )
@@ -110,15 +112,21 @@ def embed_status() -> discord.Embed:
     e.add_field(
         name="Combat & Progress",
         value=(
-            "`!dmg <Nama> <Jumlah>` • `!heal <Nama> <Jumlah>`\n"
-            "Contoh: `!dmg Udab 5`\n"
-            "Contoh: `!heal Udab 3`\n\n"
-            "`!addxp <Nama> <Jumlah>` • `!subxp <Nama> <Jumlah>`\n"
-            "Contoh: `!addxp Udab 100`\n"
-            "Contoh: `!subxp Udab 50`\n\n"
-            "`!addgold <Nama> <Jumlah>` • `!subgold <Nama> <Jumlah>`\n"
-            "Contoh: `!addgold Udab 50`\n"
-            "Contoh: `!subgold Udab 20`\n\n"
+            "`!status dmg <Nama> <Jumlah>` • `!status heal <Nama> <Jumlah>`\n"
+            "Contoh: `!status dmg Udab 5`\n"
+            "Contoh: `!status heal Udab 3`\n\n"
+            "`!status addxp <Nama> <Jumlah>` • `!status subxp <Nama> <Jumlah>`\n"
+            "Contoh: `!status addxp Udab 100`\n"
+            "Contoh: `!status subxp Udab 50`\n\n"
+            "`!status addgold <Nama> <Jumlah>` • `!status subgold <Nama> <Jumlah>`\n"
+            "Contoh: `!status addgold Udab 50`\n"
+            "Contoh: `!status subgold Udab 20`\n\n"
+            "`!status addstm <Nama> <Jumlah>` • `!status usestm <Nama> <Jumlah>`\n"
+            "Contoh: `!status addstm Udab 5`\n"
+            "Contoh: `!status usestm Udab 3`\n\n"
+            "`!status addene <Nama> <Jumlah>` • `!status useene <Nama> <Jumlah>`\n"
+            "Contoh: `!status addene Udab 4`\n"
+            "Contoh: `!status useene Udab 2`\n\n"
             "`!buff <Nama> <Teks>` • `!debuff <Nama> <Teks>`\n"
             "Contoh: `!buff Udab Bless +2 STR`\n"
             "Contoh: `!debuff Udab Poison -2 CON`\n\n"
@@ -194,6 +202,30 @@ def embed_ally() -> discord.Embed:
     )
     return e
 
+def embed_shop() -> discord.Embed:
+    e = _embed_base(_title("shop", "Shop / Merchant"), color=discord.Color.from_rgb(240, 180, 50))
+    e.add_field(
+        name="Kelola Shop",
+        value=(
+            "`!shop add <NPC> <Item> <Harga> [Stock]`\n"
+            "Contoh: `!shop add Ka'ruun Antibiotik 50 3`\n\n"
+            "`!shop remove <NPC> <Item>`\n"
+            "`!shop edit <NPC> <Item> | key=value`\n"
+            "Contoh: `!shop edit Ka'ruun Antibiotik | price=75 stock=10`"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Belanja",
+        value=(
+            "`!shop show <NPC>` → lihat daftar item\n\n"
+            "`!shop buy <Char> <NPC> <Item> [qty]`\n"
+            "Contoh: `!shop buy Udab Ka'ruun Antibiotik 1`"
+        ),
+        inline=False
+    )
+    return e
+
 def embed_gm() -> discord.Embed:
     e = _embed_base(_title("gm", "GM Commands"), color=discord.Color.from_rgb(200, 50, 200))
     e.add_field(
@@ -252,7 +284,7 @@ def embed_quest() -> discord.Embed:
     e = _embed_base(_title("quest", "Quest Commands"), color=discord.Color.from_rgb(255, 205, 86))
     e.add_field(
         name="Kelola Quest",
-        value=(
+        value=( 
             "`!quest add <Nama> | <Deskripsi>`\n"
             "Contoh: `!quest add Cari Antibiotik | Bantu Ka'ruun mencari antibiotik.`\n\n"
             "`!quest show` • `!quest gmshow` • `!quest showarchived`\n"
@@ -465,6 +497,7 @@ EMBED_BUILDERS = {
     "status": embed_status,
     "enemy": embed_enemy,
     "ally": embed_ally,
+    "shop": embed_shop,
     "gm": embed_gm,
     "init": embed_init,
     "tick": embed_tick,
@@ -480,10 +513,6 @@ EMBED_BUILDERS = {
     "wiki": embed_wiki,
     "classrace": embed_classrace,
     "utility": embed_utility,
-    "roll": lambda: embed_utility(),
-    "poll": lambda: embed_utility(),
-    "multi": lambda: embed_utility(),
-    "ask": lambda: embed_utility(),
 }
 
 # ===============================
