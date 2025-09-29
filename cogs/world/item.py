@@ -6,6 +6,15 @@ from discord.ui import View, button
 from discord import ButtonStyle
 
 # ===========================
+# Helper
+# ===========================
+def safe_field_value(text: str, limit: int = 1024) -> str:
+    """Potong string biar nggak lebih dari 1024 char"""
+    if not text:
+        return "-"
+    return text if len(text) <= limit else text[:limit-3] + "..."
+
+# ===========================
 # Pagination View
 # ===========================
 class ItemPaginator(View):
@@ -120,7 +129,20 @@ class Item(commands.Cog):
                 description=f"Kategori: {type_name.title()}",
                 color=discord.Color.teal()
             )
-            embed.add_field(name="Items", value="\n".join(chunk), inline=False)
+            for line in chunk:
+                if "|" in line:
+                    name, val = line.split("|", 1)
+                    embed.add_field(
+                        name=name.strip(),
+                        value=safe_field_value(val.strip()),
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name=line[:50],
+                        value=safe_field_value(line),
+                        inline=False
+                    )
             embed.set_footer(text=f"Page {i//per_page+1}/{(len(items)-1)//per_page+1}")
             pages.append(embed)
 
@@ -151,7 +173,7 @@ class Item(commands.Cog):
         embed.add_field(name="Rules", value=i.get("rules","-"), inline=False)
         embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
         embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
-        embed.add_field(name="⚖️ Berat", value=str(i.get("weight",0)), inline=True)
+        embed.add_field(name="Berat", value=str(i.get("weight",0)), inline=True)
         embed.add_field(name="Slot", value=str(i.get("slot","-")), inline=True)
         embed.add_field(name="Notes", value=i.get("notes","-"), inline=False)
         await ctx.send(embed=embed)
