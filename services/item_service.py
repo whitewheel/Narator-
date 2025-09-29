@@ -152,6 +152,13 @@ def remove_item(guild_id: int, name: str):
     execute(guild_id, "DELETE FROM items WHERE name=?", (name,))
     return True
 
+def clear_items(guild_id: int) -> int:
+    """Hapus semua item di katalog server, return jumlah yang dihapus."""
+    rows = fetchone(guild_id, "SELECT COUNT(*) as c FROM items")
+    count = rows["c"] if rows else 0
+    execute(guild_id, "DELETE FROM items")
+    return count
+
 def search_items(guild_id: int, keyword: str, limit: int = 20):
     """Cari item by keyword (nama/tipe/efek) + ikon."""
     rows = fetchall(
