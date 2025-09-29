@@ -79,7 +79,8 @@ class Item(commands.Cog):
             "• `!item detail <Nama>`\n"
             "• `!item edit <Nama> | key=value [key=value...]`\n"
             "• `!item info <Nama>`\n"
-            "• `!use <Char> <Item>`\n\n"
+            "• `!use <Char> <Item>`\n"
+            "• `!item clearall gmacc`\n\n"
             "⚠️ Kolom **Weight** wajib diisi (angka). Contoh:\n"
             "`!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
         )
@@ -90,8 +91,16 @@ class Item(commands.Cog):
         data = self._parse_entry(entry)
         if not data:
             return await ctx.send("⚠️ Format salah! Gunakan `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`")
-        item_service.add_item(guild_id, data)
-        await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
+
+        # Cek duplikat
+        existing = item_service.get_item(guild_id, data["name"])
+        if existing:
+            item_service.remove_item(guild_id, data["name"])
+            item_service.add_item(guild_id, data)
+            await ctx.send(f"♻️ Item **{data['name']}** diperbarui (replace item lama).")
+        else:
+            item_service.add_item(guild_id, data)
+            await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
 
     @item.command(name="show")
     async def item_show(self, ctx, *, type_name: str = None):
@@ -157,6 +166,15 @@ class Item(commands.Cog):
             return await ctx.send("❌ Item tidak ditemukan.")
         item_service.remove_item(guild_id, name)
         await ctx.send(f"🗑️ Item **{name}** dihapus dari katalog.")
+
+    @item.command(name="clearall")
+    async def item_clearall(self, ctx, confirm: str = None):
+        guild_id = ctx.guild.id
+        if confirm != "gmacc":
+            return await ctx.send("⚠️ Konfirmasi salah. Gunakan: `!item clearall gmacc` untuk hapus semua item.")
+
+        count = item_service.clear_items(guild_id)
+        await ctx.send(f"🗑️ Semua item dihapus dari katalog. (Total: {count})")
 
     @item.command(name="detail")
     async def item_detail(self, ctx, *, name: str):
