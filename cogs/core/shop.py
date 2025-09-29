@@ -2,7 +2,6 @@
 import discord
 from discord.ext import commands
 from services import shop_service, item_service, npc_service
-from utils.db import fetchone
 
 class Shop(commands.Cog):
     def __init__(self, bot):
@@ -12,7 +11,8 @@ class Shop(commands.Cog):
     @commands.group(name="shop", invoke_without_command=True)
     async def shop_group(self, ctx):
         await ctx.send(
-            "Gunakan: `!shop gmlist <NPC>`, `!shop add <NPC> <Item> <Harga> [Stock]`, "
+            "Gunakan: `!shop gmlist <NPC>`, `!shop list <NPC> [Char]`, "
+            "`!shop add <NPC> <Item> <Harga> [Stock]`, "
             "`!shop remove <NPC> <Item>`, `!shop clear <NPC>`, "
             "`!shop buy <NPC> <Karakter> <Item> [Qty]`, "
             "`!shop unlock <NPC> <Item> [favor=<Faction>:<Val>] [quest=<Quest>]`"
@@ -23,7 +23,6 @@ class Shop(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def shop_gmlist(self, ctx, npc_name: str):
         guild_id = ctx.guild.id
-
         npc = npc_service.get_npc(guild_id, npc_name)
         if not npc:
             return await ctx.send(f"❌ NPC {npc_name} tidak ditemukan.")
@@ -35,17 +34,19 @@ class Shop(commands.Cog):
         )
         for line in rows:
             embed.add_field(name="─", value=line, inline=False)
-
         await ctx.send(embed=embed)
 
     # ==== Lihat dagangan (player) ====
     @shop_group.command(name="list")
     async def shop_list(self, ctx, npc_name: str, char_name: str = None):
         guild_id = ctx.guild.id
-
         npc = npc_service.get_npc(guild_id, npc_name)
         if not npc:
             return await ctx.send(f"❌ NPC {npc_name} tidak ditemukan.")
+
+        # default pakai display_name player kalau tidak diberikan
+        if not char_name:
+            char_name = ctx.author.display_name
 
         rows = shop_service.list_items(guild_id, npc_name, char_name=char_name)
         embed = discord.Embed(
@@ -54,14 +55,12 @@ class Shop(commands.Cog):
         )
         for line in rows:
             embed.add_field(name="─", value=line, inline=False)
-
         await ctx.send(embed=embed)
 
     # ==== Tambah item ====
     @shop_group.command(name="add")
     async def shop_add(self, ctx, npc_name: str, item: str, price: int, stock: int = -1):
         guild_id = ctx.guild.id
-
         npc = npc_service.get_npc(guild_id, npc_name)
         if not npc:
             return await ctx.send(f"❌ NPC {npc_name} tidak ditemukan. Tambahkan dulu dengan `!npc add`.")
@@ -87,14 +86,13 @@ class Shop(commands.Cog):
     @shop_group.command(name="clear")
     async def shop_clear(self, ctx, npc_name: str):
         guild_id = ctx.guild.id
-        shop_service.clear_items(guild_id, npc_name)
+        shop_service.clear_shop(guild_id, npc_name)  # ✅ fix: pakai clear_shop
         await ctx.send(f"🗑️ Semua dagangan {npc_name} dihapus.")
 
     # ==== Beli item ====
     @shop_group.command(name="buy")
     async def shop_buy(self, ctx, npc_name: str, char_name: str, item: str, qty: int = 1):
         guild_id = ctx.guild.id
-
         npc = npc_service.get_npc(guild_id, npc_name)
         if not npc:
             return await ctx.send(f"❌ NPC {npc_name} tidak ditemukan.")
