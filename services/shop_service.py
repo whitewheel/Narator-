@@ -1,4 +1,3 @@
-# services/shop_service.py
 import json
 from utils.db import fetchone, fetchall, execute
 from services import item_service, inventory_service, favor_service, quest_service
@@ -102,6 +101,8 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
     for r in rows:
         item_data = item_service.get_item(guild_id, r["item"])
         effect = item_data.get("effect", "-") if item_data else "-"
+        requirement = item_data.get("requirement", "") if item_data else ""  # ✅ baru
+        req_text = f"\n⚠️ Req: {requirement}" if requirement else ""         # ✅ baru
         icon = item_data.get("icon", ICON_DEFAULT) if item_data else ICON_DEFAULT
 
         price = r["price"]
@@ -119,7 +120,8 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
             )
         else:
             out.append(
-                f"{icon} **{r['item']}** — 💰 {price} gold | Stock: {stock_text}\n✨ {effect}"
+                f"{icon} **{r['item']}** — 💰 {price} gold | Stock: {stock_text}\n"
+                f"✨ {effect}{req_text}"
             )
     return out
 
