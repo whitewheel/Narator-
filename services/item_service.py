@@ -111,7 +111,7 @@ def get_item(guild_id: int, name: str):
 def list_items(guild_id: int, limit: int = 50):
     """
     Ambil semua item, urut per Type → Rarity → Nama (A–Z),
-    dengan ikon rarity + type, dan efek di bawah nama.
+    dengan ikon rarity + type, dan efek + requirement di bawah nama.
     """
     rows = fetchall(guild_id, "SELECT * FROM items", ())
     if not rows:
@@ -124,10 +124,13 @@ def list_items(guild_id: int, limit: int = 50):
         base_icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
         rarity_icon = RARITY_ICON.get(rarity, "⬜")
         effect = r.get("effect", "-")
+        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""  # ✅ tambahin cek requirement
+
+        req_text = f" | Req: {requirement}" if requirement else ""
         entry = {
             "name": r["name"],
             "rarity": rarity,
-            "text": f"{rarity_icon} {base_icon} **{r['name']}** ({rarity})\n*{effect}*"
+            "text": f"{rarity_icon} {base_icon} **{r['name']}** ({rarity}{req_text})\n*{effect}*"
         }
         categories.setdefault(type_key, []).append(entry)
 
@@ -169,5 +172,7 @@ def search_items(guild_id: int, keyword: str, limit: int = 20):
     out = []
     for r in rows:
         icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
-        out.append(f"{icon} **{r['name']}** — {r.get('effect','')}")
+        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""
+        req_text = f" | Req: {requirement}" if requirement else ""
+        out.append(f"{icon} **{r['name']}** — {r.get('effect','')}{req_text}")
     return out
