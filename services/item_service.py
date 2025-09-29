@@ -18,16 +18,20 @@ RARITY_ORDER = {
     "Common": 1,
     "Uncommon": 2,
     "Rare": 3,
-    "Very Rare": 4,
-    "Legendary": 5
+    "Epic": 4,
+    "Legendary": 5,
+    "Mythic": 6,
+    "Ascendant": 7
 }
 
 RARITY_ICON = {
     "Common": "🟢",
     "Uncommon": "🔵",
     "Rare": "🟣",
-    "Very Rare": "🟡",
-    "Legendary": "🔴"
+    "Epic": "🟡",
+    "Legendary": "🔴",
+    "Mythic": "🟠",      # orb oranye
+    "Ascendant": "🌠"
 }
 
 def ensure_table(guild_id: int):
@@ -105,7 +109,10 @@ def get_item(guild_id: int, name: str):
     return item
 
 def list_items(guild_id: int, limit: int = 50):
-    """Ambil semua item, urut per Type → Rarity → Nama (A–Z), dengan ikon rarity."""
+    """
+    Ambil semua item, urut per Type → Rarity → Nama (A–Z),
+    dengan ikon rarity + type, dan efek di bawah nama.
+    """
     rows = fetchall(guild_id, "SELECT * FROM items", ())
     if not rows:
         return []
@@ -116,10 +123,11 @@ def list_items(guild_id: int, limit: int = 50):
         rarity = r.get("rarity", "Common")
         base_icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
         rarity_icon = RARITY_ICON.get(rarity, "⬜")
+        effect = r.get("effect", "-")
         entry = {
             "name": r["name"],
             "rarity": rarity,
-            "text": f"{rarity_icon} {base_icon} **{r['name']}** ({rarity})"
+            "text": f"{rarity_icon} {base_icon} **{r['name']}** ({rarity})\n*{effect}*"
         }
         categories.setdefault(type_key, []).append(entry)
 
