@@ -67,13 +67,14 @@ class Item(commands.Cog):
             "slot": parts[6] if len(parts) > 6 else None,
             "notes": parts[7] if len(parts) > 7 else "",
             "rules": parts[8] if len(parts) > 8 else "",
+            "requirement": parts[9] if len(parts) > 9 else "",  # baru
         }
 
     @commands.group(name="item", invoke_without_command=True)
     async def item(self, ctx):
         await ctx.send(
             "📦 **Item Commands**\n"
-            "• `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`\n"
+            "• `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement]`\n"
             "• `!item show [all|weapon|armor|consumable|accessory|gadget|misc]`\n"
             "• `!item remove <Nama>`\n"
             "• `!item detail <Nama>`\n"
@@ -82,7 +83,7 @@ class Item(commands.Cog):
             "• `!use <Char> <Item>`\n"
             "• `!item clearall gmacc`\n\n"
             "⚠️ Kolom **Weight** wajib diisi (angka). Contoh:\n"
-            "`!item add Neural Pistol Mk.I | Weapon | Pistol energi standar | Rare | 420 | 1.4 | main_hand | Senjata awal | +10 HP`"
+            "`!item add Rust Shiv | Weapon | Damage 1d4 + DEX | Common | 20 | 0.5 | main_hand | Pisau kecil dari scrap logam | Crit 20 (×2) | STR 5+`"
         )
 
     @item.command(name="add")
@@ -90,7 +91,7 @@ class Item(commands.Cog):
         guild_id = ctx.guild.id
         data = self._parse_entry(entry)
         if not data:
-            return await ctx.send("⚠️ Format salah! Gunakan `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules]`")
+            return await ctx.send("⚠️ Format salah! Gunakan `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement]`")
 
         # Cek duplikat
         existing = item_service.get_item(guild_id, data["name"])
@@ -189,6 +190,7 @@ class Item(commands.Cog):
         )
         embed.add_field(name="Efek", value=i.get("effect","-"), inline=False)
         embed.add_field(name="Rules", value=i.get("rules","-"), inline=False)
+        embed.add_field(name="Requirement", value=i.get("requirement","-"), inline=False)  # baru
         embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
         embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
         embed.add_field(name="Berat", value=str(i.get("weight",0)), inline=True)
@@ -233,7 +235,8 @@ class Item(commands.Cog):
         i = item_service.get_item(guild_id, name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
-        await ctx.send(f"{i.get('icon','📦')} **{i['name']}** | {i['rarity']} | ⚖️ {i['weight']} | ✨ {i.get('effect','-')}")
+        req = f" | Req: {i['requirement']}" if i.get("requirement") else ""
+        await ctx.send(f"{i.get('icon','📦')} **{i['name']}** | {i['rarity']} | ⚖️ {i['weight']} | ✨ {i.get('effect','-')}{req}")
 
     @commands.command(name="use")
     async def use_item(self, ctx, char: str, *, item_name: str):
