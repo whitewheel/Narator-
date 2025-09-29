@@ -75,6 +75,12 @@ def add_item(guild_id: int, data: dict):
     # Normalisasi nama
     data["name"] = normalize_name(data.get("name", ""))
 
+    # Normalisasi requirement (biar "-" dianggap kosong)
+    req = data.get("requirement", "").strip()
+    if req == "-":
+        req = ""
+    data["requirement"] = req
+
     # --- Validasi weight ---
     weight = data.get("weight", 0.1)
     try:
@@ -85,8 +91,8 @@ def add_item(guild_id: int, data: dict):
         weight = 0.1
 
     execute(guild_id, """
-        INSERT INTO items (name, type, effect, rarity, value, weight, slot, notes, rules)
-        VALUES (?,?,?,?,?,?,?,?,?)
+        INSERT INTO items (name, type, effect, rarity, value, weight, slot, notes, rules, requirement)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(name) DO UPDATE SET
             type=excluded.type,
             effect=excluded.effect,
@@ -96,6 +102,7 @@ def add_item(guild_id: int, data: dict):
             slot=excluded.slot,
             notes=excluded.notes,
             rules=excluded.rules,
+            requirement=excluded.requirement,
             updated_at=CURRENT_TIMESTAMP
     """, (
         data.get("name"),
@@ -106,7 +113,8 @@ def add_item(guild_id: int, data: dict):
         weight,
         data.get("slot"),
         data.get("notes",""),
-        data.get("rules","")
+        data.get("rules",""),
+        data.get("requirement","")
     ))
     return True
 
@@ -148,7 +156,7 @@ def list_items(guild_id: int, limit: int = 50):
         base_icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
         rarity_icon = RARITY_ICON.get(rarity, "⬜")
         effect = r.get("effect", "-")
-        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""
+        requirement = r.get("requirement", "")
 
         req_text = f" | Req: {requirement}" if requirement else ""
         entry = {
@@ -201,7 +209,7 @@ def search_items(guild_id: int, keyword: str, limit: int = 20):
     out = []
     for r in rows:
         icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
-        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""
+        requirement = r.get("requirement", "")
         req_text = f" | Req: {requirement}" if requirement else ""
         out.append(f"{icon} **{r['name']}** — {r.get('effect','')}{req_text}")
     return out
