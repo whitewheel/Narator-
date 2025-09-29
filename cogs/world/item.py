@@ -2,6 +2,38 @@ import discord
 from discord.ext import commands
 from services import item_service
 import re
+from discord.ui import View, button
+from discord import ButtonStyle
+
+# ===========================
+# Pagination View
+# ===========================
+class ItemPaginator(View):
+    def __init__(self, pages):
+        super().__init__(timeout=120)  # auto stop setelah 2 menit
+        self.pages = pages
+        self.index = 0
+
+    async def update(self, interaction):
+        embed = self.pages[self.index]
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @button(label="◀", style=ButtonStyle.secondary)
+    async def prev_page(self, interaction, button):
+        if self.index > 0:
+            self.index -= 1
+            await self.update(interaction)
+        else:
+            await interaction.response.defer()
+
+    @button(label="▶", style=ButtonStyle.secondary)
+    async def next_page(self, interaction, button):
+        if self.index < len(self.pages) - 1:
+            self.index += 1
+            await self.update(interaction)
+        else:
+            await interaction.response.defer()
+
 
 class Item(commands.Cog):
     def __init__(self, bot):
@@ -55,28 +87,45 @@ class Item(commands.Cog):
     @item.command(name="show")
     async def item_show(self, ctx, *, type_name: str = None):
         guild_id = ctx.guild.id
-        if type_name and type_name.lower() == "all":
-            items = item_service.list_items(guild_id, limit=9999)
-        else:
-            items = item_service.list_items(guild_id, limit=20)
-
+        items = item_service.list_items(guild_id, limit=9999)
         if not items:
             return await ctx.send("Tidak ada item.")
 
-        if type_name and type_name.lower() not in ("all",):
-            block = []
+        # Default = all
+        if not type_name:
+            type_name = "all"
+
+        type_name = type_name.lower()
+
+        # === Filter kategori spesifik ===
+        if type_name != "all":
+            filtered = []
             collect = False
             for line in items:
-                if line.startswith("__**"):
-                    collect = (type_name.lower() in line.lower())
+                if line.startswith("__**"):  # kategori baru
+                    collect = (type_name in line.lower())
                 elif collect and line.strip():
-                    block.append(line)
+                    filtered.append(line)
+            items = filtered
+            if not items:
+                return await ctx.send(f"❌ Tidak ada item dengan kategori **{type_name}**.")
 
-            if not block:
-                return await ctx.send(f"Tidak ada item dengan kategori **{type_name}**.")
-            return await ctx.send("\n".join(block))
+        # === Buat embed pagination ===
+        per_page = 10
+        pages = []
+        for i in range(0, len(items), per_page):
+            chunk = items[i:i+per_page]
+            embed = discord.Embed(
+                title=f"📦 Item Catalog",
+                description=f"Kategori: {type_name.title()}",
+                color=discord.Color.teal()
+            )
+            embed.add_field(name="Items", value="\n".join(chunk), inline=False)
+            embed.set_footer(text=f"Page {i//per_page+1}/{(len(items)-1)//per_page+1}")
+            pages.append(embed)
 
-        await ctx.send("\n".join(items))
+        view = ItemPaginator(pages)
+        await ctx.send(embed=pages[0], view=view)
 
     @item.command(name="remove")
     async def item_remove(self, ctx, *, name: str):
