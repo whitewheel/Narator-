@@ -1,4 +1,5 @@
 import json
+import re
 from utils.db import execute, fetchone, fetchall
 
 # ===============================
@@ -34,7 +35,20 @@ RARITY_ICON = {
     "Ascendant": "🌠"
 }
 
+# ===============================
+# Helpers
+# ===============================
+def normalize_name(name: str) -> str:
+    """Samakan format nama item (title case, hilangkan spasi ganda)."""
+    return re.sub(r"\s+", " ", name.strip()).title()
+
+
 def ensure_table(guild_id: int):
+    """
+    ⚠️ WARNING: Duplikat dengan init_db().
+    Table items sudah dibuat di init_db() (lebih lengkap, ada requirement).
+    Fungsi ini dibiarkan untuk kompatibilitas lama, tapi sebaiknya tidak dipakai.
+    """
     execute(guild_id, """
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,9 +65,15 @@ def ensure_table(guild_id: int):
         )
     """)
 
+# ===============================
+# CRUD Item
+# ===============================
 def add_item(guild_id: int, data: dict):
     """Tambah atau update item di katalog (per-server)."""
     ensure_table(guild_id)
+
+    # Normalisasi nama
+    data["name"] = normalize_name(data.get("name", ""))
 
     # --- Validasi weight ---
     weight = data.get("weight", 0.1)
@@ -90,6 +110,7 @@ def add_item(guild_id: int, data: dict):
     ))
     return True
 
+
 def update_item(guild_id: int, name: str, updates: dict):
     """Update sebagian field item (dipakai untuk !item edit)."""
     row = get_item(guild_id, name)
@@ -99,14 +120,17 @@ def update_item(guild_id: int, name: str, updates: dict):
     row.update(updates)
     return add_item(guild_id, row)
 
+
 def get_item(guild_id: int, name: str):
     """Ambil detail 1 item dengan ikon."""
-    row = fetchone(guild_id, "SELECT * FROM items WHERE name=?", (name,))
+    norm = normalize_name(name)
+    row = fetchone(guild_id, "SELECT * FROM items WHERE name=?", (norm,))
     if not row:
         return None
     item = dict(row)
     item["icon"] = ICONS.get(item.get("type","").lower(), ICONS["misc"])
     return item
+
 
 def list_items(guild_id: int, limit: int = 50):
     """
@@ -124,7 +148,7 @@ def list_items(guild_id: int, limit: int = 50):
         base_icon = ICONS.get(r.get("type","").lower(), ICONS["misc"])
         rarity_icon = RARITY_ICON.get(rarity, "⬜")
         effect = r.get("effect", "-")
-        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""  # ✅ tambahin cek requirement
+        requirement = r.get("requirement", "") if "requirement" in r.keys() else ""
 
         req_text = f" | Req: {requirement}" if requirement else ""
         entry = {
@@ -146,14 +170,18 @@ def list_items(guild_id: int, limit: int = 50):
         for e in sorted_entries:
             out.append(e["text"])
 
-        out.append("")  # spasi antar kategori
+        # ⚠️ jangan tambah "" di sini, bikin double/dash di embed
+        # out.append("")
 
     return out[:limit] if limit else out
 
+
 def remove_item(guild_id: int, name: str):
     """Hapus item dari katalog."""
-    execute(guild_id, "DELETE FROM items WHERE name=?", (name,))
+    norm = normalize_name(name)
+    execute(guild_id, "DELETE FROM items WHERE name=?", (norm,))
     return True
+
 
 def clear_items(guild_id: int) -> int:
     """Hapus semua item di katalog server, return jumlah yang dihapus."""
@@ -161,6 +189,7 @@ def clear_items(guild_id: int) -> int:
     count = rows["c"] if rows else 0
     execute(guild_id, "DELETE FROM items")
     return count
+
 
 def search_items(guild_id: int, keyword: str, limit: int = 20):
     """Cari item by keyword (nama/tipe/efek) + ikon."""
