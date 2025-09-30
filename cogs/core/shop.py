@@ -59,7 +59,7 @@ class Shop(commands.Cog):
 
     # ==== Tambah item ====
     @shop_group.command(name="add")
-    async def shop_add(self, ctx, npc_name: str, item: str, price: int, stock: int = -1):
+    async def shop_add(self, ctx, npc_name: str, item: str, price: str = "-", stock: int = -1):
         guild_id = ctx.guild.id
         npc = npc_service.get_npc(guild_id, npc_name)
         if not npc:
@@ -68,12 +68,23 @@ class Shop(commands.Cog):
         it = item_service.get_item(guild_id, item)
         if not it:
             return await ctx.send(f"❌ Item {item} tidak ada di katalog. Tambahkan dulu dengan `!item add`.")
+    
+        # 🔑 cek harga
+        if price == "-" or price is None:
+        price_val = int(it.get("value", 0))   # ambil dari DB
+        else:
+            try:
+                price_val = int(price)
+            except:
+                return await ctx.send("❌ Harga harus angka atau '-'.")
 
-        shop_service.add_item(guild_id, npc_name, item, price, stock)
-        await ctx.send(
-            f"✅ {npc_name} sekarang menjual {item} seharga {price} gold "
-            f"(stock {stock if stock>=0 else '∞'})."
-        )
+    # simpan ke shop
+    shop_service.add_item(guild_id, npc_name, item, price_val, stock)
+    await ctx.send(
+        f"✅ {npc_name} sekarang menjual {item} seharga {price_val} gold "
+        f"(stock {stock if stock>=0 else '∞'})."
+    )
+
 
     # ==== Hapus item ====
     @shop_group.command(name="remove")
