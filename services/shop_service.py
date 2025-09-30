@@ -95,9 +95,16 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
     ensure_table(guild_id)
     rows = fetchall(
         guild_id,
-        "SELECT * FROM npc_shop WHERE npc_name=? ORDER BY item COLLATE NOCASE ASC",
+        """
+        SELECT s.*
+        FROM npc_shop s
+        LEFT JOIN items i ON s.item = i.name
+        WHERE s.npc_name=?
+        ORDER BY i.name COLLATE NOCASE ASC
+        """,
         (npc_name,)
     )
+
     if not rows:
         return [f"ℹ️ {npc_name} tidak menjual apa-apa."]
 
