@@ -2,7 +2,6 @@ import json
 from utils.db import fetchone, execute
 from services import inventory_service, item_service
 from cogs.world.timeline import log_event
-from services.item_service import normalize_name  # ✅ tambahan
 
 # ===============================
 # EQUIPMENT SERVICE
@@ -29,10 +28,14 @@ SLOT_ICONS = {
     "augment3": "🧬",
 }
 
+def _norm_name(x: str) -> str:
+    try:
+        return item_service.normalize_name(x)
+    except Exception:
+        return (x or "").strip()
 
 def _get_char(guild_id: int, char: str):
     return fetchone(guild_id, "SELECT * FROM characters WHERE name=?", (char,))
-
 
 def _update_equipment(guild_id: int, char: str, eq: dict):
     execute(
@@ -41,38 +44,33 @@ def _update_equipment(guild_id: int, char: str, eq: dict):
         (json.dumps(eq), char)
     )
 
-
 def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0"):
     """Equip item dari inventory ke slot equipment karakter (cek carry)."""
-    slot = slot.lower()
+    slot = (slot or "").lower()
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
-
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama input
 
     # cek karakter
     c = _get_char(guild_id, char)
     if not c:
         return False, f"❌ Karakter {char} tidak ditemukan."
 
-    # cek item di inventory
+    # cek item di inventory (case-insens + normalisasi)
     inv = inventory_service.get_inventory(guild_id, char)
-
-    # ✅ bandingkan pakai normalize di kedua sisi
+    target = _norm_name(item_name)
     found = next(
-        (it for it in inv if normalize_name(it["item"]) == item_name),
+        (it for it in inv if _norm_name(it["item"]) == target and (it["qty"] or 0) > 0),
         None
     )
-
-    if not found or found["qty"] <= 0:
-        return False, f"❌ {char} tidak punya {item_name} di inventory."
+    if not found:
+        return False, f"❌ {char} tidak punya \"{item_name}\" di inventory."
 
     # cek data item (ambil weight)
-    item_data = item_service.get_item(guild_id, item_name)
+    item_data = item_service.get_item(guild_id, target)
     weight = float(item_data.get("weight", 0)) if item_data else 0.0
 
-    carry_capacity = c.get("carry_capacity", 0)
-    carry_used = c.get("carry_used", 0.0)
+    carry_capacity = c.get("carry_capacity", 0) or 0
+    carry_used = c.get("carry_used", 0.0) or 0.0
     if carry_capacity > 0 and carry_used + weight > carry_capacity:
         return False, f"❌ {char} tidak sanggup equip {item_name} (melebihi kapasitas)."
 
@@ -86,11 +84,11 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
         inventory_service.add_item(guild_id, char, eq[slot], 1, user_id=user_id)
 
     # pasang item
-    eq[slot] = item_name
+    eq[slot] = found["item"]  # simpan nama persis dari inventory
     _update_equipment(guild_id, char, eq)
 
     # kurangi inventory
-    inventory_service.remove_item(guild_id, char, item_name, 1, user_id=user_id)
+    inventory_service.remove_item(guild_id, char, found["item"], 1, user_id=user_id)
 
     # sync carry
     inventory_service.calc_carry(guild_id, char)
@@ -100,19 +98,18 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
         guild_id,
         user_id,
         code="EQUIP",
-        title=f"⚔️ {char} equip {item_name} ke {slot}",
-        details=f"{char} equip {item_name} di slot {slot}",
+        title=f"⚔️ {char} equip {found['item']} ke {slot}",
+        details=f"{char} equip {found['item']} di slot {slot}",
         etype="equip",
         actors=[char],
         tags=["equipment", "equip"]
     )
 
-    return True, f"⚔️ {char} sekarang memakai {item_name} di slot {slot}."
-
+    return True, f"⚔️ {char} sekarang memakai {found['item']} di slot {slot}."
 
 def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     """Unequip item dari slot ke inventory karakter (boleh overload)."""
-    slot = slot.lower()
+    slot = (slot or "").lower()
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
 
@@ -126,7 +123,7 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     if not eq.get(slot):
         return False, f"❌ Slot {slot} kosong."
 
-    item_name = normalize_name(eq[slot])  # ✅ normalisasi nama sebelum dikembalikan
+    item_name = eq[slot]
 
     # balikin ke inventory
     inventory_service.add_item(guild_id, char, item_name, 1, user_id=user_id)
@@ -151,7 +148,6 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
 
     return True, f"🛑 {char} melepas {item_name} dari slot {slot}."
 
-
 def show_equipment(guild_id: int, char: str):
     """Ambil daftar equipment karakter."""
     c = _get_char(guild_id, char)
@@ -169,7 +165,7 @@ def show_equipment(guild_id: int, char: str):
         if item:
             it = item_service.get_item(guild_id, item)
             item_icon = it["icon"] if it else "📦"
-            out.append(f"{icon} **{s}**: {item_icon} {normalize_name(item)}")  # ✅ konsisten
+            out.append(f"{icon} **{s}**: {item_icon} {item}")
         else:
             out.append(f"{icon} **{s}**: (kosong)")
     return out
