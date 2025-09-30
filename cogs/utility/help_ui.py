@@ -27,6 +27,7 @@ CATEGORY_EMOJI = {
     "timeline": "⏳",
     "wiki": "📚",
     "classrace": "🧑‍🎓",
+    "skill": "💡",
 
     "utility": "🧰",
     "roll": "🎲",
@@ -59,6 +60,7 @@ CATEGORIES = [
     ("timeline", "Timeline"),
     ("wiki", "Wiki"),
     ("classrace", "Class & Race"),
+    ("skill", "Skill"),
 
     ("utility", "Utility"),
     ("gm", "GM Only"),
@@ -82,7 +84,7 @@ def embed_home(guild: discord.Guild) -> discord.Embed:
         "Ikon di kiri bikin gampang diingat 😸\n\n"
         "**Kategori Utama:**\n"
         "• ⚔️ Core: Status, Enemy, Ally, Initiative, Tick\n"
-        "• 🌍 World: Quest, NPC, Shop, Favor, Faction, Scene, Items, Inventory, Equipment, Timeline, Wiki, Class/Race\n"
+        "• 🌍 World: Quest, NPC, Shop, Favor, Faction, Scene, Items, Inventory, Equipment, Timeline, Wiki, Class/Race, Skill\n"
         "• 🧰 Utility: Roll, Poll, Multi, Ask (GPT)\n"
         "• 🎭 GM Only: Command rahasia GM"
     )
@@ -325,7 +327,7 @@ def embed_npc() -> discord.Embed:
     e = _embed_base(_title("npc", "NPC Commands"), color=discord.Color.from_rgb(255, 99, 132))
     e.add_field(
         name="Kelola NPC",
-        value=(
+        value=( 
             "`!npc add <Nama> [Role]`\n"
             "Contoh: `!npc add Ka'ruun | Pemimpin Mutaris`\n\n"
             "`!npc list`\n"
@@ -502,6 +504,39 @@ def embed_classrace() -> discord.Embed:
     )
     return e
 
+def embed_skill() -> discord.Embed:
+    e = _embed_base(_title("skill", "Skill Commands"), color=discord.Color.from_rgb(0, 200, 200))
+    e.add_field(
+        name="Player",
+        value=(
+            "`!skill show <Char>` → lihat semua skill karakter\n"
+            "`!skill use <Char> <Skill>` → gunakan skill (efek, drawback, cost)"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="GM",
+        value=(
+            "`!skill add <Char> <SkillID> [Lv]`\n"
+            "`!skill remove <Char> <SkillName>`\n"
+            "`!skill reset <Char>`\n"
+            "`!skill gmglobal` → lihat semua skill di server"
+        ),
+        inline=False
+    )
+    e.add_field(
+        name="Library",
+        value=(
+            "`!skill library add <Kategori> <Nama> <Efek> <Drawback> <Cost>`\n"
+            "`!skill library list`\n"
+            "`!skill library info <ID>`\n"
+            "`!skill library remove <ID>`\n"
+            "`!skill library update <ID> <Efek> <Drawback> <Cost>`"
+        ),
+        inline=False
+    )
+    return e
+
 def embed_utility() -> discord.Embed:
     e = _embed_base(_title("utility", "Utility"), color=discord.Color.from_rgb(100, 100, 100))
     e.add_field(name=_title("roll", "Roll"), value="`!roll 1d20+3`\nContoh: `!roll 2d6+4`", inline=False)
@@ -531,6 +566,7 @@ EMBED_BUILDERS = {
     "timeline": embed_timeline,
     "wiki": embed_wiki,
     "classrace": embed_classrace,
+    "skill": embed_skill,
     "utility": embed_utility,
 }
 
