@@ -72,7 +72,6 @@ def load_all_quests(guild_id: int):
 # Parsing helpers
 # --------------------
 def parse_kv_pairs(s: str):
-    # ambil items="..." agar spasi di dalamnya tidak pecah
     items_spec = None
     m = re.search(r'items\s*=\s*"(.*?)"', s)
     if m:
@@ -89,7 +88,6 @@ def parse_kv_pairs(s: str):
     return kv
 
 def parse_items_list(spec: str):
-    # "Item A x1; Item B x2" -> [{"name":"Item A","qty":1}, {"name":"Item B","qty":2}]
     items = []
     for chunk in [c.strip() for c in spec.split(";")]:
         if not chunk:
@@ -121,7 +119,7 @@ class Quest(commands.Cog):
             "favor": {},
             "tags": {},
             "archived": 0,
-            "rewards_visible": 1,  # 1=player bisa lihat reward; 0=disembunyikan
+            "rewards_visible": 1,
         }
 
     # ---------- Root ----------
@@ -146,10 +144,10 @@ class Quest(commands.Cog):
     @quest.command(name="show")
     async def quest_show(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
+        allq = load_all_quests(guild_id)
 
-        # tanpa nama: list semua quest OPEN yang di-assign ke player ini
+        # Kalau input kosong → tampilkan quest assigned ke display_name user
         if not name:
-            allq = load_all_quests(guild_id)
             out = []
             for nm, q in allq.items():
                 if q.get("archived", 0) == 1:
@@ -162,13 +160,27 @@ class Quest(commands.Cog):
                 return await ctx.send("📭 Kamu belum punya quest yang aktif.")
             return await ctx.send("\n".join(out[:25]))
 
-        # dengan nama: cek apakah player ini assigned ke quest tsb
-        q = load_quest(guild_id, name)
-        if not q or q.get("status") != "open":
-            return await ctx.send("❌ Quest tidak ditemukan atau belum terbuka.")
-        if ctx.author.display_name not in q.get("assigned_to", []):
-            return await ctx.send("📭 Kamu tidak sedang assigned ke quest ini.")
-        await ctx.send(f"✅ Kamu terdaftar di quest **{name}** (status: {q['status']}).")
+        # Kalau input cocok dengan nama quest
+        if name in allq:
+            q = allq[name]
+            if q.get("status") != "open":
+                return await ctx.send("❌ Quest tidak ditemukan atau belum terbuka.")
+            if ctx.author.display_name not in q.get("assigned_to", []):
+                return await ctx.send("📭 Kamu tidak sedang assigned ke quest ini.")
+            return await ctx.send(f"✅ Kamu terdaftar di quest **{name}** (status: {q['status']}).")
+
+        # Kalau input dianggap nama karakter
+        out = []
+        for nm, q in allq.items():
+            if q.get("archived", 0) == 1:
+                continue
+            if q.get("status") != "open":
+                continue
+            if name in q.get("assigned_to", []):
+                out.append(f"• **{nm}** — _{q['status']}_")
+        if not out:
+            return await ctx.send(f"📭 Karakter **{name}** tidak punya quest aktif.")
+        return await ctx.send("\n".join(out[:25]))
 
     # ---------- GM Show ----------
     @quest.command(name="gmshow")
@@ -222,7 +234,7 @@ class Quest(commands.Cog):
         save_quest(guild_id, q)
         await ctx.send(f"✅ Quest **{name}** di-assign ke: {', '.join(q['assigned_to'])}")
 
-    # ---------- Reward (xp/gold/items->loot/favor) ----------
+    # ---------- Reward ----------
     @quest.command(name="reward")
     async def quest_reward(self, ctx, name: str, *, spec: str):
         guild_id = ctx.guild.id
@@ -232,22 +244,18 @@ class Quest(commands.Cog):
         kv = parse_kv_pairs(spec)
         r = q.get("rewards", {"xp": 0, "gold": 0, "loot": {}, "favor": {}})
 
-        # XP
         if "xp" in kv:
             try: r["xp"] = int(kv["xp"])
             except: pass
-        # Gold
         if "gold" in kv:
             try: r["gold"] = int(kv["gold"])
             except: pass
-        # Items -> Loot map
         if "items" in kv:
             items = parse_items_list(kv["items"])
             loot_map = {}
             for it in items:
                 loot_map[it["name"]] = it["qty"]
             r["loot"] = loot_map
-        # Favor
         if "favor" in kv:
             fav = {}
             for part in kv["favor"].split(","):
@@ -283,7 +291,7 @@ class Quest(commands.Cog):
         else:
             await ctx.send("⚠️ Gunakan: `!quest rewardvisible <nama> on/off`")
 
-    # ---------- Reveal (embed ringkas) ----------
+    # ---------- Reveal ----------
     @quest.command(name="reveal")
     async def quest_reveal(self, ctx, *, name: str):
         guild_id = ctx.guild.id
@@ -301,7 +309,7 @@ class Quest(commands.Cog):
         embed.set_footer(text="Gunakan !quest detail <nama> untuk lihat informasi lengkap.")
         await ctx.send(embed=embed)
 
-    # ---------- Complete (embed breakdown) ----------
+    # ---------- Complete ----------
     @quest.command(name="complete")
     async def quest_complete(self, ctx, name: str):
         guild_id = ctx.guild.id
@@ -309,7 +317,6 @@ class Quest(commands.Cog):
         if not q:
             return await ctx.send("❌ Quest tidak ditemukan.")
 
-        # Mark selesai + arsip
         q["status"] = "completed"
         q["archived"] = 1
         save_quest(guild_id, q)
@@ -340,12 +347,10 @@ class Quest(commands.Cog):
 
         await ctx.send(embed=embed)
 
-        # jalankan servis penyelesaian (auto add xp/gold/loot)
         msg = await quest_service.complete_quest(guild_id, name, q.get("assigned_to", []), ctx.author.id)
         if msg:
             await ctx.send(msg)
 
-        # timeline log
         log_event(
             guild_id,
             ctx.author.id,
@@ -389,7 +394,7 @@ class Quest(commands.Cog):
         save_quest(guild_id, q)
         await ctx.send(f"📦 Quest **{name}** berhasil diarsipkan.")
 
-    # ---------- Helper (Embed Detail) ----------
+    # ---------- Helper ----------
     async def _send_quest_detail(self, ctx, q, gm_view: bool = False):
         r = q.get("rewards", {})
         loot = r.get("loot", {})
@@ -410,7 +415,6 @@ class Quest(commands.Cog):
         embed.add_field(name="Status", value=q.get("status", "open"), inline=True)
         embed.add_field(name="Assigned To", value=assigned, inline=True)
 
-        # tampilkan reward sesuai visibility
         if gm_view or q.get("rewards_visible", 1) == 1:
             embed.add_field(name="XP/Gold", value=f"{r.get('xp',0)} XP / {r.get('gold',0)} Gold", inline=False)
             embed.add_field(name="Loot", value=loot_str, inline=False)
