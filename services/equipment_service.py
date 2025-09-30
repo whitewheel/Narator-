@@ -48,7 +48,7 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
 
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama input
 
     # cek karakter
     c = _get_char(guild_id, char)
@@ -57,7 +57,13 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
 
     # cek item di inventory
     inv = inventory_service.get_inventory(guild_id, char)
-    found = next((it for it in inv if normalize_name(it["item"]) == item_name), None)
+
+    # ✅ bandingkan pakai normalize di kedua sisi
+    found = next(
+        (it for it in inv if normalize_name(it["item"]) == item_name),
+        None
+    )
+
     if not found or found["qty"] <= 0:
         return False, f"❌ {char} tidak punya {item_name} di inventory."
 
