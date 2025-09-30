@@ -61,8 +61,8 @@ class Skill(commands.Cog):
 
     # ===== GM COMMANDS =====
     @skill.command(name="add")
-    async def skill_add(self, ctx, char_name: str, skill_id: int, level: int = 1):
-        msg = skill_service.add_skill(ctx.guild.id, char_name, skill_id, level)
+    async def skill_add(self, ctx, char_name: str, *, skill_ref: str):
+        msg = skill_service.add_skill(ctx.guild.id, char_name, skill_ref)
         await ctx.send(msg)
 
     @skill.command(name="remove")
@@ -104,25 +104,62 @@ class Skill(commands.Cog):
         await ctx.send(msg)
 
     @skill_library.command(name="list")
-    async def skill_library_list(self, ctx):
-        rows = skill_service.list_library(ctx.guild.id)
+    async def skill_library_list(self, ctx, category: str = None):
+        rows = skill_service.list_library(ctx.guild.id, category)
         if not rows:
             await ctx.send("❌ Belum ada skill di library.")
             return
 
-        embed = discord.Embed(title="📚 Skill Library", color=discord.Color.blue())
+        # group by category
+        categories = {}
         for row in rows:
-            emoji = CATEGORY_EMOJI.get(row["category"], "✨")
-            embed.add_field(
-                name=f"{row['id']}. {emoji} {row['name']}",
-                value=f"Kategori: {row['category']}",
-                inline=False
-            )
-        await ctx.send(embed=embed)
+            categories.setdefault(row["category"], []).append(row)
+
+        pages = []
+        for cat, skills in categories.items():
+            emoji = CATEGORY_EMOJI.get(cat, "✨")
+            for i in range(0, len(skills), 10):
+                chunk = skills[i:i+10]
+                embed = discord.Embed(
+                    title=f"📚 Skill Library – {cat}",
+                    color=discord.Color.blue()
+                )
+                for r in chunk:
+                    embed.add_field(
+                        name=f"{emoji} {r['name']}",
+                        value=f"Kategori: {r['category']}",
+                        inline=False
+                    )
+                pages.append(embed)
+
+        # pagination
+        cur_page = 0
+        message = await ctx.send(embed=pages[cur_page])
+        if len(pages) == 1:
+            return
+
+        await message.add_reaction("⬅️")
+        await message.add_reaction("➡️")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                if str(reaction.emoji) == "➡️" and cur_page < len(pages)-1:
+                    cur_page += 1
+                    await message.edit(embed=pages[cur_page])
+                elif str(reaction.emoji) == "⬅️" and cur_page > 0:
+                    cur_page -= 1
+                    await message.edit(embed=pages[cur_page])
+                await message.remove_reaction(reaction, user)
+            except:
+                break
 
     @skill_library.command(name="info")
-    async def skill_library_info(self, ctx, skill_id: int):
-        row = skill_service.get_library_info(ctx.guild.id, skill_id)
+    async def skill_library_info(self, ctx, *, skill_ref: str):
+        row = skill_service.get_library_info(ctx.guild.id, skill_ref)
         if not row:
             await ctx.send("❌ Skill tidak ditemukan di library.")
             return
@@ -136,13 +173,13 @@ class Skill(commands.Cog):
         await ctx.send(embed=embed)
 
     @skill_library.command(name="remove")
-    async def skill_library_remove(self, ctx, skill_id: int):
-        msg = skill_service.remove_library(ctx.guild.id, skill_id)
+    async def skill_library_remove(self, ctx, *, skill_ref: str):
+        msg = skill_service.remove_library(ctx.guild.id, skill_ref)
         await ctx.send(msg)
 
     @skill_library.command(name="update")
-    async def skill_library_update(self, ctx, skill_id: int, effect: str, drawback: str, cost: str):
-        msg = skill_service.update_library(ctx.guild.id, skill_id, effect, drawback, cost)
+    async def skill_library_update(self, ctx, skill_ref: str, effect: str, drawback: str, cost: str):
+        msg = skill_service.update_library(ctx.guild.id, skill_ref, effect, drawback, cost)
         await ctx.send(msg)
 
 
