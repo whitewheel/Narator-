@@ -93,7 +93,11 @@ def _check_requirements(guild_id: int, row, char_name: str):
 def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_view: bool = False):
     """List semua dagangan NPC. Kalau char_name diberikan → cek lock quest/favor."""
     ensure_table(guild_id)
-    rows = fetchall(guild_id, "SELECT * FROM npc_shop WHERE npc_name=?", (npc_name,))
+    rows = fetchall(
+        guild_id,
+        "SELECT * FROM npc_shop WHERE npc_name=? ORDER BY item COLLATE NOCASE ASC",
+        (npc_name,)
+    )
     if not rows:
         return [f"ℹ️ {npc_name} tidak menjual apa-apa."]
 
