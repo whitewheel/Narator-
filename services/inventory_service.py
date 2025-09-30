@@ -2,7 +2,6 @@ import json
 from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # pakai log_event biar konsisten
 from services import item_service
-from services.item_service import normalize_name  # ✅ tambahan: normalisasi nama item
 
 # ===============================
 # INVENTORY SERVICE (per-server) + ICONS + Carry System + Hard Limit
@@ -17,22 +16,35 @@ ICONS = {
     "fail": "❌",
 }
 
+# ---------- Helpers ----------
+def _norm_item(name: str) -> str:
+    """Samakan nama item supaya konsisten (Title Case, trim spasi)."""
+    try:
+        return item_service.normalize_name(name)
+    except Exception:
+        return (name or "").strip()
+
+def _norm_owner(owner: str) -> str:
+    """Owner disimpan apa adanya, tapi query selalu case-insensitive."""
+    return (owner or "").strip()
+
 # ---------- Carry Calculation ----------
 def calc_carry(guild_id: int, owner: str):
     """Hitung total weight dari inventory + equipment owner dan update ke characters.carry_used"""
+    owner = _norm_owner(owner)
     total_weight = 0.0
 
-    # --- Inventory items ---
+    # --- Inventory items (case-insens owner) ---
     rows = fetchall(
         guild_id,
-        "SELECT qty, metadata FROM inventory WHERE owner=?",
+        "SELECT qty, metadata FROM inventory WHERE lower(owner)=lower(?)",
         (owner,)
     )
     for r in rows:
         try:
             meta = json.loads(r["metadata"] or "{}")
             weight = float(meta.get("weight", 0))
-            total_weight += weight * r["qty"]
+            total_weight += weight * (r["qty"] or 0)
         except Exception:
             continue
 
@@ -41,7 +53,7 @@ def calc_carry(guild_id: int, owner: str):
     if row and row.get("equipment"):
         try:
             eq = json.loads(row["equipment"] or "{}")
-            for slot, item_name in eq.items():
+            for _, item_name in eq.items():
                 if not item_name:
                     continue
                 item = item_service.get_item(guild_id, item_name)
@@ -63,7 +75,8 @@ def calc_carry(guild_id: int, owner: str):
 # ---------- CRUD ----------
 def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0"):
     """Tambah item ke inventory (owner = karakter / 'party')."""
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+    owner = _norm_owner(owner)
+    item_name = _norm_item(item_name)
 
     # --- Ambil detail dari katalog kalau weight kosong ---
     if not metadata or "weight" not in metadata:
@@ -88,22 +101,23 @@ def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0")
 
     # --- Cek kapasitas karakter (kalau ada) ---
     char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
-    if char and char.get("carry_capacity", 0) > 0:
+    if char and (char.get("carry_capacity", 0) or 0) > 0:
         projected = float(char.get("carry_used", 0) or 0) + (weight * qty)
-        if projected > char["carry_capacity"]:
+        if projected > (char["carry_capacity"] or 0):
             return False  # overload
 
-    # --- Tambah / update inventory ---
+    # --- Tambah / update inventory (case-insens di lookup) ---
     row = fetchone(
         guild_id,
-        "SELECT * FROM inventory WHERE owner=? AND item=?",
+        "SELECT * FROM inventory WHERE lower(owner)=lower(?) AND lower(item)=lower(?)",
         (owner, item_name)
     )
     if row:
-        new_qty = row["qty"] + qty
+        new_qty = (row["qty"] or 0) + qty
         execute(guild_id, "UPDATE inventory SET qty=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                 (new_qty, row["id"]))
     else:
+        # simpan owner apa adanya, item sudah dinormalkan
         execute(guild_id, "INSERT INTO inventory (owner, item, qty, metadata) VALUES (?,?,?,?)",
                 (owner, item_name, qty, json.dumps(metadata or {})))
 
@@ -129,17 +143,18 @@ def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0")
 
 def remove_item(guild_id: int, owner, item_name, qty=1, user_id="0"):
     """Kurangi item dari inventory."""
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+    owner = _norm_owner(owner)
+    item_name = _norm_item(item_name)
 
     row = fetchone(
         guild_id,
-        "SELECT * FROM inventory WHERE owner=? AND item=?",
+        "SELECT * FROM inventory WHERE lower(owner)=lower(?) AND lower(item)=lower(?)",
         (owner, item_name)
     )
-    if not row or row["qty"] < qty:
+    if not row or (row["qty"] or 0) < qty:
         return False
 
-    new_qty = row["qty"] - qty
+    new_qty = (row["qty"] or 0) - qty
     if new_qty > 0:
         execute(guild_id, "UPDATE inventory SET qty=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                 (new_qty, row["id"]))
@@ -165,20 +180,27 @@ def remove_item(guild_id: int, owner, item_name, qty=1, user_id="0"):
     return True
 
 def get_inventory(guild_id: int, owner):
-    """Ambil semua item milik karakter/party."""
+    """Ambil semua item milik karakter/party (case-insens owner)."""
+    owner = _norm_owner(owner)
     rows = fetchall(
         guild_id,
-        "SELECT item, qty, metadata FROM inventory WHERE owner=?",
+        "SELECT item, qty, metadata FROM inventory WHERE lower(owner)=lower(?)",
         (owner,)
     )
-    return [{"item": normalize_name(r["item"]), "qty": r["qty"], "meta": json.loads(r["metadata"] or "{}")} for r in rows]
+    return [{"item": r["item"], "qty": r["qty"], "meta": json.loads(r["metadata"] or "{}")} for r in rows]
 
 def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id="0"):
     """Transfer item antar pemilik (metadata ikut terbawa)."""
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+    from_owner = _norm_owner(from_owner)
+    to_owner   = _norm_owner(to_owner)
+    item_name  = _norm_item(item_name)
 
-    row = fetchone(guild_id, "SELECT * FROM inventory WHERE owner=? AND item=?", (from_owner, item_name))
-    if not row or row["qty"] < qty:
+    row = fetchone(
+        guild_id,
+        "SELECT * FROM inventory WHERE lower(owner)=lower(?) AND lower(item)=lower(?)",
+        (from_owner, item_name)
+    )
+    if not row or (row["qty"] or 0) < qty:
         return False
 
     meta = json.loads(row["metadata"] or "{}")
@@ -188,6 +210,7 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
     ok = add_item(guild_id, to_owner, item_name, qty, metadata=meta, user_id=user_id)
 
     if not ok:
+        # rollback
         add_item(guild_id, from_owner, item_name, qty, metadata=meta, user_id=user_id)
         return False
 
@@ -209,11 +232,12 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
 
 def update_metadata(guild_id: int, owner, item_name, metadata: dict, user_id="0"):
     """Update metadata item (rarity, type, notes, weight)."""
-    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+    owner = _norm_owner(owner)
+    item_name = _norm_item(item_name)
 
     row = fetchone(
         guild_id,
-        "SELECT * FROM inventory WHERE owner=? AND item=?",
+        "SELECT * FROM inventory WHERE lower(owner)=lower(?) AND lower(item)=lower(?)",
         (owner, item_name)
     )
     if not row:
