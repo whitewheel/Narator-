@@ -51,7 +51,6 @@ class MyBot(commands.Bot):
             "cogs.core.class_manager",
             "cogs.core.shop",
             "cogs.core.tick",
-            "cogs.core.skill",
             "cogs.core.ally_status",
             "cogs.core.equipment", 
 
@@ -63,6 +62,7 @@ class MyBot(commands.Bot):
             "cogs.world.item",
             "cogs.world.encyclopedia",
             "cogs.world.timeline",
+            "cogs.world.skill",
             "cogs.world.wiki",
             "cogs.world.faction",
 
