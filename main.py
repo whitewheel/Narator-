@@ -39,6 +39,8 @@ intents.guilds = True  # supaya dapat event guild join/leave
 class MyBot(commands.Bot):
     async def setup_hook(self):
         exts = [
+            "cogs.gm_tools",
+            
             # CORE SYSTEM
             "cogs.core.initmem",
             "cogs.core.karakter_status",
