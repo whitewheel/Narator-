@@ -91,7 +91,7 @@ def _check_requirements(guild_id: int, row, char_name: str):
 # LIST
 # ===============================
 def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_view: bool = False):
-    """List semua dagangan NPC. Kalau char_name diberikan → cek lock quest/favor."""
+    """List semua dagangan NPC. Urut: Rarity -> Nama A–Z. Tampilkan ikon rarity + ikon tipe."""
     ensure_table(guild_id)
     rows = fetchall(
         guild_id,
@@ -100,7 +100,6 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
         FROM npc_shop s
         LEFT JOIN items i ON s.item = i.name
         WHERE s.npc_name=?
-        ORDER BY i.name COLLATE NOCASE ASC
         """,
         (npc_name,)
     )
@@ -109,12 +108,25 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
         return [f"ℹ️ {npc_name} tidak menjual apa-apa."]
 
     out = []
+    items_sorted = []
     for r in rows:
         item_data = item_service.get_item(guild_id, r["item"])
+        rarity = item_data.get("rarity", "Common") if item_data else "Common"
+        name = r["item"]
+        items_sorted.append((rarity, name.lower(), r, item_data))
+
+    # urutkan pakai RARITY_ORDER lalu nama
+    items_sorted.sort(key=lambda e: (
+        item_service.RARITY_ORDER.get(e[0], 99),  # rarity order
+        e[1]                                      # nama
+    ))
+
+    for rarity, _, r, item_data in items_sorted:
         effect = item_data.get("effect", "-") if item_data else "-"
-        requirement = item_data.get("requirement", "") if item_data else ""  # ✅ baru
-        req_text = f"\n⚠️ Req: {requirement}" if requirement else ""         # ✅ baru
+        requirement = item_data.get("requirement", "") if item_data else ""
+        req_text = f"\n⚠️ Req: {requirement}" if requirement else ""
         icon = item_data.get("icon", ICON_DEFAULT) if item_data else ICON_DEFAULT
+        rarity_icon = item_service.RARITY_ICON.get(rarity, "⬜")
 
         price = r["price"]
         stock = r["stock"]
@@ -126,14 +138,15 @@ def list_items(guild_id: int, npc_name: str, char_name: str | None = None, gm_vi
 
         if locked:
             out.append(
-                f"{icon} **{r['item']}** — 💰 - gold | Stock: -\n"
+                f"{rarity_icon}{icon} **{r['item']}** — 💰 - gold | Stock: -\n"
                 f"🔒 Sebuah misi harus selesai / butuh syarat tertentu"
             )
         else:
             out.append(
-                f"{icon} **{r['item']}** — 💰 {price} gold | Stock: {stock_text}\n"
+                f"{rarity_icon}{icon} **{r['item']}** — 💰 {price} gold | Stock: {stock_text}\n"
                 f"✨ {effect}{req_text}"
             )
+
     return out
 
 # ===============================
