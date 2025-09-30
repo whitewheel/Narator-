@@ -363,6 +363,32 @@ def init_db(guild_id: int) -> None:
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
+
+        # 16) Skill Library
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS skill_library (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER,
+        name TEXT,
+        category TEXT,
+        effect TEXT,
+        drawback TEXT,
+        cost TEXT
+    );
+    """)
+
+    # 17) Character Skills
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS skills (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER,
+        char_name TEXT,
+        skill_id INTEGER,
+        category TEXT,
+        name TEXT,
+        level INTEGER DEFAULT 0
+    );
+    """)
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
 
