@@ -2,6 +2,7 @@ import json
 from utils.db import execute, fetchone, fetchall
 from cogs.world.timeline import log_event   # pakai log_event biar konsisten
 from services import item_service
+from services.item_service import normalize_name  # ✅ tambahan: normalisasi nama item
 
 # ===============================
 # INVENTORY SERVICE (per-server) + ICONS + Carry System + Hard Limit
@@ -62,6 +63,7 @@ def calc_carry(guild_id: int, owner: str):
 # ---------- CRUD ----------
 def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0"):
     """Tambah item ke inventory (owner = karakter / 'party')."""
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama
 
     # --- Ambil detail dari katalog kalau weight kosong ---
     if not metadata or "weight" not in metadata:
@@ -127,6 +129,8 @@ def add_item(guild_id: int, owner, item_name, qty=1, metadata=None, user_id="0")
 
 def remove_item(guild_id: int, owner, item_name, qty=1, user_id="0"):
     """Kurangi item dari inventory."""
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+
     row = fetchone(
         guild_id,
         "SELECT * FROM inventory WHERE owner=? AND item=?",
@@ -167,10 +171,12 @@ def get_inventory(guild_id: int, owner):
         "SELECT item, qty, metadata FROM inventory WHERE owner=?",
         (owner,)
     )
-    return [{"item": r["item"], "qty": r["qty"], "meta": json.loads(r["metadata"] or "{}")} for r in rows]
+    return [{"item": normalize_name(r["item"]), "qty": r["qty"], "meta": json.loads(r["metadata"] or "{}")} for r in rows]
 
 def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id="0"):
     """Transfer item antar pemilik (metadata ikut terbawa)."""
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+
     row = fetchone(guild_id, "SELECT * FROM inventory WHERE owner=? AND item=?", (from_owner, item_name))
     if not row or row["qty"] < qty:
         return False
@@ -203,6 +209,8 @@ def transfer_item(guild_id: int, from_owner, to_owner, item_name, qty=1, user_id
 
 def update_metadata(guild_id: int, owner, item_name, metadata: dict, user_id="0"):
     """Update metadata item (rarity, type, notes, weight)."""
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+
     row = fetchone(
         guild_id,
         "SELECT * FROM inventory WHERE owner=? AND item=?",
