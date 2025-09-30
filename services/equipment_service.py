@@ -1,8 +1,8 @@
-# services/equipment_service.py
 import json
 from utils.db import fetchone, execute
 from services import inventory_service, item_service
 from cogs.world.timeline import log_event
+from services.item_service import normalize_name  # ✅ tambahan
 
 # ===============================
 # EQUIPMENT SERVICE
@@ -48,6 +48,8 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
     if slot not in SLOTS:
         return False, f"❌ Slot tidak valid. Pilih: {', '.join(SLOTS)}"
 
+    item_name = normalize_name(item_name)  # ✅ normalisasi nama
+
     # cek karakter
     c = _get_char(guild_id, char)
     if not c:
@@ -55,7 +57,7 @@ def equip_item(guild_id: int, char: str, slot: str, item_name: str, user_id="0")
 
     # cek item di inventory
     inv = inventory_service.get_inventory(guild_id, char)
-    found = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
+    found = next((it for it in inv if normalize_name(it["item"]) == item_name), None)
     if not found or found["qty"] <= 0:
         return False, f"❌ {char} tidak punya {item_name} di inventory."
 
@@ -118,7 +120,7 @@ def unequip_item(guild_id: int, char: str, slot: str, user_id="0"):
     if not eq.get(slot):
         return False, f"❌ Slot {slot} kosong."
 
-    item_name = eq[slot]
+    item_name = normalize_name(eq[slot])  # ✅ normalisasi nama sebelum dikembalikan
 
     # balikin ke inventory
     inventory_service.add_item(guild_id, char, item_name, 1, user_id=user_id)
@@ -161,7 +163,7 @@ def show_equipment(guild_id: int, char: str):
         if item:
             it = item_service.get_item(guild_id, item)
             item_icon = it["icon"] if it else "📦"
-            out.append(f"{icon} **{s}**: {item_icon} {item}")
+            out.append(f"{icon} **{s}**: {item_icon} {normalize_name(item)}")  # ✅ konsisten
         else:
             out.append(f"{icon} **{s}**: (kosong)")
     return out
