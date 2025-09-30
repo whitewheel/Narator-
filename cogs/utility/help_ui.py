@@ -510,7 +510,9 @@ def embed_skill() -> discord.Embed:
         name="Player",
         value=(
             "`!skill show <Char>` → lihat semua skill karakter\n"
-            "`!skill use <Char> <Skill>` → gunakan skill (efek, drawback, cost)"
+            "Contoh: `!skill show Udab`\n\n"
+            "`!skill use <Char> <Skill>` → gunakan skill (efek, drawback, cost)\n"
+            "Contoh: `!skill use Udab Blade Dance`"
         ),
         inline=False
     )
@@ -518,8 +520,11 @@ def embed_skill() -> discord.Embed:
         name="GM",
         value=(
             "`!skill add <Char> <SkillID> [Lv]`\n"
+            "Contoh: `!skill add Udab 3 2`\n\n"
             "`!skill remove <Char> <SkillName>`\n"
+            "Contoh: `!skill remove Udab Blade Dance`\n\n"
             "`!skill reset <Char>`\n"
+            "Contoh: `!skill reset Udab`\n\n"
             "`!skill gmglobal` → lihat semua skill di server"
         ),
         inline=False
@@ -528,10 +533,14 @@ def embed_skill() -> discord.Embed:
         name="Library",
         value=(
             "`!skill library add <Kategori> <Nama> <Efek> <Drawback> <Cost>`\n"
-            "`!skill library list`\n"
+            "Contoh: `!skill library add Basic \"Blade Dance\" \"+2 ATK\" \"-1 DEF\" \"1 Stamina\"`\n\n"
+            "`!skill library list` → lihat semua skill di library\n\n"
             "`!skill library info <ID>`\n"
+            "Contoh: `!skill library info 3`\n\n"
             "`!skill library remove <ID>`\n"
-            "`!skill library update <ID> <Efek> <Drawback> <Cost>`"
+            "Contoh: `!skill library remove 5`\n\n"
+            "`!skill library update <ID> <Efek> <Drawback> <Cost>`\n"
+            "Contoh: `!skill library update 3 \"+3 ATK\" \"-2 DEF\" \"2 Stamina\"`"
         ),
         inline=False
     )
