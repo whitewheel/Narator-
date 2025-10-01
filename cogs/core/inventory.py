@@ -140,172 +140,88 @@ class Inventory(commands.Cog):
             await ctx.send(f"❌ Item {item} milik {owner} tidak ditemukan.")
 
     # === Gunakan item (consumable) ===
-# === Gunakan item (consumable) ===
-@inv_group.command(name="use")
-async def inv_use(self, ctx, owner: str, *, item_name: str):
-    guild_id = ctx.guild.id
+    @inv_group.command(name="use")
+    async def inv_use(self, ctx, owner: str, *, item_name: str):
+        guild_id = ctx.guild.id
 
-    # cek item di katalog
-    i = item_service.get_item(guild_id, item_name)
-    if not i:
-        return await ctx.send(f"❌ Item **{item_name}** tidak ditemukan di katalog.")
+        # cek item di katalog
+        i = item_service.get_item(guild_id, item_name)
+        if not i:
+            return await ctx.send(f"❌ Item **{item_name}** tidak ditemukan di katalog.")
 
-    # cek inventory
-    inv = inventory_service.get_inventory(guild_id, owner)
-    entry = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
-    if not entry or entry["qty"] <= 0:
-        return await ctx.send(f"❌ {owner} tidak punya item {item_name}.")
+        # cek inventory
+        inv = inventory_service.get_inventory(guild_id, owner)
+        entry = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
+        if not entry or entry["qty"] <= 0:
+            return await ctx.send(f"❌ {owner} tidak punya item {item_name}.")
 
-    # kurangi 1 qty (pakai item_name biar konsisten di DB)
-    ok = inventory_service.remove_item(guild_id, owner, item_name, 1, user_id=str(ctx.author.id))
-    if not ok:
-        return await ctx.send(f"❌ Gagal mengurangi {item_name} dari {owner}.")
+        # kurangi 1 qty (pakai item_name biar konsisten di DB)
+        ok = inventory_service.remove_item(guild_id, owner, item_name, 1, user_id=str(ctx.author.id))
+        if not ok:
+            return await ctx.send(f"❌ Gagal mengurangi {item_name} dari {owner}.")
 
-    # hasil efek
-    effect = i.get("effect", "-")
-    drawback = i.get("drawback", "")
-    cost = i.get("cost", "")
-    rules = i.get("rules", "")
-    result_lines = []
+        # hasil efek
+        effect = i.get("effect", "-")
+        drawback = i.get("drawback", "")
+        cost = i.get("cost", "")
+        rules = i.get("rules", "")
+        result_lines = []
 
-    # parsing rules (jika ada)
-    if rules:
-        for rule in rules.split(";"):
-            r = rule.strip()
-            if not r:
-                continue
-            if r.startswith("+") or r.startswith("-"):
-                if "HP" in r.upper():
-                    import re
-                    amount = int(re.findall(r"[+-]?[0-9]+", r)[0])
-                    if "+" in r:
-                        result_lines.append(f"❤️ {owner} dipulihkan {amount} HP.")
-                    else:
-                        result_lines.append(f"💥 {owner} menerima {abs(amount)} damage.")
-            elif r.lower().startswith("gold:"):
-                val = int(r.split(":")[1])
-                result_lines.append(f"💰 {owner} gold berubah {val:+d}.")
-            elif r.lower().startswith("xp:"):
-                val = int(r.split(":")[1])
-                result_lines.append(f"⭐ {owner} XP bertambah {val}.")
-            elif r.lower().startswith("quest:"):
-                result_lines.append(f"📜 Quest event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("favor:"):
-                result_lines.append(f"🤝 Favor event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("scene:"):
-                result_lines.append(f"🌍 Scene event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("npc:"):
-                result_lines.append(f"👤 NPC event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("gm:"):
-                result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
+        # parsing rules (jika ada)
+        if rules:
+            for rule in rules.split(";"):
+                r = rule.strip()
+                if not r:
+                    continue
+                if r.startswith("+") or r.startswith("-"):
+                    if "HP" in r.upper():
+                        import re
+                        amount = int(re.findall(r"[+-]?[0-9]+", r)[0])
+                        if "+" in r:
+                            result_lines.append(f"❤️ {owner} dipulihkan {amount} HP.")
+                        else:
+                            result_lines.append(f"💥 {owner} menerima {abs(amount)} damage.")
+                elif r.lower().startswith("gold:"):
+                    val = int(r.split(":")[1])
+                    result_lines.append(f"💰 {owner} gold berubah {val:+d}.")
+                elif r.lower().startswith("xp:"):
+                    val = int(r.split(":")[1])
+                    result_lines.append(f"⭐ {owner} XP bertambah {val}.")
+                elif r.lower().startswith("quest:"):
+                    result_lines.append(f"📜 Quest event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("favor:"):
+                    result_lines.append(f"🤝 Favor event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("scene:"):
+                    result_lines.append(f"🌍 Scene event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("npc:"):
+                    result_lines.append(f"👤 NPC event: {r.split(':',1)[1]}")
+                elif r.lower().startswith("gm:"):
+                    result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
 
-    # buat embed hasil
-    narasi = f"✨ **{owner}** menggunakan **{i['name']}**. {effect}"
-    embed = discord.Embed(
-        title=f"🎒 {owner} menggunakan item!",
-        description=narasi,
-        color=discord.Color.green()
-    )
+        # buat embed hasil
+        narasi = f"✨ **{owner}** menggunakan **{i['name']}**. {effect}"
+        embed = discord.Embed(
+            title=f"🎒 {owner} menggunakan item!",
+            description=narasi,
+            color=discord.Color.green()
+        )
 
-    # tampilkan detail tambahan dari DB item
-    detail_lines = []
-    if drawback:
-        detail_lines.append(f"☠️ {drawback}")
-    if cost:
-        detail_lines.append(f"⚡ {cost}")
-    if rules:
-        detail_lines.append(f"📘 {rules}")
+        # tampilkan detail tambahan dari DB item
+        detail_lines = []
+        if drawback:
+            detail_lines.append(f"☠️ {drawback}")
+        if cost:
+            detail_lines.append(f"⚡ {cost}")
+        if rules:
+            detail_lines.append(f"📘 {rules}")
 
-    if detail_lines:
-        embed.add_field(name="📖 Detail Item", value="\n".join(detail_lines), inline=False)
+        if detail_lines:
+            embed.add_field(name="📖 Detail Item", value="\n".join(detail_lines), inline=False)
 
-    if result_lines:
-        embed.add_field(name="⚙️ Efek Mekanik", value="\n".join(result_lines), inline=False)
+        if result_lines:
+            embed.add_field(name="⚙️ Efek Mekanik", value="\n".join(result_lines), inline=False)
 
-    await ctx.send(embed=embed)
-# === Gunakan item (consumable) ===
-@inv_group.command(name="use")
-async def inv_use(self, ctx, owner: str, *, item_name: str):
-    guild_id = ctx.guild.id
-
-    # cek item di katalog
-    i = item_service.get_item(guild_id, item_name)
-    if not i:
-        return await ctx.send(f"❌ Item **{item_name}** tidak ditemukan di katalog.")
-
-    # cek inventory
-    inv = inventory_service.get_inventory(guild_id, owner)
-    entry = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
-    if not entry or entry["qty"] <= 0:
-        return await ctx.send(f"❌ {owner} tidak punya item {item_name}.")
-
-    # kurangi 1 qty (pakai item_name biar konsisten di DB)
-    ok = inventory_service.remove_item(guild_id, owner, item_name, 1, user_id=str(ctx.author.id))
-    if not ok:
-        return await ctx.send(f"❌ Gagal mengurangi {item_name} dari {owner}.")
-
-    # hasil efek
-    effect = i.get("effect", "-")
-    drawback = i.get("drawback", "")
-    cost = i.get("cost", "")
-    rules = i.get("rules", "")
-    result_lines = []
-
-    # parsing rules (jika ada)
-    if rules:
-        for rule in rules.split(";"):
-            r = rule.strip()
-            if not r:
-                continue
-            if r.startswith("+") or r.startswith("-"):
-                if "HP" in r.upper():
-                    import re
-                    amount = int(re.findall(r"[+-]?[0-9]+", r)[0])
-                    if "+" in r:
-                        result_lines.append(f"❤️ {owner} dipulihkan {amount} HP.")
-                    else:
-                        result_lines.append(f"💥 {owner} menerima {abs(amount)} damage.")
-            elif r.lower().startswith("gold:"):
-                val = int(r.split(":")[1])
-                result_lines.append(f"💰 {owner} gold berubah {val:+d}.")
-            elif r.lower().startswith("xp:"):
-                val = int(r.split(":")[1])
-                result_lines.append(f"⭐ {owner} XP bertambah {val}.")
-            elif r.lower().startswith("quest:"):
-                result_lines.append(f"📜 Quest event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("favor:"):
-                result_lines.append(f"🤝 Favor event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("scene:"):
-                result_lines.append(f"🌍 Scene event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("npc:"):
-                result_lines.append(f"👤 NPC event: {r.split(':',1)[1]}")
-            elif r.lower().startswith("gm:"):
-                result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
-
-    # buat embed hasil
-    narasi = f"✨ **{owner}** menggunakan **{i['name']}**. {effect}"
-    embed = discord.Embed(
-        title=f"🎒 {owner} menggunakan item!",
-        description=narasi,
-        color=discord.Color.green()
-    )
-
-    # tampilkan detail tambahan dari DB item
-    detail_lines = []
-    if drawback:
-        detail_lines.append(f"☠️ {drawback}")
-    if cost:
-        detail_lines.append(f"⚡ {cost}")
-    if rules:
-        detail_lines.append(f"📘 {rules}")
-
-    if detail_lines:
-        embed.add_field(name="📖 Detail Item", value="\n".join(detail_lines), inline=False)
-
-    if result_lines:
-        embed.add_field(name="⚙️ Efek Mekanik", value="\n".join(result_lines), inline=False)
-
-    await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
     # === Recalculate carry semua karakter (tanpa party) ===
     @inv_group.command(name="recalc_all")
@@ -324,6 +240,7 @@ async def inv_use(self, ctx, owner: str, *, item_name: str):
             lines.append(f"⚖️ {c['name']}: {total:.1f} / {cap:.1f}")
 
         await ctx.send("\n".join(lines))
+
 
 async def setup(bot):
     await bot.add_cog(Inventory(bot))
