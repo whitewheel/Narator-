@@ -145,32 +145,58 @@ def embed_status() -> discord.Embed:
 
 def embed_enemy() -> discord.Embed:
     e = _embed_base(_title("enemy", "Enemy Commands"), color=discord.Color.from_rgb(255, 159, 64))
+    
+    # Tambah & Lihat
     e.add_field(
         name="Tambah & Lihat",
         value=(
-            "`!enemy add <Nama>`\n"
-            "Contoh: `!enemy add Rustborn`\n\n"
-            "`!enemy show [Nama]` • `!enemy gmshow [Nama]`\n"
-            "`!enemy remove <Nama>`"
+            "`!enemy add <Nama> <HP> [EN] [ST] [--xp N] [--gold N] [--loot ...]`\n"
+            "Contoh: `!enemy add Necrohusk 200 50 50 --xp 150 --gold 30`\n\n"
+            "`!enemy show [Nama]` → status untuk player (tanpa angka HP)\n"
+            "`!enemy gmshow [Nama]` → status lengkap untuk GM\n"
+            "`!enemy remove <Nama>` → hapus enemy\n"
+            "`!enemy reveal <OldName> <NewName>` → ubah nama musuh"
         ),
         inline=False
     )
+
+    # Combat & Efek
     e.add_field(
         name="Combat & Efek",
         value=(
-            "`!edmg <Nama> <Jumlah>` • `!eheal <Nama> <Jumlah>`\n"
-            "Contoh: `!edmg Rustborn 7`\n\n"
+            "`!edmg <Nama> <Jumlah>` → musuh menerima damage (notif mati jika HP=0)\n"
+            "`!eheal <Nama> <Jumlah>` → musuh dipulihkan\n\n"
             "`!ebuff <Nama> <Teks>` • `!edebuff <Nama> <Teks>`\n"
-            "Contoh: `!ebuff Rustborn Rage +2 STR`"
+            "Contoh: `!ebuff Necrohusk Rage +2 STR`\n"
+            "Contoh: `!edebuff Necrohusk Poison -2 CON`\n\n"
+            "`!enemy clearbuff <Nama>` • `!enemy cleardebuff <Nama>`"
         ),
         inline=False
     )
+
+    # Resource
+    e.add_field(
+        name="Resource (Stamina & Energy)",
+        value=(
+            "`!enemy stam- <Nama> <N>` → kurangi stamina\n"
+            "`!enemy stam+ <Nama> <N>` → regen stamina\n"
+            "`!enemy ene- <Nama> <N>` → kurangi energi\n"
+            "`!enemy ene+ <Nama> <N>` → regen energi\n\n"
+            "Alias cepat (GM only): `!estam-`, `!estam+`, `!eene-`, `!eene+`"
+        ),
+        inline=False
+    )
+
+    # Loot & Reward
     e.add_field(
         name="Loot & Reward",
         value=(
-            "`!enemy loot <Nama>`\n"
-            "`!enemy reward <Nama>`\n"
-            "Contoh: `!enemy reward Rustborn`"
+            "`!enemy loot <Enemy> <Char>`\n"
+            "Contoh: `!enemy loot Necrohusk Udab`\n\n"
+            "`!enemy reward <Enemy> <Char>`\n"
+            "Contoh: `!enemy reward Necrohusk Udab`\n\n"
+            "💡 Loot otomatis masuk ke inventory karakter.\n"
+            "💡 Reward otomatis menambah XP & Gold karakter."
         ),
         inline=False
     )
