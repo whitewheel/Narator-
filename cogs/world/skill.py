@@ -23,7 +23,7 @@ class Skill(commands.Cog):
         )
 
     # === Tampilkan skill milik karakter ===
-    @skill_group.command(name="show")
+    @skill.command(name="show")   # ✅ FIX: bukan skill_group
     async def skill_show(self, ctx, char: str):
         """
         Tampilkan daftar skill milik karakter
