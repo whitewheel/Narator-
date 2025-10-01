@@ -22,43 +22,45 @@ class Skill(commands.Cog):
             "Library → `!skill library add/list/info/remove/update`"
         )
 
+    # === Tampilkan skill milik karakter ===
     @skill.command(name="show")
     async def skill_show(self, ctx, char: str):
-        """
-        Tampilkan daftar skill milik karakter, dipisah per kategori
-        """
-        skills = await skill_service.get_char_skills(ctx.guild.id, char)
-        if not skills:
-            return await ctx.send(f"❌ Karakter `{char}` belum punya skill.")
+        """Tampilkan daftar skill milik karakter, dipisah per kategori"""
+        try:
+            skills = skill_service.get_char_skills(ctx.guild.id, char)
+            if not skills:
+                return await ctx.send(f"❌ Karakter `{char}` belum punya skill.")
 
-        e = discord.Embed(
-            title=f"📘 Skill {char}",
-            description=f"Daftar skill yang dimiliki {char}, dikelompokkan per kategori:",
-            color=discord.Color.purple()
-        )
-
-        # group by category
-        categories = {}
-        for sk in skills:
-            categories.setdefault(sk["category"], []).append(sk)
-
-        for cat, group in categories.items():
-            emoji = CATEGORY_EMOJI.get(cat, "✨")
-            value_lines = []
-            for sk in group:
-                efek = sk.get("effect", "-")
-                cost = sk.get("cost", "-")
-                drawback = sk.get("drawback", "-")
-                value_lines.append(
-                    f"**{sk['name']} (Lv {sk['level']})**\nEfek: {efek}\nCost: {cost}\nDrawback: {drawback}"
-                )
-            e.add_field(
-                name=f"{emoji} {cat}",
-                value="\n\n".join(value_lines),
-                inline=False
+            e = discord.Embed(
+                title=f"📘 Skill {char}",
+                description=f"Daftar skill yang dimiliki {char}, dikelompokkan per kategori:",
+                color=discord.Color.purple()
             )
 
-        await ctx.send(embed=e)
+            # group by category
+            categories = {}
+            for sk in skills:
+                categories.setdefault(sk["category"], []).append(sk)
+
+            for cat, group in categories.items():
+                emoji = CATEGORY_EMOJI.get(cat, "✨")
+                value_lines = []
+                for sk in group:
+                    efek = sk.get("effect", "-")
+                    cost = sk.get("cost", "-")
+                    drawback = sk.get("drawback", "-")
+                    value_lines.append(
+                        f"**{sk['name']} (Lv {sk['level']})**\nEfek: {efek}\nCost: {cost}\nDrawback: {drawback}"
+                    )
+                e.add_field(
+                    name=f"{emoji} {cat}",
+                    value="\n\n".join(value_lines),
+                    inline=False
+                )
+
+            await ctx.send(embed=e)
+        except Exception as err:
+            await ctx.send(f"⚠️ Debug error: {type(err).__name__} - {err}")
 
     @skill.command(name="use")
     async def skill_use(self, ctx, char_name: str, *, skill_name: str):
