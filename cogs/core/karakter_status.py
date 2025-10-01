@@ -71,6 +71,10 @@ def _stamina_status(cur: int, mx: int) -> str:
     elif pct >= 25: return "😩 Hampir kelelahan"
     else: return "🥴 Ambruk kelelahan"
 
+def _xp_required(level: int) -> int:
+    """Hitung XP yang dibutuhkan untuk naik dari level ini ke berikutnya."""
+    return int(100 * (1.5 ** (level - 1)))
+
 # ===== Embed Builder =====
 
 async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
@@ -103,10 +107,15 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             f"CHA {final_stats['cha']}{note_line}"
         )
 
+        # === Profile (Lv, XP progress, Gold) ===
+        cur_level = c.get('level', 1)
+        cur_xp = c.get('xp', 0)
+        xp_need = _xp_required(cur_level)
+
         profile_line = (
-            f"Lv {c.get('level',1)} {c.get('class','')} {c.get('race','')} "
-            f"| XP {c.get('xp',0)} | 💰 {c.get('gold',0)} gold"
+            f"Lv {cur_level} | XP {cur_xp}/{xp_need} | 💰 {c.get('gold',0)} gold"
         )
+
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
 
