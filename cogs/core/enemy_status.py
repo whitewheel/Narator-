@@ -282,8 +282,13 @@ class EnemyStatus(commands.Cog):
     @commands.command(name="edmg")
     async def enemy_dmg_short(self, ctx, name: str, amount: int):
         new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
-        if new_hp is None: return await ctx.send("❌ Enemy tidak ditemukan.")
-        await ctx.send(f"💥 [GM] {name} menerima {amount} damage")
+        if new_hp is None:
+            return await ctx.send("❌ Enemy tidak ditemukan.")
+        
+        if new_hp <= 0:
+            await ctx.send(f"💀 Enemy **{name}** telah dikalahkan!")
+        else:
+            await ctx.send(f"💥 [GM] {name} menerima {amount} damage")
 
     @commands.command(name="eheal")
     async def enemy_heal_short(self, ctx, name: str, amount: int):
