@@ -59,6 +59,13 @@ def _ensure_exists(guild_id: int, table: str, name: str) -> dict:
     return fetchone(guild_id, f"SELECT * FROM {table} WHERE name=?", (name,))
 
 # ===============================
+# XP SCALING HELPER
+# ===============================
+def xp_required(level: int) -> int:
+    """Hitung XP yang dibutuhkan untuk naik dari level ini ke berikutnya."""
+    return int(100 * (1.5 ** (level - 1)))
+
+# ===============================
 # HP / VITALS
 # ===============================
 async def damage(guild_id: int, target_type, name, amount: int):
@@ -227,8 +234,22 @@ async def add_gold(guild_id: int, name, amount: int):
 
 async def add_xp(guild_id: int, name, amount: int):
     row = _ensure_exists(guild_id, "characters", name)
-    cur = int(row.get("xp") or 0)
-    new_val = cur + int(amount)
-    execute(guild_id, "UPDATE characters SET xp=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (new_val, row["id"]))
-    return new_val
+    cur_xp = int(row.get("xp") or 0)
+    cur_level = int(row.get("level") or 1)
+    new_xp = cur_xp + int(amount)
+
+    level_up = None
+
+    # loop untuk cek naik level berulang
+    while new_xp >= xp_required(cur_level):
+        new_xp -= xp_required(cur_level)
+        cur_level += 1
+        level_up = cur_level
+
+    execute(
+        guild_id,
+        "UPDATE characters SET xp=?, level=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (new_xp, cur_level, row["id"])
+    )
+
+    return level_up  # None kalau tidak naik level
