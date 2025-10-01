@@ -127,9 +127,14 @@ def reset_skills(guild_id: int, char_name: str) -> str:
     return f"♻️ Semua skill {char_name} direset."
 
 def get_char_skills(guild_id: int, char_name: str):
+    # versi fix → join dengan skill_library supaya ada detail
     return fetchall(
         guild_id,
-        "SELECT s.category, s.name, s.level FROM skills s WHERE s.guild_id=? AND s.char_name=? ORDER BY s.category",
+        "SELECT s.category, s.name, s.level, l.effect, l.drawback, l.cost "
+        "FROM skills s "
+        "JOIN skill_library l ON s.skill_id = l.id "
+        "WHERE s.guild_id=? AND s.char_name=? "
+        "ORDER BY s.category",
         (guild_id, char_name),
     )
 
