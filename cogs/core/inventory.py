@@ -69,7 +69,7 @@ class Inventory(commands.Cog):
 
         await ctx.send(f"🧹 Semua item di inventory **{owner}** telah dibersihkan.")
 
-    # === Lihat inventory (ikon + nama + qty + efek) ===
+    # === Lihat inventory (ikon + nama + qty + detail) ===
     @inv_group.command(name="show")
     async def inv_show(self, ctx, owner: str = "party"):
         guild_id = ctx.guild.id
@@ -87,17 +87,29 @@ class Inventory(commands.Cog):
         if char:
             cap = char.get("carry_capacity", 0) or 0
             used = char.get("carry_used", 0) or 0
-            embed.description = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**"
+            embed.description = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**\n-----------------------"
 
+        item_lines = []
         for it in items:
             item = item_service.get_item(guild_id, it["item"])
             icon = item.get("icon", "📦") if item else "📦"
             effect = item.get("effect", "-") if item else "-"
-            embed.add_field(
-                name=f"{icon} {it['item']} x{it['qty']}",
-                value=f"✨ {effect}",
-                inline=False
-            )
+            drawback = item.get("drawback", "") if item else ""
+            cost = item.get("cost", "") if item else ""
+            rules = item.get("rules", "") if item else ""
+
+            desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
+            if drawback:
+                desc += f"\n☠️ {drawback}"
+            if cost:
+                desc += f"\n⚡ {cost}"
+            if rules:
+                desc += f"\n📘 {rules}"
+
+            item_lines.append(desc)
+
+        # gabung jadi satu block besar biar ada spasi antar item
+        embed.add_field(name="Items", value="\n\n".join(item_lines), inline=False)
 
         await ctx.send(embed=embed)
 
