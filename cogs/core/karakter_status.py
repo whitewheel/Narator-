@@ -143,6 +143,7 @@ async def make_embed_page2(c, ctx):
         eq = {s: "" for s in SLOTS}
         eq["mods"] = []
 
+    # --- Equipment slots ---
     equip_lines = []
     for slot in SLOTS:
         item_name = eq.get(slot, "")
@@ -153,12 +154,21 @@ async def make_embed_page2(c, ctx):
             item = item_service.get_item(ctx.guild.id, item_name)
             item_icon = item.get("icon", "📦") if item else "📦"
             effect = item.get("effect", "-") if item else "-"
+            drawback = item.get("drawback", "") if item else ""
             rules = item.get("rules", "") if item else ""
-            line = f"{icon} {slot}\n{item_icon} {item_name}\n   ✨ {effect}"
+            cost = item.get("cost", "") if item else ""
+            line = f"{icon} {slot}\n{item_icon} {item_name}"
+            if effect:
+                line += f"\n   ✨ {effect}"
+            if drawback:
+                line += f"\n   ☠️ {drawback}"
+            if cost:
+                line += f"\n   ⚡ {cost}"
             if rules:
-                line += f"\n   📝 {rules}"
+                line += f"\n   📘 {rules}"
         equip_lines.append(line + "\n-")
 
+    # --- Mods ---
     mods = eq.get("mods", [])
     mod_lines = []
     if mods:
@@ -166,14 +176,23 @@ async def make_embed_page2(c, ctx):
             item = item_service.get_item(ctx.guild.id, m)
             icon = item.get("icon", "📦") if item else "📦"
             effect = item.get("effect", "-") if item else "-"
+            drawback = item.get("drawback", "") if item else ""
             rules = item.get("rules", "") if item else ""
-            line = f"• {icon} **{m}**\n   ✨ {effect}"
+            cost = item.get("cost", "") if item else ""
+            line = f"• {icon} **{m}**"
+            if effect:
+                line += f"\n   ✨ {effect}"
+            if drawback:
+                line += f"\n   ☠️ {drawback}"
+            if cost:
+                line += f"\n   ⚡ {cost}"
             if rules:
-                line += f"\n   📝 {rules}"
-            mod_lines.append(line)
+                line += f"\n   📘 {rules}"
+            mod_lines.append(line + "\n-")
     else:
         mod_lines.append("(-) tidak ada mod")
 
+    # --- Inventory ringkas ---
     items = inventory_service.get_inventory(ctx.guild.id, c["name"])
     inv_line = "\n".join([f"({it['qty']}x) {it['item']}" for it in items]) or "-"
 
@@ -425,3 +444,4 @@ class CharacterStatus(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(CharacterStatus(bot))
+
