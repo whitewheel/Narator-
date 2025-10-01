@@ -146,36 +146,39 @@ async def make_embed_page2(c, ctx):
     equip_lines = []
     for slot in SLOTS:
         item_name = eq.get(slot, "")
+        icon = SLOT_ICONS.get(slot, "▫️")
         if not item_name:
-            continue
-        item = item_service.get_item(ctx.guild.id, item_name)
-        icon = item.get("icon", "📦") if item else "📦"
-        effect = item.get("effect", "-") if item else "-"
-        rules = item.get("rules", "") if item else ""
-        line = f"{icon} {slot}: **{item_name}**\n   ✨ {effect}"
-        if rules:
-            line += f"\n   📝 {rules}"
-        equip_lines.append(line)
+            line = f"{icon} {slot}\n(-)"
+        else:
+            item = item_service.get_item(ctx.guild.id, item_name)
+            item_icon = item.get("icon", "📦") if item else "📦"
+            effect = item.get("effect", "-") if item else "-"
+            rules = item.get("rules", "") if item else ""
+            line = f"{icon} {slot}\n{item_icon} {item_name}\n   ✨ {effect}"
+            if rules:
+                line += f"\n   📝 {rules}"
+        equip_lines.append(line + "\n-")
 
     mods = eq.get("mods", [])
     mod_lines = []
-    for m in mods:
-        item = item_service.get_item(ctx.guild.id, m)
-        icon = item.get("icon", "📦") if item else "📦"
-        effect = item.get("effect", "-") if item else "-"
-        rules = item.get("rules", "") if item else ""
-        line = f"• {icon} **{m}**\n   ✨ {effect}"
-        if rules:
-            line += f"\n   📝 {rules}"
-        mod_lines.append(line)
+    if mods:
+        for m in mods:
+            item = item_service.get_item(ctx.guild.id, m)
+            icon = item.get("icon", "📦") if item else "📦"
+            effect = item.get("effect", "-") if item else "-"
+            rules = item.get("rules", "") if item else ""
+            line = f"• {icon} **{m}**\n   ✨ {effect}"
+            if rules:
+                line += f"\n   📝 {rules}"
+            mod_lines.append(line)
+    else:
+        mod_lines.append("(-) tidak ada mod")
 
     items = inventory_service.get_inventory(ctx.guild.id, c["name"])
     inv_line = "\n".join([f"({it['qty']}x) {it['item']}" for it in items]) or "-"
 
-    if equip_lines:
-        embed.add_field(name="🎒 Equipment", value="\n".join(equip_lines), inline=False)
-    if mod_lines:
-        embed.add_field(name="🧩 Mods", value="\n".join(mod_lines), inline=False)
+    embed.add_field(name="🎒 Equipment", value="\n".join(equip_lines), inline=False)
+    embed.add_field(name="🧩 Mods", value="\n".join(mod_lines), inline=False)
     embed.add_field(name="📦 Inventory", value=inv_line, inline=False)
 
     return embed
@@ -422,4 +425,3 @@ class CharacterStatus(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(CharacterStatus(bot))
-
