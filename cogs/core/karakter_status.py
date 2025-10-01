@@ -2,7 +2,7 @@ import math
 import json
 import discord
 from discord.ext import commands
-from services import status_service, inventory_service
+from services import status_service, inventory_service, item_service
 from services.equipment_service import SLOT_ICONS, SLOTS
 from utils.db import fetchall, fetchone, execute
 
@@ -107,7 +107,6 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             f"CHA {final_stats['cha']}{note_line}"
         )
 
-        # === Profile (Lv, XP progress, Gold) ===
         cur_level = c.get('level', 1)
         cur_xp = c.get('xp', 0)
         xp_need = _xp_required(cur_level)
@@ -119,39 +118,13 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
 
-        # equipment slot
-        eq = json.loads(c.get("equipment") or "{}")
-        if not eq:
-            eq = {s: "" for s in SLOTS}
-
-        equip_block = "\n".join([
-            f"{SLOT_ICONS.get(slot,'▫️')} {slot}: {eq.get(slot) or '(kosong)'}"
-            for slot in SLOTS
-        ])
-
-        # inventory
-        items = inventory_service.get_inventory(ctx.guild.id, c["name"])
-        inv_line = "\n".join([
-            f"({it['qty']}x) {it['item']}"
-            for it in items
-        ]) or "-"
-
-        # companions
-        comp_list = json.loads(c.get("companions") or "[]")
-        comp_line = "\n".join([
-            f"{comp['name']} ({comp.get('type','')}) HP:{comp.get('hp','-')} - {comp.get('notes','')}"
-            for comp in comp_list
-        ]) or "-"
-
         value = (
             f"{profile_line}\n\n"
             f"❤️ HP {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
             f"🔋 Energy {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
             f"⚡ Stamina {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
             f"📊 Stats\n{stats_line}\n\n"
-            f"⚔️ Combat\n{combat_line}\n{carry_line}\n\n"
-            f"🎒 Equipment\n{equip_block}\n\n"
-            f"📦 Inventory\n{inv_line}"
+            f"⚔️ Combat\n{combat_line}\n{carry_line}"
         )
         embed.add_field(name=f"🧍 {c['name']}", value=value, inline=False)
 
@@ -159,10 +132,79 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             embed.add_field(name="✨ Buffs", value="\n".join([f"✅ {_format_effect(b)}" for b in buffs]), inline=False)
         if debuffs:
             embed.add_field(name="☠️ Debuffs", value="\n".join([f"❌ {_format_effect(d)}" for d in debuffs]), inline=False)
-        if comp_list:
-            embed.add_field(name="🐾 Companions", value=comp_line, inline=False)
 
     return embed
+
+async def make_embed_page2(c, ctx):
+    embed = discord.Embed(title=f"🧍 Equipment & Mods: {c['name']}", color=discord.Color.blurple())
+
+    eq = json.loads(c.get("equipment") or "{}")
+    if not eq:
+        eq = {s: "" for s in SLOTS}
+        eq["mods"] = []
+
+    equip_lines = []
+    for slot in SLOTS:
+        item_name = eq.get(slot, "")
+        if not item_name:
+            continue
+        item = item_service.get_item(ctx.guild.id, item_name)
+        icon = item.get("icon", "📦") if item else "📦"
+        effect = item.get("effect", "-") if item else "-"
+        rules = item.get("rules", "") if item else ""
+        line = f"{icon} {slot}: **{item_name}**\n   ✨ {effect}"
+        if rules:
+            line += f"\n   📝 {rules}"
+        equip_lines.append(line)
+
+    mods = eq.get("mods", [])
+    mod_lines = []
+    for m in mods:
+        item = item_service.get_item(ctx.guild.id, m)
+        icon = item.get("icon", "📦") if item else "📦"
+        effect = item.get("effect", "-") if item else "-"
+        rules = item.get("rules", "") if item else ""
+        line = f"• {icon} **{m}**\n   ✨ {effect}"
+        if rules:
+            line += f"\n   📝 {rules}"
+        mod_lines.append(line)
+
+    items = inventory_service.get_inventory(ctx.guild.id, c["name"])
+    inv_line = "\n".join([f"({it['qty']}x) {it['item']}" for it in items]) or "-"
+
+    if equip_lines:
+        embed.add_field(name="🎒 Equipment", value="\n".join(equip_lines), inline=False)
+    if mod_lines:
+        embed.add_field(name="🧩 Mods", value="\n".join(mod_lines), inline=False)
+    embed.add_field(name="📦 Inventory", value=inv_line, inline=False)
+
+    return embed
+
+# ===== Pagination View =====
+
+class StatusView(discord.ui.View):
+    def __init__(self, ctx, c):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.c = c
+        self.page = 1
+
+    async def update_embed(self, interaction):
+        if self.page == 1:
+            embed = await make_embed([self.c], self.ctx, title=f"🧍 Status {self.c['name']}")
+        else:
+            embed = await make_embed_page2(self.c, self.ctx)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.gray)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = 1
+        await self.update_embed(interaction)
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.gray)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = 2
+        await self.update_embed(interaction)
 
 # ===== Cog =====
 
@@ -173,14 +215,15 @@ class CharacterStatus(commands.Cog):
     # ==== Base Group ====
     @commands.group(name="status", invoke_without_command=True)
     async def status_group(self, ctx):
+        await ctx.send("Gunakan: `!status all` atau `!status show <nama>`")
+
+    @status_group.command(name="all")
+    async def status_all(self, ctx):
         guild_id = ctx.guild.id
         rows = fetchall(guild_id, "SELECT * FROM characters")
-
-        # refresh semua carry sebelum tampil
         for r in rows:
             inventory_service.calc_carry(guild_id, r["name"])
-
-        embed = await make_embed(rows, ctx)
+        embed = await make_embed(rows, ctx, title="🧍 Semua Status Karakter")
         await ctx.send(embed=embed)
 
     # ==== Show Commands ====
@@ -191,8 +234,10 @@ class CharacterStatus(commands.Cog):
         row = fetchone(guild_id, "SELECT * FROM characters WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+
         embed = await make_embed([row], ctx, title=f"🧍 Status {name}")
-        await ctx.send(embed=embed)
+        view = StatusView(ctx, row)
+        await ctx.send(embed=embed, view=view)
 
     # ==== Combat (HP) ====
     @commands.command(name="dmg")
@@ -377,3 +422,4 @@ class CharacterStatus(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(CharacterStatus(bot))
+
