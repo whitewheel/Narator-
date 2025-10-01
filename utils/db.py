@@ -309,16 +309,17 @@ def init_db(guild_id: int) -> None:
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS favors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER NOT NULL,
         char_name TEXT,
         user_id TEXT,
         faction TEXT NOT NULL,
         favor INTEGER DEFAULT 0,
         notes TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(char_name, faction)
+        UNIQUE(guild_id, char_name, faction)
     );
     """)
-
+    
     # 13) Factions
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS factions (
