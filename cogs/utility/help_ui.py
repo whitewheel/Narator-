@@ -532,14 +532,16 @@ def embed_classrace() -> discord.Embed:
 
 def embed_skill() -> discord.Embed:
     e = _embed_base(_title("skill", "Skill Commands"), color=discord.Color.from_rgb(0, 200, 200))
-      # Player Commands
+    # Player Commands
     e.add_field(
         name="Player",
         value=(
             "`!skill show <Char>` → lihat semua skill karakter\n"
             "Contoh: `!skill show Udab`\n\n"
+            "`!skill show <Char> <Kategori>` → lihat skill per kategori (Basic/Learning/Racial/Augment/Item)\n"
+            "Contoh: `!skill show Udab Basic`\n\n"
             "`!skill use <Char> <Skill>` → gunakan skill (efek, drawback, cost)\n"
-            "Contoh: `!skill use Udab Strike Fokus`"
+            "Contoh: `!skill use Udab Athletics`"
         ),
         inline=False
     )
@@ -548,8 +550,7 @@ def embed_skill() -> discord.Embed:
         name="GM",
         value=(
             "`!skill add <Char> <SkillName/ID> [Lv]`\n"
-            "Contoh: `!skill add Udab Athletics 2`\n"
-            "Contoh: `!skill add Nyx 5` (pakai ID kalau perlu)\n\n"
+            "Contoh: `!skill add Udab Athletics 2`\n\n"
             "`!skill remove <Char> <SkillName>`\n"
             "Contoh: `!skill remove Udab Athletics`\n\n"
             "`!skill reset <Char>` → hapus semua skill karakter\n"
@@ -563,19 +564,18 @@ def embed_skill() -> discord.Embed:
         name="Library",
         value=(
             "`!skill library add <Kategori> <Nama> <Efek> <Drawback> <Cost>`\n"
-            "Contoh: `!skill library add Basic Athletics \"Kemampuan fisik dasar\" \"Butuh stamina\" \"ST Cost\"`\n\n"
-            "`!skill library list` → lihat semua skill (group per kategori, pagination 10/halaman)\n"
+            "Contoh: `!skill library add Basic Athletics \"Kemampuan fisik dasar\" \"Butuh stamina\" \"ST 1\"\n\n"
+            "`!skill library list` → lihat semua skill (group per kategori, pagination)\n"
             "`!skill library list Basic` → hanya kategori Basic\n\n"
             "`!skill library info <Nama/ID>`\n"
             "Contoh: `!skill library info Athletics`\n\n"
             "`!skill library remove <Nama/ID>`\n"
             "Contoh: `!skill library remove Athletics`\n\n"
             "`!skill library update <Nama/ID> <Efek> <Drawback> <Cost>`\n"
-            "Contoh: `!skill library update Athletics \"+2 STR\" \"-1 ST\" \"ST Cost\"`"
+            "Contoh: `!skill library update Athletics \"+2 STR\" \"-1 ST\" \"ST 1\"`"
         ),
         inline=False
     )
-    
     return e
 
 def embed_utility() -> discord.Embed:
