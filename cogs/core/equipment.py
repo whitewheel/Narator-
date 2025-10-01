@@ -8,6 +8,7 @@ VALID_SLOTS = [
     "armor_inner", "armor_outer",
     "accessory1", "accessory2", "accessory3",
     "augment1", "augment2", "augment3",
+    "mod",   # slot khusus untuk unlimited mods
 ]
 
 class Equipment(commands.Cog):
@@ -20,6 +21,7 @@ class Equipment(commands.Cog):
             "🧰 **Equipment Commands**\n"
             "• `!equip set <char> <slot> <item>` → pasang item\n"
             "• `!equip remove <char> <slot>` → lepas item\n"
+            "• `!equip remove_mod <char> <item>` → lepas mod tertentu\n"
             "• `!equip show <char>` → lihat semua slot\n\n"
             f"Slot valid: `{', '.join(VALID_SLOTS)}`"
         )
@@ -39,7 +41,7 @@ class Equipment(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    # === Lepas item ===
+    # === Lepas item dari slot biasa ===
     @equip_group.command(name="remove")
     async def equip_remove(self, ctx, char: str, slot: str):
         guild_id = ctx.guild.id
@@ -49,6 +51,21 @@ class Equipment(commands.Cog):
 
         embed = discord.Embed(
             title="🛑 Unequip Item" if ok else "❌ Unequip Gagal",
+            description=msg,
+            color=discord.Color.orange() if ok else discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+
+    # === Lepas mod tertentu ===
+    @equip_group.command(name="remove_mod")
+    async def equip_remove_mod(self, ctx, char: str, *, item: str):
+        guild_id = ctx.guild.id
+        ok, msg = equipment_service.remove_mod(
+            guild_id, char, item, user_id=str(ctx.author.id)
+        )
+
+        embed = discord.Embed(
+            title="🧩 Remove Mod" if ok else "❌ Remove Mod Gagal",
             description=msg,
             color=discord.Color.orange() if ok else discord.Color.red()
         )
