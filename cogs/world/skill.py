@@ -22,46 +22,90 @@ class Skill(commands.Cog):
             "Library → `!skill library add/list/info/remove/update`"
         )
 
-    # === Tampilkan skill milik karakter ===
+    # === SHOW SKILLS ===
     @skill.command(name="show")
-    async def skill_show(self, ctx, char: str):
-        """Tampilkan daftar skill milik karakter, dipisah per kategori"""
-        try:
-            skills = skill_service.get_char_skills(ctx.guild.id, char)
-            if not skills:
-                return await ctx.send(f"❌ Karakter `{char}` belum punya skill.")
+    async def skill_show(self, ctx, char: str, category: str = None):
+        """
+        Tampilkan skill milik karakter, bisa difilter per kategori.
+        """
+        skills = skill_service.get_char_skills(ctx.guild.id, char)
+        if not skills:
+            return await ctx.send(f"❌ Karakter `{char}` belum punya skill.")
 
-            e = discord.Embed(
-                title=f"📘 Skill {char}",
-                description=f"Daftar skill yang dimiliki {char}, dikelompokkan per kategori:",
+        # filter by category
+        if category:
+            category = category.title()
+            skills = [s for s in skills if s["category"] == category]
+            if not skills:
+                return await ctx.send(f"❌ `{char}` tidak punya skill kategori {category}.")
+
+        # ambil detail library
+        details = []
+        for sk in skills:
+            lib = skill_service.get_library_info(ctx.guild.id, sk["name"])
+            if lib:
+                details.append({
+                    "name": lib["name"],
+                    "category": sk["category"],
+                    "level": sk["level"],
+                    "effect": lib.get("effect", "-"),
+                    "cost": lib.get("cost", "-"),
+                    "drawback": lib.get("drawback", "-"),
+                })
+            else:
+                details.append({
+                    "name": sk["name"],
+                    "category": sk["category"],
+                    "level": sk["level"],
+                    "effect": "⚠️ Tidak ada detail di library.",
+                    "cost": "-",
+                    "drawback": "-"
+                })
+
+        # group per 10 untuk pagination
+        pages = []
+        for i in range(0, len(details), 10):
+            chunk = details[i:i+10]
+            embed = discord.Embed(
+                title=f"📘 Skill {char}" + (f" – {category}" if category else ""),
+                description="Daftar skill karakter.",
                 color=discord.Color.purple()
             )
-
-            # group by category
-            categories = {}
-            for sk in skills:
-                categories.setdefault(sk["category"], []).append(sk)
-
-            for cat, group in categories.items():
-                emoji = CATEGORY_EMOJI.get(cat, "✨")
-                value_lines = []
-                for sk in group:
-                    efek = sk.get("effect", "-")
-                    cost = sk.get("cost", "-")
-                    drawback = sk.get("drawback", "-")
-                    value_lines.append(
-                        f"**{sk['name']} (Lv {sk['level']})**\nEfek: {efek}\nCost: {cost}\nDrawback: {drawback}"
-                    )
-                e.add_field(
-                    name=f"{emoji} {cat}",
-                    value="\n\n".join(value_lines),
+            for row in chunk:
+                emoji = CATEGORY_EMOJI.get(row["category"], "✨")
+                embed.add_field(
+                    name=f"{emoji} {row['name']} (Lv {row['level']})",
+                    value=f"**Efek:** {row['effect']}\n**Cost:** {row['cost']}\n**Drawback:** {row['drawback']}",
                     inline=False
                 )
+            pages.append(embed)
 
-            await ctx.send(embed=e)
-        except Exception as err:
-            await ctx.send(f"⚠️ Debug error: {type(err).__name__} - {err}")
+        cur_page = 0
+        message = await ctx.send(embed=pages[cur_page])
 
+        if len(pages) == 1:
+            return
+
+        await message.add_reaction("⬅️")
+        await message.add_reaction("➡️")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                if str(reaction.emoji) == "➡️" and cur_page < len(pages)-1:
+                    cur_page += 1
+                    await message.edit(embed=pages[cur_page])
+                elif str(reaction.emoji) == "⬅️" and cur_page > 0:
+                    cur_page -= 1
+                    await message.edit(embed=pages[cur_page])
+                await message.remove_reaction(reaction, user)
+            except:
+                break
+
+    # === USE SKILL ===
     @skill.command(name="use")
     async def skill_use(self, ctx, char_name: str, *, skill_name: str):
         row = skill_service.use_skill(ctx.guild.id, char_name, skill_name)
@@ -130,7 +174,6 @@ class Skill(commands.Cog):
             await ctx.send("❌ Belum ada skill di library.")
             return
 
-        # group by category
         categories = {}
         for row in rows:
             categories.setdefault(row["category"], []).append(row)
@@ -152,7 +195,6 @@ class Skill(commands.Cog):
                     )
                 pages.append(embed)
 
-        # pagination
         cur_page = 0
         message = await ctx.send(embed=pages[cur_page])
         if len(pages) == 1:
