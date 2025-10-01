@@ -22,25 +22,42 @@ class Skill(commands.Cog):
             "Library → `!skill library add/list/info/remove/update`"
         )
 
-    # ===== PLAYER COMMANDS =====
-    @skill.command(name="show")
-    async def skill_show(self, ctx, char_name: str):
-        rows = skill_service.get_char_skills(ctx.guild.id, char_name)
-        if not rows:
-            await ctx.send(f"❌ {char_name} belum punya skill.")
-            return
+    # === Tampilkan skill milik karakter ===
+    @skill_group.command(name="show")
+    async def skill_show(self, ctx, char: str):
+        """
+        Tampilkan daftar skill milik karakter
+        """
+        skills = await skill_service.get_char_skills(ctx.guild.id, char)
+        if not skills:
+            return await ctx.send(f"❌ Karakter `{char}` belum punya skill.")
 
-        embed = discord.Embed(title=f"📜 Skill – {char_name}", color=discord.Color.teal())
-        categories = {}
-        for row in rows:
-            categories.setdefault(row["category"], []).append(
-                f"- {row['name']} (Lv {row['level']})"
-            )
-        for cat, skills in categories.items():
-            emoji = CATEGORY_EMOJI.get(cat, "✨")
-            embed.add_field(name=f"{emoji} {cat}", value="\n".join(skills), inline=False)
+        e = discord.Embed(
+            title=f"📘 Skill {char}",
+            description=f"Daftar skill yang dimiliki {char}:",
+            color=discord.Color.purple()
+        )
 
-        await ctx.send(embed=embed)
+        for sk in skills:
+            # Ambil detail dari library
+            lib = await skill_service.get_skill(ctx.guild.id, sk["nama"])
+            if lib:
+                efek = lib.get("efek", "-")
+                drawback = lib.get("drawback", "-")
+                cost = lib.get("cost", "-")
+                e.add_field(
+                    name=f"• {lib['nama']}",
+                    value=f"**Efek:** {efek}\n**Cost:** {cost}\n**Drawback:** {drawback}",
+                    inline=False
+                )
+            else:
+                e.add_field(
+                    name=f"• {sk['nama']}",
+                    value="⚠️ Detail skill tidak ada di library.",
+                    inline=False
+                )
+
+        await ctx.send(embed=e)
 
     @skill.command(name="use")
     async def skill_use(self, ctx, char_name: str, *, skill_name: str):
