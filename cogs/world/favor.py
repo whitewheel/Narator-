@@ -27,7 +27,9 @@ class Favor(commands.Cog):
 
     @favor.command(name="set")
     async def favor_set(self, ctx, char_name: str, faction: str, value: int, *, notes: str = ""):
-        msg = await favor_service.add_or_set_favor(ctx.guild.id, char_name, faction, value, notes)
+        """Set nilai favor ke angka tertentu"""
+        guild_id = ctx.guild.id
+        msg = await favor_service.add_or_set_favor(guild_id, char_name, faction, value, notes)
         await ctx.send(msg)
 
     @favor.command(name="mod")
