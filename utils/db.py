@@ -324,13 +324,16 @@ def init_db(guild_id: int) -> None:
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS factions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE,
+        guild_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
         desc TEXT,
         type TEXT DEFAULT 'general',
         hidden INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, name)
     );
     """)
+
 
     # 14) Shops
     _ensure_table(guild_id, """
@@ -391,7 +394,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
-    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_name ON factions(name);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
 
     # Auto-migrate
     _ensure_columns(guild_id, "factions", {
