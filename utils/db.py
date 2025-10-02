@@ -41,6 +41,21 @@ def fetchall(guild_id: int, sql: str, params: Iterable[Any] = ()) -> List[Dict[s
         cur = conn.execute(sql, tuple(params))
         return [dict(r) for r in cur.fetchall()]
 
+def check_schema(guild_id: int) -> dict:
+    """
+    Kembalikan dict {tabel: [list kolom]} untuk semua tabel di DB guild ini.
+    Bisa dipakai buat debug schema lama.
+    """
+    result = {}
+    with get_conn(guild_id) as conn:
+        cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [r[0] for r in cur.fetchall()]
+        for t in tables:
+            cur2 = conn.execute(f"PRAGMA table_info({t})")
+            cols = [r[1] for r in cur2.fetchall()]
+            result[t] = cols
+    return result
+
 # ===== Aliases untuk kompatibilitas kode lama =====
 def query_one(guild_id: int, sql: str, params: Iterable[Any] = ()):
     return fetchone(guild_id, sql, params)
