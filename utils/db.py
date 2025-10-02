@@ -196,20 +196,6 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-    _ensure_columns(guild_id, "enemies", {
-        "hp": "INTEGER DEFAULT 0",
-        "hp_max": "INTEGER DEFAULT 0",
-        "energy": "INTEGER DEFAULT 0",
-        "energy_max": "INTEGER DEFAULT 0",
-        "stamina": "INTEGER DEFAULT 0",
-        "stamina_max": "INTEGER DEFAULT 0",
-        "ac": "INTEGER DEFAULT 10",
-        "effects": "TEXT DEFAULT '[]'",
-        "xp_reward": "INTEGER DEFAULT 0",
-        "gold_reward": "INTEGER DEFAULT 0",
-        "loot": "TEXT DEFAULT '[]'"
-    })
-
     # 4) Allies
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS allies (
@@ -226,17 +212,6 @@ def init_db(guild_id: int) -> None:
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
-
-    _ensure_columns(guild_id, "allies", {
-        "hp": "INTEGER DEFAULT 0",
-        "hp_max": "INTEGER DEFAULT 0",
-        "energy": "INTEGER DEFAULT 0",
-        "energy_max": "INTEGER DEFAULT 0",
-        "stamina": "INTEGER DEFAULT 0",
-        "stamina_max": "INTEGER DEFAULT 0",
-        "ac": "INTEGER DEFAULT 10",
-        "effects": "TEXT DEFAULT '[]'"
-    })
 
     # 5) Quests
     _ensure_table(guild_id, """
@@ -320,9 +295,9 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-    # 12) Favors
+    # 12) Favors (FIXED → pakai plural)
     _ensure_table(guild_id, """
-    CREATE TABLE IF NOT EXISTS favor (
+    CREATE TABLE IF NOT EXISTS favors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guild_id INTEGER NOT NULL,
         char_name TEXT,
@@ -347,9 +322,8 @@ def init_db(guild_id: int) -> None:
         UNIQUE(guild_id, name)
     );
     """)
-    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
 
-    # --- MIGRASI untuk factions lama (kalau belum ada guild_id) ---
+    # --- MIGRASI untuk factions lama ---
     info = fetchall(guild_id, "PRAGMA table_info(factions)")
     cols = {c["name"] for c in info}
     if "guild_id" not in cols:
@@ -372,6 +346,9 @@ def init_db(guild_id: int) -> None:
         """, (guild_id,))
         execute(guild_id, "DROP TABLE factions")
         execute(guild_id, "ALTER TABLE factions_new RENAME TO factions")
+
+    # Baru bikin index setelah migrasi
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
 
     # 14) Shops
     _ensure_table(guild_id, """
@@ -432,7 +409,6 @@ def init_db(guild_id: int) -> None:
     );
     """)
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
-    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
 
     # Auto-migrate
     _ensure_columns(guild_id, "factions", {
