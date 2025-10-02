@@ -18,7 +18,7 @@ class Skill(commands.Cog):
     async def skill(self, ctx):
         await ctx.send(
             "Gunakan: Player → `!skill show/use` | "
-            "GM → `!skill add/remove/reset/gmglobal` | "
+            "GM → `!skill add/remove/edit/reset/gmglobal` | "
             "Library → `!skill library add/list/info/remove/update`"
         )
 
@@ -129,7 +129,7 @@ class Skill(commands.Cog):
         msg = skill_service.add_skill(ctx.guild.id, char_name, skill_ref)
         await ctx.send(msg)
 
-        @skill.command(name="edit")
+    @skill.command(name="edit")
     async def skill_edit(self, ctx, char_name: str, skill_name: str, level: int):
         """
         Update level skill karakter
