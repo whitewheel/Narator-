@@ -129,6 +129,14 @@ class Skill(commands.Cog):
         msg = skill_service.add_skill(ctx.guild.id, char_name, skill_ref)
         await ctx.send(msg)
 
+        @skill.command(name="edit")
+    async def skill_edit(self, ctx, char_name: str, skill_name: str, level: int):
+        """
+        Update level skill karakter
+        """
+        msg = skill_service.edit_skill(ctx.guild.id, char_name, skill_name, level)
+        await ctx.send(msg)
+
     @skill.command(name="remove")
     async def skill_remove(self, ctx, char_name: str, *, skill_name: str):
         msg = skill_service.remove_skill(ctx.guild.id, char_name, skill_name)
