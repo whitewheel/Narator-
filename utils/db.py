@@ -319,7 +319,7 @@ def init_db(guild_id: int) -> None:
         UNIQUE(guild_id, char_name, faction)
     );
     """)
-    
+
     # 13) Factions
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS factions (
@@ -333,6 +333,31 @@ def init_db(guild_id: int) -> None:
         UNIQUE(guild_id, name)
     );
     """)
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
+
+    # --- MIGRASI untuk factions lama (kalau belum ada guild_id) ---
+    info = fetchall(guild_id, "PRAGMA table_info(factions)")
+    cols = {c["name"] for c in info}
+    if "guild_id" not in cols:
+        execute(guild_id, """
+            CREATE TABLE IF NOT EXISTS factions_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                desc TEXT,
+                type TEXT DEFAULT 'general',
+                hidden INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(guild_id, name)
+            );
+        """)
+        execute(guild_id, """
+            INSERT INTO factions_new (guild_id, name, desc, type, hidden, created_at)
+            SELECT ?, name, desc, type, hidden, created_at
+            FROM factions;
+        """, (guild_id,))
+        execute(guild_id, "DROP TABLE factions")
+        execute(guild_id, "ALTER TABLE factions_new RENAME TO factions")
 
     # 14) Shops
     _ensure_table(guild_id, """
@@ -349,7 +374,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-        # 15) Items
+    # 15) Items
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -362,12 +387,12 @@ def init_db(guild_id: int) -> None:
         slot TEXT,
         notes TEXT,
         rules TEXT,
-        requirement TEXT,  -- baru
+        requirement TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
-        # 16) Skill Library
+    # 16) Skill Library
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS skill_library (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
