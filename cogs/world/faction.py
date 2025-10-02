@@ -26,27 +26,27 @@ class FactionPaginator(View):
         await interaction.response.edit_message(embed=self.pages[self.index], view=self)
 
     @button(label="⏮️", style=discord.ButtonStyle.gray)
-    async def first(self, interaction, button):
+    async def first(self, interaction, _):
         if interaction.user != self.user: return
         self.index = 0
         await self.update_msg(interaction)
 
     @button(label="◀️", style=discord.ButtonStyle.blurple)
-    async def prev(self, interaction, button):
+    async def prev(self, interaction, _):
         if interaction.user != self.user: return
         if self.index > 0:
             self.index -= 1
         await self.update_msg(interaction)
 
     @button(label="▶️", style=discord.ButtonStyle.blurple)
-    async def next(self, interaction, button):
+    async def next(self, interaction, _):
         if interaction.user != self.user: return
         if self.index < len(self.pages) - 1:
             self.index += 1
         await self.update_msg(interaction)
 
     @button(label="⏭️", style=discord.ButtonStyle.gray)
-    async def last(self, interaction, button):
+    async def last(self, interaction, _):
         if interaction.user != self.user: return
         self.index = len(self.pages) - 1
         await self.update_msg(interaction)
@@ -75,36 +75,66 @@ class Faction(commands.Cog):
 
     @faction.command(name="list")
     async def faction_list(self, ctx, ftype: str = None):
-        """List semua faction visible (bisa filter: corp/gang/city/etc)"""
+        """List semua faction visible (bisa filter: corp/gang/city/etc).
+        Kalau tanpa filter → group per kategori"""
         guild_id = ctx.guild.id
         rows = faction_service.list_factions(guild_id, include_hidden=False)
-        if ftype:
-            rows = [r for r in rows if r.get("type") == ftype]
 
         if not rows:
             return await ctx.send("❌ Tidak ada faction ditemukan.")
 
-        # === Bikin embed per halaman (10 per halaman) ===
+        # === Kalau pakai filter (misal !faction list corp) ===
+        if ftype:
+            rows = [r for r in rows if r.get("type") == ftype]
+            if not rows:
+                return await ctx.send(f"❌ Tidak ada faction dengan type `{ftype}`.")
+            
+            pages = []
+            chunk_size = 10
+            for i in range(0, len(rows), chunk_size):
+                chunk = rows[i:i+chunk_size]
+                embed = discord.Embed(
+                    title=f"🏷️ Daftar Factions ({ftype})",
+                    description="Faction yang diketahui publik.",
+                    color=discord.Color.blue()
+                )
+                for r in chunk:
+                    icon = FACTION_ICONS.get(r.get("type", "general"), "🏷️")
+                    embed.add_field(
+                        name=f"{icon} **{r['name']}**",
+                        value=r.get("desc", "-"),
+                        inline=False
+                    )
+                embed.set_footer(text=f"Halaman {len(pages)+1}/{(len(rows)-1)//chunk_size+1}")
+                pages.append(embed)
+
+            view = FactionPaginator(pages, ctx.author)
+            return await ctx.send(embed=pages[0], view=view)
+
+        # === Kalau tanpa filter → Group per kategori ===
+        categories = {}
+        for r in rows:
+            cat = r.get("type", "general")
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(r)
+
         pages = []
-        chunk_size = 10
-        for i in range(0, len(rows), chunk_size):
-            chunk = rows[i:i+chunk_size]
+        for cat, items in categories.items():
             embed = discord.Embed(
-                title=f"🏷️ Daftar Factions ({ftype if ftype else 'all'})",
-                description="Faction yang diketahui publik.",
+                title=f"{FACTION_ICONS.get(cat,'🏷️')} {cat.capitalize()} Factions",
+                description=f"Daftar faction type **{cat}**.",
                 color=discord.Color.blue()
             )
-            for r in chunk:
+            for r in items:
                 icon = FACTION_ICONS.get(r.get("type", "general"), "🏷️")
                 embed.add_field(
                     name=f"{icon} **{r['name']}**",
                     value=r.get("desc", "-"),
                     inline=False
                 )
-            embed.set_footer(text=f"Halaman {len(pages)+1}/{(len(rows)-1)//chunk_size+1}")
             pages.append(embed)
 
-        # kirim page pertama dengan tombol navigasi
         view = FactionPaginator(pages, ctx.author)
         await ctx.send(embed=pages[0], view=view)
 
