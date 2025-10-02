@@ -13,7 +13,7 @@ ICONS = {
 # ---------- Setup ----------
 def ensure_table(guild_id: int):
     execute(guild_id, """
-        CREATE TABLE IF NOT EXISTS favor (
+        CREATE TABLE IF NOT EXISTS favors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id INTEGER NOT NULL,
             char_name TEXT NOT NULL,
