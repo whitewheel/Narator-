@@ -334,7 +334,6 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-
     # 14) Shops
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS npc_shop (
