@@ -125,5 +125,26 @@ class Faction(commands.Cog):
         msg = faction_service.set_faction_type(guild_id, name, ftype)
         await ctx.send(msg)
 
+    @faction.command(name="resetdb")
+    @commands.has_permissions(administrator=True)
+    async def faction_resetdb(self, ctx):
+        """Reset tabel factions & favors (hapus semua data)."""
+        guild_id = ctx.guild.id
+        try:
+            from utils.db import execute
+            from services import faction_service, favor_service
+
+            # Drop tabel lama
+            execute(guild_id, "DROP TABLE IF EXISTS factions")
+            execute(guild_id, "DROP TABLE IF EXISTS favors")
+
+            # Buat ulang
+            faction_service.ensure_table(guild_id)
+            favor_service.ensure_table(guild_id)
+
+            await ctx.send("✅ Tabel `factions` & `favors` sudah direset. Semua data lama hilang.")
+        except Exception as e:
+            await ctx.send(f"❌ Gagal reset tabel: {e}")
+
 async def setup(bot):
     await bot.add_cog(Faction(bot))
