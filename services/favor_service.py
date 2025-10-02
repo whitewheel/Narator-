@@ -13,7 +13,7 @@ ICONS = {
 # ---------- Setup ----------
 def ensure_table(guild_id: int):
     execute(guild_id, """
-        CREATE TABLE IF NOT EXISTS favors (
+        CREATE TABLE IF NOT EXISTS favor (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id INTEGER NOT NULL,
             char_name TEXT NOT NULL,
@@ -24,8 +24,8 @@ def ensure_table(guild_id: int):
             UNIQUE(guild_id, char_name, faction)
         )
     """)
-    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_favor_char ON favors(char_name);")
-    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_favor_faction ON favors(faction);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_favor_char ON favor(char_name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_favor_faction ON favor(faction);")
 
 # ---------- Helper ----------
 def favor_status(value: int) -> str:
