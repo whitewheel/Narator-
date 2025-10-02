@@ -7,22 +7,59 @@ from utils.db import execute, fetchone, fetchall
 def ensure_table(guild_id: int):
     """
     Pastikan tabel factions ada & memiliki kolom guild_id.
+    Jika tabel lama tanpa guild_id terdeteksi, lakukan migrasi otomatis.
     """
-    execute(
-        guild_id,
-        """
-        CREATE TABLE IF NOT EXISTS factions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            desc TEXT,
-            type TEXT DEFAULT 'general',
-            hidden INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(guild_id, name)
+    # cek struktur tabel lama
+    info = fetchall(guild_id, "PRAGMA table_info(factions)")
+    existing_cols = {c["name"] for c in info}
+
+    if not info:
+        # tabel belum ada → buat baru
+        execute(
+            guild_id,
+            """
+            CREATE TABLE IF NOT EXISTS factions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                desc TEXT,
+                type TEXT DEFAULT 'general',
+                hidden INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(guild_id, name)
+            )
+            """
         )
-        """
-    )
+    elif "guild_id" not in existing_cols:
+        # tabel lama → MIGRASI
+        execute(
+            guild_id,
+            """
+            CREATE TABLE IF NOT EXISTS factions_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                desc TEXT,
+                type TEXT DEFAULT 'general',
+                hidden INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(guild_id, name)
+            )
+            """
+        )
+        # copy data lama → isi guild_id sesuai server sekarang
+        execute(
+            guild_id,
+            """
+            INSERT INTO factions_new (guild_id, name, desc, type, hidden, created_at)
+            SELECT ?, name, desc, type, hidden, created_at FROM factions
+            """,
+            (guild_id,)
+        )
+        execute(guild_id, "DROP TABLE factions")
+        execute(guild_id, "ALTER TABLE factions_new RENAME TO factions")
+
+    # index tetap
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name)")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_faction_type ON factions(type)")
 
