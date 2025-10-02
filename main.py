@@ -68,6 +68,7 @@ class MyBot(commands.Bot):
 
             # UTILITY
             "cogs.utility.roll",
+            "cogs.utility.db_admin",
             "cogs.utility.poll",
             "cogs.utility.multi",
             "cogs.utility.help_ui",
