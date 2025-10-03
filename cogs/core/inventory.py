@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from services import inventory_service, item_service
 from utils.db import fetchone, fetchall
+import math
 
 class Inventory(commands.Cog):
     def __init__(self, bot):
@@ -46,7 +47,7 @@ class Inventory(commands.Cog):
         else:
             await ctx.send(f"❌ {owner} tidak punya cukup {item}.")
 
-    # === Drop item (narasi berbeda) ===
+    # === Drop item ===
     @inv_group.command(name="drop")
     async def inv_drop(self, ctx, owner: str, item: str, qty: int = 1):
         guild_id = ctx.guild.id
@@ -69,7 +70,7 @@ class Inventory(commands.Cog):
 
         await ctx.send(f"🧹 Semua item di inventory **{owner}** telah dibersihkan.")
 
-    # === Lihat inventory (ikon + nama + qty + detail) ===
+    # === Lihat inventory dengan pagination ===
     @inv_group.command(name="show")
     async def inv_show(self, ctx, owner: str = "party"):
         guild_id = ctx.guild.id
@@ -77,41 +78,81 @@ class Inventory(commands.Cog):
         if not items:
             return await ctx.send(f"ℹ️ Inventory {owner} kosong.")
 
-        embed = discord.Embed(
-            title=f"🎒 Inventory: {owner}",
-            color=discord.Color.gold()
-        )
-
-        # tampilkan carry kalau owner karakter
+        # cek carry
         char = fetchone(guild_id, "SELECT carry_capacity, carry_used FROM characters WHERE name=?", (owner,))
+        carry_desc = None
         if char:
             cap = char.get("carry_capacity", 0) or 0
             used = char.get("carry_used", 0) or 0
-            embed.description = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**\n-----------------------"
+            carry_desc = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**\n-----------------------"
 
-        item_lines = []
-        for it in items:
-            item = item_service.get_item(guild_id, it["item"])
-            icon = item.get("icon", "📦") if item else "📦"
-            effect = item.get("effect", "-") if item else "-"
-            drawback = item.get("drawback", "") if item else ""
-            cost = item.get("cost", "") if item else ""
-            rules = item.get("rules", "") if item else ""
+        # fungsi buat bikin embed per page
+        def make_page(page_idx: int):
+            start = page_idx * 5
+            end = start + 5
+            subset = items[start:end]
 
-            desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
-            if drawback:
-                desc += f"\n☠️ {drawback}"
-            if cost:
-                desc += f"\n⚡ {cost}"
-            if rules:
-                desc += f"\n📘 {rules}"
+            embed = discord.Embed(
+                title=f"🎒 Inventory: {owner} (Page {page_idx+1}/{math.ceil(len(items)/5)})",
+                color=discord.Color.gold()
+            )
+            if carry_desc:
+                embed.description = carry_desc
 
-            item_lines.append(desc)
+            item_lines = []
+            for it in subset:
+                item = item_service.get_item(guild_id, it["item"])
+                icon = item.get("icon", "📦") if item else "📦"
+                effect = item.get("effect", "-") if item else "-"
+                drawback = item.get("drawback", "") if item else ""
+                cost = item.get("cost", "") if item else ""
+                rules = item.get("rules", "") if item else ""
 
-        # gabung jadi satu block besar biar ada spasi antar item
-        embed.add_field(name="Items", value="\n\n".join(item_lines), inline=False)
+                desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
+                if drawback:
+                    desc += f"\n☠️ {drawback}"
+                if cost:
+                    desc += f"\n⚡ {cost}"
+                if rules:
+                    desc += f"\n📘 {rules}"
 
-        await ctx.send(embed=embed)
+                item_lines.append(desc)
+
+            embed.add_field(name="Items", value="\n\n".join(item_lines), inline=False)
+            return embed
+
+        # buat view pagination
+        class InvView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=120)  # auto-expire 2 menit
+                self.page = 0
+                self.msg = None
+
+            async def update_page(self, interaction: discord.Interaction):
+                await interaction.response.edit_message(embed=make_page(self.page), view=self)
+
+            @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+            async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if self.page > 0:
+                    self.page -= 1
+                    await self.update_page(interaction)
+                else:
+                    await interaction.response.defer()
+
+            @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+            async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if (self.page + 1) * 5 < len(items):
+                    self.page += 1
+                    await self.update_page(interaction)
+                else:
+                    await interaction.response.defer()
+
+            @discord.ui.button(label="❌ Close", style=discord.ButtonStyle.danger)
+            async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+                await interaction.message.delete()
+
+        view = InvView()
+        await ctx.send(embed=make_page(0), view=view)
 
     # === Transfer item ===
     @inv_group.command(name="transfer")
@@ -144,30 +185,25 @@ class Inventory(commands.Cog):
     async def inv_use(self, ctx, owner: str, *, item_name: str):
         guild_id = ctx.guild.id
 
-        # cek item di katalog
         i = item_service.get_item(guild_id, item_name)
         if not i:
             return await ctx.send(f"❌ Item **{item_name}** tidak ditemukan di katalog.")
 
-        # cek inventory
         inv = inventory_service.get_inventory(guild_id, owner)
         entry = next((it for it in inv if it["item"].lower() == item_name.lower()), None)
         if not entry or entry["qty"] <= 0:
             return await ctx.send(f"❌ {owner} tidak punya item {item_name}.")
 
-        # kurangi 1 qty (pakai item_name biar konsisten di DB)
         ok = inventory_service.remove_item(guild_id, owner, item_name, 1, user_id=str(ctx.author.id))
         if not ok:
             return await ctx.send(f"❌ Gagal mengurangi {item_name} dari {owner}.")
 
-        # hasil efek
         effect = i.get("effect", "-")
         drawback = i.get("drawback", "")
         cost = i.get("cost", "")
         rules = i.get("rules", "")
         result_lines = []
 
-        # parsing rules (jika ada)
         if rules:
             for rule in rules.split(";"):
                 r = rule.strip()
@@ -198,7 +234,6 @@ class Inventory(commands.Cog):
                 elif r.lower().startswith("gm:"):
                     result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
 
-        # buat embed hasil
         narasi = f"✨ **{owner}** menggunakan **{i['name']}**. {effect}"
         embed = discord.Embed(
             title=f"🎒 {owner} menggunakan item!",
@@ -206,7 +241,6 @@ class Inventory(commands.Cog):
             color=discord.Color.green()
         )
 
-        # tampilkan detail tambahan dari DB item
         detail_lines = []
         if drawback:
             detail_lines.append(f"☠️ {drawback}")
@@ -223,7 +257,7 @@ class Inventory(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    # === Recalculate carry semua karakter (tanpa party) ===
+    # === Recalculate carry semua karakter ===
     @inv_group.command(name="recalc_all")
     async def inv_recalc_all(self, ctx):
         guild_id = ctx.guild.id
@@ -234,7 +268,7 @@ class Inventory(commands.Cog):
         lines = []
         for c in chars:
             if c["name"].lower() == "party":
-                continue  # skip party
+                continue
             total = inventory_service.calc_carry(guild_id, c["name"])
             cap = c.get("carry_capacity", 0)
             lines.append(f"⚖️ {c['name']}: {total:.1f} / {cap:.1f}")
