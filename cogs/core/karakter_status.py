@@ -324,6 +324,43 @@ class CharacterStatus(commands.Cog):
         new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount)
         await ctx.send(f"🔋 {name} menggunakan {amount} energy → tersisa {new_val}")
 
+        @commands.command(name="clearbuff")
+    async def clear_buff(self, ctx, name: str):
+        await status_service.clear_effects(ctx.guild.id, "char", name, is_buff=True)
+        await ctx.send(f"✨ Semua buff pada {name} dihapus.")
+
+    @commands.command(name="cleardebuff")
+    async def clear_debuff(self, ctx, name: str):
+        await status_service.clear_effects(ctx.guild.id, "char", name, is_buff=False)
+        await ctx.send(f"☠️ Semua debuff pada {name} dihapus.")
+
+    @commands.command(name="removebuff")
+    async def remove_buff(self, ctx, name: str, *, keyword: str):
+        """Hapus 1 buff spesifik dari karakter berdasarkan keyword."""
+        guild_id = ctx.guild.id
+        effects = fetchone(guild_id, "SELECT effects FROM characters WHERE name=?", (name,))
+        if not effects:
+            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        effs = json.loads(effects["effects"] or "[]")
+
+        new_effs = [e for e in effs if not (("buff" in e.get("type","").lower()) and keyword.lower() in e.get("text","").lower())]
+        execute(guild_id, "UPDATE characters SET effects=? WHERE name=?", (json.dumps(new_effs), name))
+        await ctx.send(f"✨ Buff dengan kata '{keyword}' dihapus dari {name}.")
+
+    @commands.command(name="removedebuff")
+    async def remove_debuff(self, ctx, name: str, *, keyword: str):
+        """Hapus 1 debuff spesifik dari karakter berdasarkan keyword."""
+        guild_id = ctx.guild.id
+        effects = fetchone(guild_id, "SELECT effects FROM characters WHERE name=?", (name,))
+        if not effects:
+            return await ctx.send(f"❌ Karakter {name} tidak ditemukan.")
+        effs = json.loads(effects["effects"] or "[]")
+
+        new_effs = [e for e in effs if not (("debuff" in e.get("type","").lower()) and keyword.lower() in e.get("text","").lower())]
+        execute(guild_id, "UPDATE characters SET effects=? WHERE name=?", (json.dumps(new_effs), name))
+        await ctx.send(f"☠️ Debuff dengan kata '{keyword}' dihapus dari {name}.")
+
+
     # ==== Setters ====
     @status_group.command(name="set")
     async def status_set(self, ctx, name: str, hp: int, energy: int, stamina: int):
