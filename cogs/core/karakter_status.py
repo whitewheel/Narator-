@@ -324,7 +324,7 @@ class CharacterStatus(commands.Cog):
         new_val = await status_service.use_resource(ctx.guild.id, "char", name, "energy", amount)
         await ctx.send(f"🔋 {name} menggunakan {amount} energy → tersisa {new_val}")
 
-        @commands.command(name="clearbuff")
+    @commands.command(name="clearbuff")
     async def clear_buff(self, ctx, name: str):
         await status_service.clear_effects(ctx.guild.id, "char", name, is_buff=True)
         await ctx.send(f"✨ Semua buff pada {name} dihapus.")
