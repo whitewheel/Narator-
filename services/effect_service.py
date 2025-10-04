@@ -1,4 +1,3 @@
-# services/effect_service.py
 import json
 import re
 from typing import Dict, List, Optional, Tuple
@@ -16,15 +15,17 @@ def ensure_effects_table(guild_id: int):
     execute(guild_id, """
     CREATE TABLE IF NOT EXISTS effects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE,
+        guild_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
         type TEXT,
         target_stat TEXT,
         formula TEXT,
-        duration INTEGER,
-        stack_mode TEXT,
-        max_stack INTEGER DEFAULT 3,
+        duration INTEGER DEFAULT 0,
+        stack_mode TEXT DEFAULT 'add',
         description TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        max_stack INTEGER DEFAULT 3,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, name)
     );
     """)
 
@@ -46,10 +47,10 @@ def add_effect_lib(
         guild_id,
         """
         INSERT OR REPLACE INTO effects
-          (name, type, target_stat, formula, duration, stack_mode, max_stack, description)
-        VALUES (?,?,?,?,?,?,?,?)
+          (guild_id, name, type, target_stat, formula, duration, stack_mode, max_stack, description)
+        VALUES (?,?,?,?,?,?,?,?,?)
         """,
-        (name.lower(), e_type, target_stat, formula, int(duration), stack_mode, int(max_stack), description),
+        (guild_id, name.lower(), e_type, target_stat, formula, int(duration), stack_mode, int(max_stack), description),
     )
 
 def get_effect_lib(guild_id: int, name: str) -> Optional[Dict]:
@@ -58,7 +59,7 @@ def get_effect_lib(guild_id: int, name: str) -> Optional[Dict]:
 
 def list_effects_lib(guild_id: int) -> List[Dict]:
     ensure_effects_table(guild_id)
-    return fetchall(guild_id, "SELECT * FROM effects ORDER BY name ASC")
+    return fetchall(guild_id, "SELECT * FROM effects WHERE guild_id=? ORDER BY name ASC", (guild_id,))
 
 def remove_effect_lib(guild_id: int, name: str) -> bool:
     ensure_effects_table(guild_id)
@@ -146,6 +147,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
             "mode": mode,
             "formula": lib.get("formula") or "",
             "target_stat": lib.get("target_stat") or "",
+            "description": lib.get("description") or ""
         }
 
     # Multi-instance
@@ -212,13 +214,21 @@ def get_active_effects(guild_id: int, target_name: str):
 # ===============================
 # TICK (manual-GM mode)
 # ===============================
-def _format_eff_line(e: Dict) -> str:
+def _format_eff_line(e: Dict, guild_id: int) -> str:
     dur = int(e.get("duration", -1))
     dur_txt = f"{dur}" if dur >= 0 else "∞"
-    form = e.get("formula") or ""
+    form = e.get("formula") or "-"
     stack = e.get("stack", 1)
     stack_txt = f" Lv{stack}" if stack > 1 else ""
-    return f"{e.get('text','')}{stack_txt} — {form or '-'} [Durasi: {dur_txt}]"
+
+    # Ambil deskripsi langsung dari DB
+    desc = e.get("description", "")
+    if not desc and e.get("id"):
+        row = fetchone(guild_id, "SELECT description FROM effects WHERE name=?", (e["id"].lower(),))
+        if row and row.get("description"):
+            desc = row["description"]
+
+    return f"🔹 **{e.get('text','')}**{stack_txt} — {form} *(sisa {dur_txt} turn)*\n🛈 {desc or '(tidak ada deskripsi)'}"
 
 async def tick_effects(guild_id: int) -> Dict:
     results = {"char": {}, "enemy": {}, "ally": {}}
@@ -248,7 +258,7 @@ async def tick_effects(guild_id: int) -> Dict:
 # ===============================
 # EMBED BUILDER
 # ===============================
-def build_tick_embed(discord, guild_name: str, results: Dict, engaged: list = None):
+def build_tick_embed(discord, guild_id: int, guild_name: str, results: Dict, engaged: list = None):
     embed = discord.Embed(
         title="⏳ Tick Round Effects",
         description=f"Server: **{guild_name}**\n(Manual GM mode — tidak ada auto damage)",
@@ -263,11 +273,11 @@ def build_tick_embed(discord, guild_name: str, results: Dict, engaged: list = No
             return
         lines = []
         for name, info in data.items():
-            active = [f"• {_format_eff_line(e)}" for e in info.get("active", [])] or ["-"]
+            active = [_format_eff_line(e, guild_id) for e in info.get("active", [])] or ["(tidak ada efek aktif)"]
             expired = [f"• {e.get('text','')}" for e in info.get("expired", [])]
             block = f"**{name}**\n✨ Active:\n" + "\n".join(active)
             if expired:
-                block += "\n⌛ Expired:\n" + "\n".join(expired)
+                block += "\n⌛ **Expired:**\n" + "\n".join(expired)
             lines.append(block)
         embed.add_field(name=f"{icon} {label}", value="\n\n".join(lines), inline=False)
 
