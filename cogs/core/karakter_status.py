@@ -35,14 +35,14 @@ def _apply_effects(base_stats, effects):
     return stats, notes
 
 def _format_effect_line(e):
-    """Format efek aktif dengan ANSI warna + deskripsi di bawahnya."""
+    """Format efek aktif (tanpa warna ANSI, tapi tetap ada deskripsi)."""
     name = e.get("name", e.get("text", "???"))
     typ = e.get("type", "").lower()
     dur = e.get("remaining", e.get("duration", -1))
     dur_txt = f"{dur} turn" if dur >= 0 else "∞"
     desc = e.get("description", "")
 
-    # fallback auto deskripsi
+    # fallback deskripsi otomatis
     if not desc:
         lname = name.lower()
         if "bleed" in lname:
@@ -66,20 +66,8 @@ def _format_effect_line(e):
         elif "jammed" in lname:
             desc = "Sistem terganggu – tidak bisa menggunakan senjata jarak jauh."
 
-    # warna ANSI
-    if typ == "buff":
-        color = "38;5;82"  # hijau
-    elif typ == "debuff":
-        color = "38;5;196"  # merah
-    else:
-        color = "38;5;214"  # oranye / status netral
-
-    # tampilkan efek dengan nama berwarna + deskripsi di bawahnya
-    return (
-        f"🔹 ```ansi\n[{color}m{name}[0m ({dur_txt})\n```"
-        f"{desc}"
-    )
-
+    # tampilan default
+    return f"🔹 **{name}** ({dur_txt})\n{desc}"
 def _status_text(cur: int, mx: int) -> str:
     if mx <= 0:
         return "❓ Tidak diketahui"
