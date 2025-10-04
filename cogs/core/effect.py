@@ -102,7 +102,7 @@ class EffectCog(commands.Cog):
             line = (
                 f"• **{e.get('text','')}** {'Lv'+str(stack) if stack>1 else ''}\n"
                 f"   ┗ `{form}` [Durasi: {dur_txt}]\n"
-                f"   🛈 {desc}"
+                f"   {desc}"
             )
             lines.append(line)
         embed = discord.Embed(
@@ -111,21 +111,6 @@ class EffectCog(commands.Cog):
             color=discord.Color.purple()
         )
         await ctx.send(embed=embed)
-
-    @effect_group.command(name="clear")
-    async def effect_clear(self, ctx, *, target_name: str):
-        ok, msg = await effect_service.clear_effects(ctx.guild.id, target_name)
-        await ctx.send(msg)
-
-    @effect_group.command(name="clearbuff")
-    async def effect_clearbuff(self, ctx, *, target_name: str):
-        ok, msg = await effect_service.clear_effects(ctx.guild.id, target_name, is_buff=True)
-        await ctx.send(msg)
-
-    @effect_group.command(name="cleardebuff")
-    async def effect_cleardebuff(self, ctx, *, target_name: str):
-        ok, msg = await effect_service.clear_effects(ctx.guild.id, target_name, is_buff=False)
-        await ctx.send(msg)
 
     # =========================
     # APPLY & TICK
@@ -168,7 +153,6 @@ class EffectCog(commands.Cog):
         )
 
         any_data = False
-
         for ttype, table_name, icon in [
             ("char", "Characters", "🧍"),
             ("enemy", "Enemies", "👹"),
@@ -176,19 +160,14 @@ class EffectCog(commands.Cog):
         ]:
             data = results.get(ttype) or {}
             lines = []
-
             for name, info in data.items():
                 if name not in engaged_names:
                     continue
-
                 active = info.get("active", [])
                 expired = info.get("expired", [])
-
                 if not active and not expired:
                     continue
-
                 any_data = True
-
                 active_lines = []
                 for e in active:
                     d = e.get("duration", -1)
@@ -199,15 +178,12 @@ class EffectCog(commands.Cog):
                     line = (
                         f"🔹 **{e.get('text','')}**{stack_txt}\n"
                         f"   ┗ `{formula}` *(sisa {d} turn)*\n"
-                        f"   🛈 {desc}"
+                        f"   {desc}"
                     )
                     active_lines.append(line)
-
                 if not active_lines:
                     active_lines = ["• *(tidak ada efek aktif)*"]
-
                 expired_lines = [f"• ~~{e.get('text','')}~~" for e in expired]
-
                 block = f"**{name}**\n" + "\n".join(active_lines)
                 if expired_lines:
                     block += "\n\n⌛ **Expired:**\n" + "\n".join(expired_lines)
