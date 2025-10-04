@@ -3,7 +3,7 @@ import json
 import discord
 from discord.ext import commands
 from utils.db import fetchall, fetchone, execute
-from services import status_service
+from services import status_service, effect_service
 
 # ===== Utility =====
 
@@ -19,7 +19,15 @@ def _mod(score: int) -> int:
 
 def _format_effect(e):
     d = e.get("duration", -1)
-    return f"{e['text']} [Durasi: {d if d >= 0 else 'Permanent'}]"
+    dur_txt = "∞" if d == -1 else f"{d}"
+    stack = e.get("stack", 1)
+    form = e.get("formula", "")
+    txt = e.get("text", "")
+    if stack > 1:
+        txt += f" Lv{stack}"
+    if form:
+        txt += f" ({form})"
+    return f"{txt} [Dur: {dur_txt}]"
 
 def _hp_status(cur: int, mx: int) -> str:
     if mx <= 0: return "❓ Tidak diketahui"
@@ -182,73 +190,60 @@ class AllyStatus(commands.Cog):
     @ally.command(name="dmg")
     async def ally_dmg(self, ctx, name: str, amount: int):
         new_hp = await status_service.damage(ctx.guild.id, "ally", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"💥 {name} menerima damage")
+        await ctx.send(f"💥 {name} menerima {amount} damage → HP sekarang {new_hp}")
 
     @ally.command(name="heal")
     async def ally_heal(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} dipulihkan")
+        await ctx.send(f"✨ {name} dipulihkan {amount} HP → {new_hp}")
 
     # === Resource Ops (Stamina & Energy) ===
     @ally.command(name="stam-")
     async def ally_stam_use(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"⚡ {name} kehilangan stamina")
+        await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
+        await ctx.send(f"⚡ {name} kehilangan stamina {amount}")
 
     @ally.command(name="stam+")
     async def ally_stam_regen(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} memulihkan stamina")
+        await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
+        await ctx.send(f"✨ {name} memulihkan stamina {amount}")
 
     @ally.command(name="ene-")
     async def ally_ene_use(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"🔋 {name} kehilangan energi")
+        await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
+        await ctx.send(f"🔋 {name} kehilangan energi {amount}")
 
     @ally.command(name="ene+")
     async def ally_ene_regen(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ {name} memulihkan energi")
+        await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
+        await ctx.send(f"✨ {name} memulihkan energi {amount}")
 
-    # === Buff / Debuff ===
+    # === Buff / Debuff (integrasi effect_service) ===
     @ally.command(name="buff")
-    async def ally_buff(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "ally", name, text, is_buff=True)
-        await ctx.send(f"✨ Buff ditambahkan ke {name}: {text}")
+    async def ally_buff(self, ctx, name: str, effect_name: str, duration: int = None):
+        msg = await status_service.add_effect(ctx.guild.id, "ally", name, effect_name, duration, is_buff=True)
+        await ctx.send(msg)
 
     @ally.command(name="debuff")
-    async def ally_debuff(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "ally", name, text, is_buff=False)
-        await ctx.send(f"☠️ Debuff ditambahkan ke {name}: {text}")
+    async def ally_debuff(self, ctx, name: str, effect_name: str, duration: int = None):
+        msg = await status_service.add_effect(ctx.guild.id, "ally", name, effect_name, duration, is_buff=False)
+        await ctx.send(msg)
 
     @ally.command(name="clearbuff")
     async def ally_clearbuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=True)
-        await ctx.send(f"✨ Semua buff dihapus dari {name}")
+        msg = await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=True)
+        await ctx.send(msg)
 
     @ally.command(name="cleardebuff")
     async def ally_cleardebuff(self, ctx, name: str):
-        await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=False)
-        await ctx.send(f"☠️ Semua debuff dihapus dari {name}")
+        msg = await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=False)
+        await ctx.send(msg)
 
     # === Remove / Clear ===
     @ally.command(name="remove")
     async def ally_remove(self, ctx, *, name: str):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
-
         row = fetchone(guild_id, "SELECT id FROM allies WHERE name=?", (name,))
         if not row:
             return await ctx.send(f"❌ Ally **{name}** tidak ditemukan.")
@@ -259,62 +254,8 @@ class AllyStatus(commands.Cog):
     async def ally_clear(self, ctx):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
-
         execute(guild_id, "DELETE FROM allies")
         await ctx.send("🧹 Semua ally dihapus.")
-
-    # === GM Short Aliases ===
-    @commands.command(name="admg")
-    async def ally_dmg_short(self, ctx, name: str, amount: int):
-        new_hp = await status_service.damage(ctx.guild.id, "ally", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"💥 [GM] {name} menerima damage")
-
-    @commands.command(name="aheal")
-    async def ally_heal_short(self, ctx, name: str, amount: int):
-        new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
-        if new_hp is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} dipulihkan")
-
-    @commands.command(name="abuff")
-    async def ally_buff_short(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "ally", name, text, is_buff=True)
-        await ctx.send(f"✨ [GM] Buff ditambahkan ke {name}: {text}")
-
-    @commands.command(name="adebuff")
-    async def ally_debuff_short(self, ctx, name: str, *, text: str):
-        await status_service.add_effect(ctx.guild.id, "ally", name, text, is_buff=False)
-        await ctx.send(f"☠️ [GM] Debuff ditambahkan ke {name}: {text}")
-
-    @commands.command(name="astam-")
-    async def ally_stam_use_short(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"⚡ [GM] {name} kehilangan stamina")
-
-    @commands.command(name="astam+")
-    async def ally_stam_regen_short(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} memulihkan stamina")
-
-    @commands.command(name="aene-")
-    async def ally_ene_use_short(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"🔋 [GM] {name} kehilangan energi")
-
-    @commands.command(name="aene+")
-    async def ally_ene_regen_short(self, ctx, name: str, amount: int):
-        new_val = await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
-        if new_val is None:
-            return await ctx.send("❌ Ally tidak ditemukan.")
-        await ctx.send(f"✨ [GM] {name} memulihkan energi")
 
 async def setup(bot):
     await bot.add_cog(AllyStatus(bot))
