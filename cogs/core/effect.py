@@ -5,6 +5,7 @@ from discord.ext import commands
 from utils.db import fetchone
 from services import effect_service
 
+
 class EffectCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -131,10 +132,7 @@ class EffectCog(commands.Cog):
 
             embed = discord.Embed(
                 title=f"✏️ Efek '{name}' diperbarui",
-                description=(
-                    f"**Sebelum:**\n```{before_preview}```\n"
-                    f"**Sesudah:**\n```{after_preview}```"
-                ),
+                description=(f"**Sebelum:**\n```{before_preview}```\n**Sesudah:**\n```{after_preview}```"),
                 color=discord.Color.orange()
             )
             await ctx.send(embed=embed)
@@ -155,11 +153,7 @@ class EffectCog(commands.Cog):
                 f"• **{r['name']}** — {r['type']}, stat: {r['target_stat']}, "
                 f"formula: `{r['formula']}`, dur: {r['duration']}, mode: {r['stack_mode']}{desc}"
             )
-        embed = discord.Embed(
-            title="📚 Effect Library",
-            description="\n\n".join(lines),
-            color=discord.Color.green()
-        )
+        embed = discord.Embed(title="📚 Effect Library", description="\n\n".join(lines), color=discord.Color.green())
         await ctx.send(embed=embed)
 
     # === INFO ===
@@ -250,49 +244,10 @@ class EffectCog(commands.Cog):
             except Exception:
                 pass
 
-        embed = discord.Embed(
-            title="⏳ Tick Round Effects",
-            description=(
-                "🔹 **Proses Tick Ronde**\n"
-                "Kurangi durasi efek aktif setiap ronde baru.\n\n"
-                "🎲 Hanya peserta **yang sedang engage** akan ditampilkan.\n"
-                f"📜 Server: **{ctx.guild.name}**\n"
-                f"👥 Total peserta aktif: **{len(engaged_names)}**"
-            ),
-            color=discord.Color.from_rgb(255, 190, 90)
-        )
-
-        any_data = False
-        for ttype, table_name, icon in [("char","Characters","🧍"),("enemy","Enemies","👹"),("ally","Allies","🤝")]:
-            data = results.get(ttype) or {}
-            lines = []
-            for name, info in data.items():
-                if name not in engaged_names:
-                    continue
-                active = info.get("active", [])
-                expired = info.get("expired", [])
-                if not active and not expired:
-                    continue
-                any_data = True
-                active_lines = []
-                for e in active:
-                    d = e.get("duration", -1)
-                    desc = e.get("description") or "-"
-                    line = f"🔹 **{e.get('text','')}** *(sisa {d} turn)*\n{desc}"
-                    active_lines.append(line)
-                expired_lines = [f"• ~~{e.get('text','')}~~" for e in expired]
-                block = f"**{name}**\n" + "\n".join(active_lines)
-                if expired_lines:
-                    block += "\n\n⌛ **Expired:**\n" + "\n".join(expired_lines)
-                lines.append(block)
-            if lines:
-                embed.add_field(name=f"\n{icon} {table_name}", value="\n\n".join(lines), inline=False)
-
-        if not any_data:
-            embed.add_field(name="✅ Semua Efek Telah Berakhir",
-                            value="Tidak ada efek aktif maupun expired pada peserta engage.", inline=False)
+        embed = effect_service.build_tick_embed(discord, ctx.guild.id, ctx.guild.name, results, engaged_names)
         embed.set_footer(text="Gunakan !tick setiap ronde untuk memperbarui efek dan durasinya.")
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(EffectCog(bot))
