@@ -104,6 +104,17 @@ def _pretty_name(name: str) -> str:
 def _match_effect_instance(inst: Dict, lib_name: str) -> bool:
     return (inst.get("id") or "").lower() == lib_name.lower()
 
+def update_effect_field(guild_id: int, name: str, field: str, value: str):
+    """Update satu kolom di tabel effects."""
+    valid_fields = ["name", "type", "target_stat", "formula", "duration", "stack_mode", "description", "max_stack"]
+    if field not in valid_fields:
+        return False
+    row = fetchone(guild_id, "SELECT id FROM effects WHERE name=?", (name,))
+    if not row:
+        return False
+    execute(guild_id, f"UPDATE effects SET {field}=? WHERE name=?", (value, name))
+    return True
+
 # ===============================
 # APPLY / CLEAR / QUERY
 # ===============================
