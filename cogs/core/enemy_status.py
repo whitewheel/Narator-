@@ -53,7 +53,6 @@ def _stamina_status(cur: int, mx: int) -> str:
     else: return "🥴 Ambruk kelelahan"
 
 # ===== Embed Builder =====
-
 def make_embed(enemies: list, ctx, title="👹 Enemy Status", mode="player"):
     embed = discord.Embed(title=title, description="📜 Status Musuh", color=discord.Color.red())
     if not enemies:
@@ -62,14 +61,24 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status", mode="player"):
 
     for e in enemies:
         effects = json.loads(e.get("effects") or "[]")
-        buffs = [eff for eff in effects if "buff" in eff.get("type", "").lower()]
-        debuffs = [eff for eff in effects if "debuff" in eff.get("type", "").lower()]
-        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
-        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in debuffs]) or "-"
 
+        # ✅ FIX: pisahkan buff/debuff secara tegas
+        buffs = [eff for eff in effects if eff.get("type", "").lower() == "buff"]
+        debuffs = [eff for eff in effects if eff.get("type", "").lower() == "debuff"]
+
+        # ✅ FIX: hilangkan duplikasi efek kembar
+        unique_buffs = {eff.get("id", eff.get("text", "")): eff for eff in buffs}.values()
+        unique_debuffs = {eff.get("id", eff.get("text", "")): eff for eff in debuffs}.values()
+
+        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in unique_buffs]) or "-"
+        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in unique_debuffs]) or "-"
+
+        # Loot dan reward
         loot_list = json.loads(e.get("loot") or "[]")
         loot_line = "\n".join([f"- {it['name']} ({it.get('rarity','')})" for it in loot_list]) or "-"
+        reward_line = f"XP {e.get('xp_reward',0)} | Gold {e.get('gold_reward',0)}"
 
+        # Mode tampilan
         if mode == "gm":
             hp_line = f"❤️ HP: {e['hp']}/{e['hp_max']} [{_bar(e['hp'], e['hp_max'])}]"
             en_line = f"🔋 Energy: {e['energy']}/{e['energy_max']} [{_bar(e['energy'], e['energy_max'])}]"
@@ -79,8 +88,7 @@ def make_embed(enemies: list, ctx, title="👹 Enemy Status", mode="player"):
             en_line = f"🔋 Energi: {_energy_status(e['energy'], e['energy_max'])}"
             st_line = f"⚡ Stamina: {_stamina_status(e['stamina'], e['stamina_max'])}"
 
-        reward_line = f"XP {e.get('xp_reward',0)} | Gold {e.get('gold_reward',0)}"
-
+        # Final render
         value = (
             f"{hp_line}\n{en_line}\n{st_line}\n\n"
             f"✨ Buffs:\n{buffs_str}\n\n"
