@@ -408,6 +408,8 @@ def init_db(guild_id: int) -> None:
         level INTEGER DEFAULT 0
     );
     """)
+
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_effects_name ON effects(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
 
     # Auto-migrate
@@ -449,6 +451,11 @@ def init_db(guild_id: int) -> None:
         "info": "TEXT DEFAULT '{\"value\": \"\", \"visible\": 1}'",
         "status": "TEXT DEFAULT 'Alive'",
         "affiliation": "TEXT"
+    })
+
+        _ensure_columns(guild_id, "effects", {
+        "max_stack": "INTEGER DEFAULT 3",
+        "description": "TEXT"
     })
 
     _ensure_columns(guild_id, "favors", {
