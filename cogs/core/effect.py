@@ -190,23 +190,29 @@ class EffectCog(commands.Cog):
             return await ctx.send(table)
         if not effs:
             return await ctx.send(f"ℹ️ **{target_name}** tidak memiliki efek aktif.")
-        lines = []
-        for e in effs:
+
+        buffs = [e for e in effs if e.get("type", "").lower() == "buff"]
+        debuffs = [e for e in effs if e.get("type", "").lower() == "debuff"]
+
+        def fmt(e, icon):
             dur = e.get("duration", -1)
             dur_txt = f"{dur}" if dur >= 0 else "∞"
             stack = e.get("stack", 1)
+            form = e.get("formula", "")
             desc = e.get("description", "-")
-            line = (
-                f"• **{e.get('text','')}** {'Lv'+str(stack) if stack>1 else ''}\n"
-                f"   ⏳ Durasi: {dur_txt} turn\n"
-                f"   🛈 {desc}"
-            )
-            lines.append(line)
+            name = e.get("text", e.get("name", "???"))
+            lv = f" Lv{stack}" if stack > 1 else ""
+            return f"{icon} **{name}**{lv} [Dur: {dur_txt}] — {form}\n🛈 {desc}"
+
+        buffs_text = "\n\n".join(fmt(b, "✅") for b in buffs) if buffs else "- Tidak ada buff aktif -"
+        debuffs_text = "\n\n".join(fmt(d, "❌") for d in debuffs) if debuffs else "- Tidak ada debuff aktif -"
+
         embed = discord.Embed(
             title=f"🧷 Active Effects — {target_name}",
-            description="\n\n".join(lines),
             color=discord.Color.purple()
         )
+        embed.add_field(name="✨ Buffs", value=buffs_text, inline=False)
+        embed.add_field(name="☠️ Debuffs", value=debuffs_text, inline=False)
         await ctx.send(embed=embed)
 
     # === CLEAR ===
@@ -244,7 +250,9 @@ class EffectCog(commands.Cog):
             except Exception:
                 pass
 
-        embed = effect_service.build_tick_embed(discord, ctx.guild.id, ctx.guild.name, results, engaged_names)
+        embed = effect_service.build_tick_embed(
+            discord, ctx.guild.id, ctx.guild.name, results, engaged_names
+        )
         embed.set_footer(text="Gunakan !tick setiap ronde untuk memperbarui efek dan durasinya.")
         await ctx.send(embed=embed)
 
