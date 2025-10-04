@@ -101,9 +101,9 @@ class EnemyStatus(commands.Cog):
     async def enemy(self, ctx):
         await ctx.send(
             "Gunakan: `!enemy add`, `!enemy show`, `!enemy gmshow`, "
+            "`!enemy dmg`, `!enemy heal`, "
             "`!enemy buff`, `!enemy debuff`, `!enemy clearbuff`, `!enemy cleardebuff`, "
-            "`!enemy remove`, `!enemy loot`, `!enemy reward`, "
-            "`!enemy stam-`, `!enemy stam+`, `!enemy ene-`, `!enemy ene+`"
+            "`!enemy remove`, `!enemy stam-`, `!enemy stam+`, `!enemy ene-`, `!enemy ene+`"
         )
 
     # === Tambah / Update Enemy ===
@@ -171,25 +171,26 @@ class EnemyStatus(commands.Cog):
         embed = make_embed(rows, ctx, title=title, mode="gm")
         await ctx.send(embed=embed)
 
+    # === Combat Ops ===
+    @enemy.command(name="dmg")
+    async def enemy_dmg(self, ctx, name: str, amount: int):
+        new_hp = await status_service.damage(ctx.guild.id, "enemy", name, amount)
+        await ctx.send(f"💥 {name} menerima {amount} damage → HP sekarang {new_hp}")
+
+    @enemy.command(name="heal")
+    async def enemy_heal(self, ctx, name: str, amount: int):
+        new_hp = await status_service.heal(ctx.guild.id, "enemy", name, amount)
+        await ctx.send(f"✨ {name} dipulihkan {amount} HP → {new_hp}")
+
     # === Buff / Debuff ===
     @enemy.command(name="buff")
     async def enemy_buff(self, ctx, name: str, effect_name: str, duration: int = None):
-        ok, msg = await effect_service.apply_effect(ctx.guild.id, name, effect_name, duration)
+        msg = await status_service.add_effect(ctx.guild.id, "enemy", name, effect_name, duration, is_buff=True)
         await ctx.send(msg)
 
     @enemy.command(name="debuff")
     async def enemy_debuff(self, ctx, name: str, effect_name: str, duration: int = None):
-        ok, msg = await effect_service.apply_effect(ctx.guild.id, name, effect_name, duration)
-        await ctx.send(msg)
-
-    @enemy.command(name="clearbuff")
-    async def enemy_clearbuff(self, ctx, name: str):
-        ok, msg = await effect_service.clear_effects(ctx.guild.id, name, is_buff=True)
-        await ctx.send(msg)
-
-    @enemy.command(name="cleardebuff")
-    async def enemy_cleardebuff(self, ctx, name: str):
-        ok, msg = await effect_service.clear_effects(ctx.guild.id, name, is_buff=False)
+        msg = await status_service.add_effect(ctx.guild.id, "enemy", name, effect_name, duration, is_buff=False)
         await ctx.send(msg)
 
     # === Resource Ops ===
@@ -212,6 +213,32 @@ class EnemyStatus(commands.Cog):
     async def enemy_ene_regen(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "enemy", name, "energy", amount, regen=True)
         await ctx.send(f"✨ {name} memulihkan energi {amount}")
+
+    # === Alias Cepat ===
+    @commands.command(name="edmg")
+    async def enemy_dmg_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy dmg"), name=name, amount=amount)
+
+    @commands.command(name="eheal")
+    async def enemy_heal_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy heal"), name=name, amount=amount)
+
+    @commands.command(name="eusestm")
+    async def enemy_usestm_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy stam-"), name=name, amount=amount)
+
+    @commands.command(name="eaddstm")
+    async def enemy_addstm_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy stam+"), name=name, amount=amount)
+
+    @commands.command(name="euseene")
+    async def enemy_useene_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy ene-"), name=name, amount=amount)
+
+    @commands.command(name="eaddene")
+    async def enemy_addene_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("enemy ene+"), name=name, amount=amount)
+
 
 async def setup(bot):
     await bot.add_cog(EnemyStatus(bot))
