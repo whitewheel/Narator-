@@ -1,3 +1,4 @@
+# cogs/core/effect.py
 import json
 import discord
 from discord.ext import commands
@@ -14,17 +15,23 @@ class EffectCog(commands.Cog):
     @commands.group(name="effect", invoke_without_command=True)
     async def effect_group(self, ctx):
         embed = discord.Embed(
-            title="📚 Effect Library Commands",
+            title="📘 Effect / Buff-Debuff Commands",
             description=(
-                "• `!effect add <name> <type> <target_stat> <formula> <duration> <stack_mode> \"<desc>\" [max_stack]`\n"
-                "• `!effect edit <name> [field=value ...]`\n"
-                "• `!effect list`\n"
-                "• `!effect info <name>`\n"
-                "• `!effect remove <name>`\n"
-                "• `!effect active <target_name>`\n"
-                "• `!effect clear <target_name>` / `!effect clearbuff` / `!effect cleardebuff`\n\n"
-                "Apply efek: `!apply <target_name> <effect_name>`\n"
-                "Tick ronde: `!tick` (kurangi durasi efek)"
+                "**Library (GM)**\n"
+                "`!effect add <name> <type> <target_stat> <formula> <duration> <stack_mode> \"<desc>\" [max_stack]`\n"
+                "`!effect edit <name> <field> <value>` → ubah satu field\n"
+                "`!effect editfield <name> field=value ...` → ubah beberapa field\n"
+                "`!effect list` → lihat semua efek\n"
+                "`!effect info <name>` → lihat detail efek\n"
+                "`!effect remove <name>` → hapus dari library\n\n"
+                "**Active & Apply**\n"
+                "`!apply <Target> <EffectName> [DurationOverride]` → apply dari library\n"
+                "`!effect active <Target>` → daftar efek aktif target\n\n"
+                "**Cleanup & Tick**\n"
+                "`!effect clear <Target>` → hapus semua efek\n"
+                "`!effect clearbuff <Target>` → hanya buff\n"
+                "`!effect cleardebuff <Target>` → hanya debuff\n"
+                "`!tick` → kurangi durasi semua efek aktif"
             ),
             color=discord.Color.blurple()
         )
@@ -34,15 +41,18 @@ class EffectCog(commands.Cog):
     @effect_group.command(name="add")
     async def effect_add(self, ctx, name: str, e_type: str, target_stat: str, formula: str,
                          duration: int, stack_mode: str, *, desc_and_stack: str = ""):
-        """Tambah/replace entry efek ke DB."""
+        """Tambah atau perbarui efek dalam library."""
         try:
             desc = desc_and_stack.strip()
             max_stack = None
+
+            # Cek apakah ada angka terakhir sebagai max_stack
             parts = desc_and_stack.rsplit(" ", 1)
             if len(parts) == 2 and parts[1].isdigit():
                 desc = parts[0].strip()
                 max_stack = int(parts[1])
 
+            # Bersihkan tanda kutip
             if desc.startswith('"') and desc.endswith('"'):
                 desc = desc[1:-1]
             elif desc.startswith("'") and desc.endswith("'"):
@@ -52,21 +62,34 @@ class EffectCog(commands.Cog):
                 ctx.guild.id, name, e_type, target_stat, formula,
                 duration, stack_mode, desc, max_stack
             )
+
             msg = f"✅ Efek **{name}** ditambahkan/diupdate."
             if desc:
                 msg += f"\n🛈 Deskripsi: {desc}"
             await ctx.send(msg)
+
         except Exception as e:
             await ctx.send(f"❌ Gagal menambah efek: {e}")
 
-    # === EDIT EFFECT (revisi: aman & satu-satu) ===
+    # === EDIT (SINGLE FIELD) ===
     @effect_group.command(name="edit")
-    async def effect_edit(self, ctx, name: str, *fields):
+    async def effect_edit_single(self, ctx, name: str, field: str, *, value: str):
+        """Edit satu field dari efek (misal desc, formula, duration)."""
+        try:
+            ok = effect_service.update_effect_field(ctx.guild.id, name, field, value)
+            if not ok:
+                return await ctx.send(f"❌ Efek **{name}** tidak ditemukan atau field tidak valid.")
+            await ctx.send(f"✅ Efek **{name}** diperbarui: **{field}** → `{value}`")
+        except Exception as e:
+            await ctx.send(f"⚠️ Gagal mengedit efek: {e}")
+
+    # === EDIT (MULTI FIELD) ===
+    @effect_group.command(name="editfield")
+    async def effect_editfield(self, ctx, name: str, *fields):
         """
-        Ubah field efek tertentu.
+        Edit beberapa field sekaligus.
         Contoh:
-        !effect edit poison desc="Racun berat, damage lebih besar"
-        !effect edit bleed duration=4 formula=-2
+        !effect editfield poison desc="Racun berat" duration=4 formula=-2
         """
         try:
             current = effect_service.get_effect_lib(ctx.guild.id, name)
@@ -119,17 +142,6 @@ class EffectCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Gagal mengedit efek: {e}")
 
-    @effect_group.command(name="edit")
-    async def effect_edit(self, ctx, name: str, field: str, *, value: str):
-        """Edit field tertentu dari efek (misal desc, formula, duration, dll)."""
-        try:
-            ok = effect_service.update_effect_field(ctx.guild.id, name, field, value)
-            if not ok:
-                return await ctx.send(f"❌ Efek **{name}** tidak ditemukan atau field tidak valid.")
-            await ctx.send(f"✅ Efek **{name}** diperbarui: **{field}** → `{value}`")
-        except Exception as e:
-            await ctx.send(f"⚠️ Gagal mengedit efek: {e}")
-
     # === LIST ===
     @effect_group.command(name="list")
     async def effect_list(self, ctx):
@@ -138,14 +150,14 @@ class EffectCog(commands.Cog):
             return await ctx.send("ℹ️ Library efek kosong. Tambahkan dengan `!effect add`.")
         lines = []
         for r in rows:
-            desc = f" 🛈 {r['description']}" if r.get("description") else ""
+            desc = f"\n   🛈 {r['description']}" if r.get("description") else ""
             lines.append(
                 f"• **{r['name']}** — {r['type']}, stat: {r['target_stat']}, "
                 f"formula: `{r['formula']}`, dur: {r['duration']}, mode: {r['stack_mode']}{desc}"
             )
         embed = discord.Embed(
-            title="📘 Effect Library",
-            description="\n".join(lines),
+            title="📚 Effect Library",
+            description="\n\n".join(lines),
             color=discord.Color.green()
         )
         await ctx.send(embed=embed)
@@ -155,7 +167,7 @@ class EffectCog(commands.Cog):
     async def effect_info(self, ctx, name: str):
         r = effect_service.get_effect_lib(ctx.guild.id, name)
         if not r:
-            return await ctx.send(f"❌ Efek **{name}** tidak ada.")
+            return await ctx.send(f"❌ Efek **{name}** tidak ditemukan.")
         desc = (
             f"**Name**: {r['name']}\n"
             f"**Type**: {r['type']}\n"
@@ -165,7 +177,7 @@ class EffectCog(commands.Cog):
             f"**Stack Mode**: {r['stack_mode']} (max {r.get('max_stack',1)})\n"
             f"**Desc**: {r.get('description','-')}"
         )
-        embed = discord.Embed(title="ℹ️ Effect Info", description=desc, color=discord.Color.blue())
+        embed = discord.Embed(title=f"ℹ️ Effect Info — {r['name']}", description=desc, color=discord.Color.blue())
         await ctx.send(embed=embed)
 
     # === REMOVE ===
@@ -192,12 +204,12 @@ class EffectCog(commands.Cog):
             desc = e.get("description", "-")
             line = (
                 f"• **{e.get('text','')}** {'Lv'+str(stack) if stack>1 else ''}\n"
-                f"   [Durasi: {dur_txt} turn]\n"
-                f"   {desc}"
+                f"   ⏳ Durasi: {dur_txt} turn\n"
+                f"   🛈 {desc}"
             )
             lines.append(line)
         embed = discord.Embed(
-            title=f"🧷 Active Effects: {target_name}",
+            title=f"🧷 Active Effects — {target_name}",
             description="\n\n".join(lines),
             color=discord.Color.purple()
         )
@@ -242,9 +254,8 @@ class EffectCog(commands.Cog):
             title="⏳ Tick Round Effects",
             description=(
                 "🔹 **Proses Tick Ronde**\n"
-                "Gunakan perintah ini setiap kali ronde baru dimulai untuk "
-                "mengurangi **durasi semua efek aktif (buff/debuff)**.\n\n"
-                "🎲 Peserta yang **terlibat dalam encounter (initiative)** saja ditampilkan.\n"
+                "Kurangi durasi efek aktif setiap ronde baru.\n\n"
+                "🎲 Hanya peserta **yang sedang engage** akan ditampilkan.\n"
                 f"📜 Server: **{ctx.guild.name}**\n"
                 f"👥 Total peserta aktif: **{len(engaged_names)}**"
             ),
