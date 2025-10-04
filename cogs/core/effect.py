@@ -22,10 +22,9 @@ class EffectCog(commands.Cog):
                 "• `!effect info <name>`\n"
                 "• `!effect remove <name>`\n"
                 "• `!effect active <target_name>`\n"
-                "• `!effect clear <target_name>` (hapus semua)\n"
-                "• `!effect clearbuff <target_name>` / `!effect cleardebuff <target_name>`\n\n"
-                "Apply ke target: `!apply <target_name> <effect_name>`\n"
-                "Tick ronde: `!tick` (laporan efek & durasi)"
+                "• `!effect clear <target_name>` / `!effect clearbuff` / `!effect cleardebuff`\n\n"
+                "Apply efek: `!apply <target_name> <effect_name>`\n"
+                "Tick ronde: `!tick` (kurangi durasi efek)"
             ),
             color=discord.Color.blurple()
         )
@@ -35,32 +34,20 @@ class EffectCog(commands.Cog):
     @effect_group.command(name="add")
     async def effect_add(self, ctx, name: str, e_type: str, target_stat: str, formula: str,
                          duration: int, stack_mode: str, *, desc_and_stack: str = ""):
-        """
-        Tambah/replace entry di library efek DB.
-        Format:
-        !effect add <name> <type> <target_stat> <formula> <duration> <stack_mode> "<desc>" [max_stack]
-        
-        Contoh:
-        !effect add bleed debuff hp -1 3 stack "Luka berdarah yang terus mengalirkan darah." 3
-        !effect add focused buff attack +1 2 refresh "Fokus tinggi meningkatkan akurasi."
-        """
+        """Tambah/replace entry efek ke DB."""
         try:
             desc = desc_and_stack.strip()
             max_stack = None
-
-            # Deteksi max_stack di akhir
             parts = desc_and_stack.rsplit(" ", 1)
             if len(parts) == 2 and parts[1].isdigit():
                 desc = parts[0].strip()
                 max_stack = int(parts[1])
 
-            # Hapus tanda kutip deskripsi
             if desc.startswith('"') and desc.endswith('"'):
                 desc = desc[1:-1]
             elif desc.startswith("'") and desc.endswith("'"):
                 desc = desc[1:-1]
 
-            # Simpan ke DB
             effect_service.add_effect_lib(
                 ctx.guild.id, name, e_type, target_stat, formula,
                 duration, stack_mode, desc, max_stack
@@ -72,44 +59,63 @@ class EffectCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Gagal menambah efek: {e}")
 
-    # === EDIT EFFECT ===
+    # === EDIT EFFECT (revisi: aman & satu-satu) ===
     @effect_group.command(name="edit")
     async def effect_edit(self, ctx, name: str, *fields):
         """
-        Edit efek yang sudah ada.
+        Ubah field efek tertentu.
         Contoh:
-        !effect edit bleed duration=5 desc="Sekarang efeknya lebih lama"
-        !effect edit poison formula=-2 desc="Racun lebih mematikan"
+        !effect edit poison desc="Racun berat, damage lebih besar"
+        !effect edit bleed duration=4 formula=-2
         """
         try:
-            effect = effect_service.get_effect_lib(ctx.guild.id, name)
-            if not effect:
-                return await ctx.send(f"❌ Efek **{name}** tidak ditemukan.")
+            current = effect_service.get_effect_lib(ctx.guild.id, name)
+            if not current:
+                return await ctx.send(f"❌ Efek **{name}** tidak ditemukan di library.")
 
-            updates = {}
+            allowed = ["type", "target_stat", "formula", "duration", "stack_mode", "description", "max_stack"]
+            changes = {}
             for f in fields:
                 if "=" not in f:
                     continue
                 k, v = f.split("=", 1)
-                updates[k.strip()] = v.strip().strip('"')
+                k = k.strip().lower()
+                v = v.strip().strip('"').strip("'")
+                if k in allowed:
+                    if k in ["duration", "max_stack"] and v.isdigit():
+                        v = int(v)
+                    changes[k] = v
 
-            for field, value in updates.items():
-                if field not in ["type", "target_stat", "formula", "duration", "stack_mode", "description", "max_stack"]:
-                    continue
-                effect[field] = int(value) if field in ["duration", "max_stack"] and value.isdigit() else value
+            if not changes:
+                return await ctx.send("⚠️ Tidak ada field valid untuk diubah.")
+
+            before_preview = "\n".join([f"{k}: {current.get(k)}" for k in changes.keys()])
+            for k, v in changes.items():
+                current[k] = v
+            after_preview = "\n".join([f"{k}: {current.get(k)}" for k in changes.keys()])
 
             effect_service.add_effect_lib(
                 ctx.guild.id,
                 name,
-                effect["type"],
-                effect["target_stat"],
-                effect["formula"],
-                effect["duration"],
-                effect["stack_mode"],
-                effect.get("description", ""),
-                effect.get("max_stack")
+                current["type"],
+                current["target_stat"],
+                current["formula"],
+                current["duration"],
+                current["stack_mode"],
+                current.get("description", ""),
+                current.get("max_stack")
             )
-            await ctx.send(f"✏️ Efek **{name}** berhasil diedit: {', '.join(updates.keys())}")
+
+            embed = discord.Embed(
+                title=f"✏️ Efek '{name}' diperbarui",
+                description=(
+                    f"**Sebelum:**\n```{before_preview}```\n"
+                    f"**Sesudah:**\n```{after_preview}```"
+                ),
+                color=discord.Color.orange()
+            )
+            await ctx.send(embed=embed)
+
         except Exception as e:
             await ctx.send(f"❌ Gagal mengedit efek: {e}")
 
@@ -175,7 +181,7 @@ class EffectCog(commands.Cog):
             desc = e.get("description", "-")
             line = (
                 f"• **{e.get('text','')}** {'Lv'+str(stack) if stack>1 else ''}\n"
-                f"   ┗ [Durasi: {dur_txt} turn]\n"
+                f"   [Durasi: {dur_txt} turn]\n"
                 f"   {desc}"
             )
             lines.append(line)
@@ -207,17 +213,12 @@ class EffectCog(commands.Cog):
     # =========================
     @commands.command(name="apply")
     async def apply(self, ctx, target_name: str, effect_name: str, duration_override: int = None):
-        """Apply efek dari LIBRARY ke target. Tidak mengubah HP/dll (manual GM mode)."""
-        ok, msg = await effect_service.apply_effect(
-            ctx.guild.id, target_name, effect_name, duration_override
-        )
+        ok, msg = await effect_service.apply_effect(ctx.guild.id, target_name, effect_name, duration_override)
         await ctx.send(msg)
 
     @commands.command(name="tick")
     async def tick(self, ctx):
-        """Kurangi durasi semua efek & tampilkan laporan."""
         results = await effect_service.tick_effects(ctx.guild.id)
-
         engaged_names = []
         row = fetchone(ctx.guild.id, "SELECT order_json FROM initiative LIMIT 1")
         if row:
@@ -232,7 +233,7 @@ class EffectCog(commands.Cog):
                 "🔹 **Proses Tick Ronde**\n"
                 "Gunakan perintah ini setiap kali ronde baru dimulai untuk "
                 "mengurangi **durasi semua efek aktif (buff/debuff)**.\n\n"
-                "🎲 Hanya peserta yang **terlibat dalam encounter (initiative)** yang akan ditampilkan.\n"
+                "🎲 Peserta yang **terlibat dalam encounter (initiative)** saja ditampilkan.\n"
                 f"📜 Server: **{ctx.guild.name}**\n"
                 f"👥 Total peserta aktif: **{len(engaged_names)}**"
             ),
@@ -240,11 +241,7 @@ class EffectCog(commands.Cog):
         )
 
         any_data = False
-        for ttype, table_name, icon in [
-            ("char", "Characters", "🧍"),
-            ("enemy", "Enemies", "👹"),
-            ("ally", "Allies", "🤝"),
-        ]:
+        for ttype, table_name, icon in [("char","Characters","🧍"),("enemy","Enemies","👹"),("ally","Allies","🤝")]:
             data = results.get(ttype) or {}
             lines = []
             for name, info in data.items():
@@ -259,33 +256,21 @@ class EffectCog(commands.Cog):
                 for e in active:
                     d = e.get("duration", -1)
                     desc = e.get("description") or "-"
-                    line = (
-                        f"🔹 **{e.get('text','')}** *(sisa {d} turn)*\n"
-                        f"   {desc}"
-                    )
+                    line = f"🔹 **{e.get('text','')}** *(sisa {d} turn)*\n{desc}"
                     active_lines.append(line)
-                if not active_lines:
-                    active_lines = ["• *(tidak ada efek aktif)*"]
                 expired_lines = [f"• ~~{e.get('text','')}~~" for e in expired]
                 block = f"**{name}**\n" + "\n".join(active_lines)
                 if expired_lines:
                     block += "\n\n⌛ **Expired:**\n" + "\n".join(expired_lines)
                 lines.append(block)
             if lines:
-                embed.add_field(
-                    name=f"\n{icon} {table_name}",
-                    value="\n\n".join(lines),
-                    inline=False
-                )
+                embed.add_field(name=f"\n{icon} {table_name}", value="\n\n".join(lines), inline=False)
+
         if not any_data:
-            embed.add_field(
-                name="✅ Semua Efek Telah Berakhir",
-                value="Tidak ada efek aktif maupun expired pada peserta engage.",
-                inline=False
-            )
+            embed.add_field(name="✅ Semua Efek Telah Berakhir",
+                            value="Tidak ada efek aktif maupun expired pada peserta engage.", inline=False)
         embed.set_footer(text="Gunakan !tick setiap ronde untuk memperbarui efek dan durasinya.")
         await ctx.send(embed=embed)
-
 
 async def setup(bot):
     await bot.add_cog(EffectCog(bot))
