@@ -1,5 +1,6 @@
 import json
 from utils.db import execute, fetchone, fetchall
+from services import effect_service  # 🔹 Integrasi penuh dengan sistem efek baru
 
 # ===============================
 # STATUS SERVICE (per-server)
@@ -55,7 +56,6 @@ def _ensure_exists(guild_id: int, table: str, name: str) -> dict:
     cols = ", ".join(base.keys())
     placeholders = ", ".join(["?"] * len(base))
     execute(guild_id, f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", tuple(base.values()))
-
     return fetchone(guild_id, f"SELECT * FROM {table} WHERE name=?", (name,))
 
 # ===============================
@@ -130,51 +130,25 @@ async def use_resource(guild_id: int, target_type, name, field: str, amount: int
     return new_val
 
 # ===============================
-# EFFECTS
+# EFFECTS (Delegasi ke effect_service)
 # ===============================
-async def add_effect(guild_id: int, target_type, name, effect: str, is_buff=True):
-    table = _table(target_type)
-    row = _ensure_exists(guild_id, table, name)
-    effects = json.loads(row.get("effects") or "[]")
-    effects.append({"text": effect, "type": "buff" if is_buff else "debuff", "duration": -1})
-    execute(guild_id, f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (json.dumps(effects), row["id"]))
-    return effects
+async def add_effect(guild_id: int, target_type: str, name: str, effect_name: str, duration: int = None, is_buff: bool = True):
+    """Gunakan sistem library dari effect_service."""
+    ok, msg = await effect_service.apply_effect(guild_id, name, effect_name, duration)
+    if not ok:
+        return f"❌ {msg}"
+    return msg
 
-async def clear_effects(guild_id: int, target_type, name, is_buff=True):
-    table = _table(target_type)
-    row = _ensure_exists(guild_id, table, name)
-    effects = json.loads(row.get("effects") or "[]")
-    keep = [e for e in effects if (e.get("type") or "").lower() != ("buff" if is_buff else "debuff")]
-    execute(guild_id, f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (json.dumps(keep), row["id"]))
-    return keep
+async def clear_effects(guild_id: int, target_type: str, name: str, is_buff: bool = True):
+    """Gunakan sistem clear dari effect_service."""
+    ok, msg = await effect_service.clear_effects(guild_id, name, is_buff=is_buff)
+    if not ok:
+        return f"❌ {msg}"
+    return msg
 
 async def tick_all_effects(guild_id: int):
-    results = {"char": {}, "enemy": {}, "ally": {}}
-    for ttype, table in [("char", "characters"), ("enemy", "enemies"), ("ally", "allies")]:
-        rows = fetchall(guild_id, f"SELECT * FROM {table}")
-        for r in rows:
-            effects = json.loads(r.get("effects") or "[]")
-            new_effects, expired = [], []
-            for e in effects:
-                dur = int(e.get("duration", -1))
-                if dur == -1:
-                    new_effects.append(e)
-                elif dur > 1:
-                    e["duration"] = dur - 1
-                    new_effects.append(e)
-                else:
-                    expired.append(e)
-
-            execute(guild_id, f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                    (json.dumps(new_effects), r["id"]))
-
-            for e in expired:
-                execute(guild_id, "INSERT INTO timeline (event) VALUES (?)",
-                        (f"{ICONS['expired']} {r['name']} kehilangan efek: {e.get('text','')}",))
-
-            results[ttype][r["name"]] = {"remaining": new_effects, "expired": expired}
+    """Delegasi ke sistem tick dari effect_service."""
+    results = await effect_service.tick_effects(guild_id)
     return results
 
 # ===============================
