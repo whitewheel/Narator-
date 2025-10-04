@@ -6,7 +6,6 @@ from utils.db import fetchall, fetchone, execute
 from services import status_service, effect_service
 
 # ===== Utility =====
-
 def _bar(cur: int, mx: int, width: int = 12) -> str:
     if mx <= 0:
         return "░" * width
@@ -56,7 +55,6 @@ def _stamina_status(cur: int, mx: int) -> str:
     else: return "🥴 Ambruk kelelahan"
 
 # ===== Embed Builder =====
-
 def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
     embed = discord.Embed(
         title=title,
@@ -95,12 +93,10 @@ def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
     return embed
 
 # ===== Cog =====
-
 class AllyStatus(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # --- ensure table ---
     def _ensure_table(self, guild_id: int):
         execute(
             guild_id,
@@ -135,7 +131,6 @@ class AllyStatus(commands.Cog):
     async def ally_add(self, ctx, name: str, hp: int, energy: int, stamina: int):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
-
         exists = fetchone(guild_id, "SELECT id FROM allies WHERE name=?", (name,))
         if exists:
             execute(guild_id, """
@@ -151,12 +146,11 @@ class AllyStatus(commands.Cog):
             """, (name, hp, hp, energy, energy, stamina, stamina))
             await ctx.send(f"🤝 Ally **{name}** ditambahkan.")
 
-    # === Show Ally ===
+    # === Show ===
     @ally.command(name="show")
     async def ally_show(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
-
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
@@ -169,11 +163,11 @@ class AllyStatus(commands.Cog):
         embed = make_embed(rows, title=title, mode="player")
         await ctx.send(embed=embed)
 
+    # === GM Show ===
     @ally.command(name="gmshow")
     async def ally_gmshow(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
         self._ensure_table(guild_id)
-
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
@@ -197,7 +191,7 @@ class AllyStatus(commands.Cog):
         new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
         await ctx.send(f"✨ {name} dipulihkan {amount} HP → {new_hp}")
 
-    # === Resource Ops (Stamina & Energy) ===
+    # === Resource Ops ===
     @ally.command(name="stam-")
     async def ally_stam_use(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
@@ -218,7 +212,7 @@ class AllyStatus(commands.Cog):
         await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
         await ctx.send(f"✨ {name} memulihkan energi {amount}")
 
-    # === Buff / Debuff (integrasi effect_service) ===
+    # === Buff / Debuff ===
     @ally.command(name="buff")
     async def ally_buff(self, ctx, name: str, effect_name: str, duration: int = None):
         msg = await status_service.add_effect(ctx.guild.id, "ally", name, effect_name, duration, is_buff=True)
@@ -227,16 +221,6 @@ class AllyStatus(commands.Cog):
     @ally.command(name="debuff")
     async def ally_debuff(self, ctx, name: str, effect_name: str, duration: int = None):
         msg = await status_service.add_effect(ctx.guild.id, "ally", name, effect_name, duration, is_buff=False)
-        await ctx.send(msg)
-
-    @ally.command(name="clearbuff")
-    async def ally_clearbuff(self, ctx, name: str):
-        msg = await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=True)
-        await ctx.send(msg)
-
-    @ally.command(name="cleardebuff")
-    async def ally_cleardebuff(self, ctx, name: str):
-        msg = await status_service.clear_effects(ctx.guild.id, "ally", name, is_buff=False)
         await ctx.send(msg)
 
     # === Remove / Clear ===
@@ -256,6 +240,32 @@ class AllyStatus(commands.Cog):
         self._ensure_table(guild_id)
         execute(guild_id, "DELETE FROM allies")
         await ctx.send("🧹 Semua ally dihapus.")
+
+    # === Alias Cepat ===
+    @commands.command(name="admg")
+    async def ally_dmg_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally dmg"), name=name, amount=amount)
+
+    @commands.command(name="aheal")
+    async def ally_heal_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally heal"), name=name, amount=amount)
+
+    @commands.command(name="ausestm")
+    async def ally_usestm_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally stam-"), name=name, amount=amount)
+
+    @commands.command(name="aaddstm")
+    async def ally_addstm_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally stam+"), name=name, amount=amount)
+
+    @commands.command(name="auseene")
+    async def ally_useene_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally ene-"), name=name, amount=amount)
+
+    @commands.command(name="aaddene")
+    async def ally_addene_alias(self, ctx, name: str, amount: int):
+        await ctx.invoke(self.bot.get_command("ally ene+"), name=name, amount=amount)
+
 
 async def setup(bot):
     await bot.add_cog(AllyStatus(bot))
