@@ -119,7 +119,7 @@ def update_effect_field(guild_id: int, name: str, field: str, value: str):
 # ===============================
 # APPLY / CLEAR / QUERY
 # ===============================
-async def apply_effect(guild_id: int, target_name: str, effect_name: str, override_duration: Optional[int] = None):
+async def apply_effect(guild_id: int, target_name: str, effect_name: str, override_duration: Optional[str] = None):
     found = _find_target(guild_id, target_name)
     if not found:
         return False, f"❌ Target **{target_name}** tidak ditemukan."
@@ -131,7 +131,23 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
     effects = _load_effects(row)
     mode = (lib.get("stack_mode") or "unique").lower()
     max_stack = int(lib.get("max_stack") or (DEFAULT_STACK_MAX if mode == "stack" else 1))
-    base_duration = int(override_duration if override_duration is not None else lib.get("duration") or 1)
+
+    # 🧩 Enhanced override parser (support formula + durasi)
+    formula = lib.get("formula") or ""
+    duration = int(lib.get("duration") or 1)
+    if override_duration is not None:
+        parts = str(override_duration).split()
+        if len(parts) == 2 and parts[0].startswith(("+", "-")):
+            # contoh: "-3 3" → formula=-3, durasi=3
+            formula = parts[0]
+            duration = int(parts[1])
+        elif str(override_duration).startswith(("+", "-")):
+            # contoh: "-2" → formula override saja
+            formula = str(override_duration)
+        else:
+            # contoh: "4" → durasi override saja
+            duration = int(override_duration)
+    base_duration = duration
 
     existing_idx = next((i for i, e in enumerate(effects) if _match_effect_instance(e, lib["name"])), None)
     display = _pretty_name(lib["name"])
@@ -145,7 +161,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
             "duration": base_duration,
             "stack": stack,
             "mode": mode,
-            "formula": lib.get("formula") or "",
+            "formula": formula,
             "target_stat": lib.get("target_stat") or "",
             "description": lib.get("description") or ""
         }
@@ -162,6 +178,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
             effects.append(_make_inst())
         else:
             effects[existing_idx]["duration"] = base_duration
+            effects[existing_idx]["formula"] = formula
         _save_effects(guild_id, table, row["id"], effects)
         return True, f"🔁 {target_name}: **{display}** di-refresh ({base_duration} turn)."
 
@@ -184,25 +201,6 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
     effects.append(_make_inst())
     _save_effects(guild_id, table, row["id"], effects)
     return True, f"✅ {target_name} mendapat **{display}** ({base_duration} turn)."
-
-async def clear_effects(guild_id: int, target_name: str, effect_id: Optional[str] = None, is_buff: Optional[bool] = None):
-    found = _find_target(guild_id, target_name)
-    if not found:
-        return False, f"❌ Target **{target_name}** tidak ditemukan."
-    table, row = found
-    effects = _load_effects(row)
-    if effect_id:
-        new_eff = [e for e in effects if e.get("id","").lower() != effect_id.lower()]
-        msg = f"🧹 Efek **{_pretty_name(effect_id)}** dihapus dari **{target_name}**."
-    elif is_buff is not None:
-        t = "buff" if is_buff else "debuff"
-        new_eff = [e for e in effects if (e.get("type") or "").lower() != t]
-        msg = f"🧹 Efek {'buff' if is_buff else 'debuff'} dihapus dari **{target_name}**."
-    else:
-        new_eff = []
-        msg = f"🧹 Semua efek pada **{target_name}** dihapus."
-    _save_effects(guild_id, table, row["id"], new_eff)
-    return True, msg
 
 def get_active_effects(guild_id: int, target_name: str):
     found = _find_target(guild_id, target_name)
