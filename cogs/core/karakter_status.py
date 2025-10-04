@@ -34,10 +34,27 @@ def _apply_effects(base_stats, effects):
                 notes.append(f"{'+' if val>=0 else ''}{val} {key.upper()}")
     return stats, notes
 
-def _format_effect(e):
-    d = e.get("remaining", e.get("duration", -1))
-    turns = f"{d} turn" if d >= 0 else "Permanent"
-    return f"{e['name']} ({turns})"
+def _format_effect_line(e):
+    """Format 1 efek jadi string: nama, durasi, deskripsi."""
+    name = e.get("name", "???")
+    typ = e.get("type", "").lower()
+    dur = e.get("remaining", e.get("duration", -1))
+    dur_txt = f"{dur} turn" if dur >= 0 else "∞"
+    desc = e.get("description", "")
+    if not desc:
+        # fallback auto deskripsi
+        if "bleed" in name.lower():
+            desc = "Mengurangi HP -1 tiap turn."
+        elif "poison" in name.lower():
+            desc = "Keracunan – HP berkurang perlahan."
+        elif "focus" in name.lower() or "focused" in name.lower():
+            desc = "Fokus tinggi – meningkatkan akurasi serangan."
+        elif "haste" in name.lower():
+            desc = "Kecepatan meningkat – bonus aksi dan DEX."
+        elif "regen" in name.lower():
+            desc = "Regenerasi ringan – memulihkan HP tiap turn."
+    icon = "✨" if typ == "buff" else "☠️"
+    return f"{icon} **{name}** – {desc}\n🔹 Durasi: {dur_txt}"
 
 def _status_text(cur: int, mx: int) -> str:
     if mx <= 0:
@@ -84,33 +101,27 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         return embed
 
     for c in characters:
-        hp_text = f"{c['hp']}/{c['hp_max']}" if c['hp_max'] else str(c['hp'])
-        en_text = f"{c['energy']}/{c['energy_max']}" if c['energy_max'] else str(c['energy'])
-        st_text = f"{c['stamina']}/{c['stamina_max']}" if c['stamina_max'] else str(c['stamina'])
+        hp_text = f"{c['hp']}/{c['hp_max']}"
+        en_text = f"{c['energy']}/{c['energy_max']}"
+        st_text = f"{c['stamina']}/{c['stamina_max']}"
 
+        # ===== Efek aktif =====
         effects = json.loads(c.get("effects") or "[]")
-        buffs = [e for e in effects if "buff" in e.get("type","").lower()]
-        debuffs = [e for e in effects if "debuff" in e.get("type","").lower()]
+        buffs, debuffs = [], []
+        for e in effects:
+            typ = e.get("type", "").lower()
+            if typ == "buff":
+                buffs.append(e)
+            elif typ == "debuff":
+                debuffs.append(e)
+            else:
+                form = e.get("formula", "")
+                (debuffs if "-" in form else buffs).append(e)
 
-        base_stats = {
-            "str": c["str"], "dex": c["dex"], "con": c["con"],
-            "int": c["int"], "wis": c["wis"], "cha": c["cha"]
-        }
-        final_stats, notes = _apply_effects(base_stats, effects)
-        note_line = f" ({', '.join(notes)})" if notes else ""
-        stats_line = (
-            f"STR {final_stats['str']} | "
-            f"DEX {final_stats['dex']} | "
-            f"CON {final_stats['con']}\n"
-            f"INT {final_stats['int']} | "
-            f"WIS {final_stats['wis']} | "
-            f"CHA {final_stats['cha']}{note_line}"
-        )
-
-        cur_level = c.get('level', 1)
-        cur_xp = c.get('xp', 0)
+        # ===== Core info =====
+        cur_level = c.get("level", 1)
+        cur_xp = c.get("xp", 0)
         xp_need = _xp_required(cur_level)
-
         profile_line = f"Lv {cur_level} | XP {cur_xp}/{xp_need} | 💰 {c.get('gold',0)} gold"
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
@@ -120,21 +131,23 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             f"❤️ HP {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
             f"🔋 Energy {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
             f"⚡ Stamina {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
-            f"📊 Stats\n{stats_line}\n\n"
             f"⚔️ Combat\n{combat_line}\n{carry_line}"
         )
         embed.add_field(name=f"🧍 {c['name']}", value=value, inline=False)
 
+        # ===== Buffs =====
         if buffs:
-            embed.add_field(name="✨ Buffs", value="\n".join([f"✅ {_format_effect(b)}" for b in buffs]), inline=False)
+            buff_lines = "\n\n".join([_format_effect_line(b) for b in buffs])
+            embed.add_field(name="✨ Buffs", value=buff_lines, inline=False)
+        else:
+            embed.add_field(name="✨ Buffs", value="*(tidak ada)*", inline=False)
+
+        # ===== Debuffs =====
         if debuffs:
-            embed.add_field(name="☠️ Debuffs", value="\n".join([f"❌ {_format_effect(d)}" for d in debuffs]), inline=False)
-        if effects:
-            eff_lines = [
-                f"{'✨' if e['type']=='buff' else '☠️'} {e['name']} ({e.get('remaining', e.get('duration', '∞'))} turn)"
-                for e in effects
-            ]
-            embed.add_field(name="🎭 Active Effects", value="\n".join(eff_lines), inline=False)
+            debuff_lines = "\n\n".join([_format_effect_line(d) for d in debuffs])
+            embed.add_field(name="☠️ Debuffs", value=debuff_lines, inline=False)
+        else:
+            embed.add_field(name="☠️ Debuffs", value="*(tidak ada)*", inline=False)
 
     return embed
 
