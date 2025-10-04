@@ -406,6 +406,24 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+        # 18) Effects
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS effects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT,
+        target_stat TEXT,
+        formula TEXT,
+        duration INTEGER DEFAULT 0,
+        stack_mode TEXT DEFAULT 'add',
+        description TEXT,
+        max_stack INTEGER DEFAULT 3,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, name)
+    );
+    """)
+
     # Auto-migrate
     _ensure_columns(guild_id, "factions", {
         "type": "TEXT DEFAULT 'general'"
