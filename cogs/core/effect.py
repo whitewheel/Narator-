@@ -119,6 +119,17 @@ class EffectCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Gagal mengedit efek: {e}")
 
+    @effect_group.command(name="edit")
+    async def effect_edit(self, ctx, name: str, field: str, *, value: str):
+        """Edit field tertentu dari efek (misal desc, formula, duration, dll)."""
+        try:
+            ok = effect_service.update_effect_field(ctx.guild.id, name, field, value)
+            if not ok:
+                return await ctx.send(f"❌ Efek **{name}** tidak ditemukan atau field tidak valid.")
+            await ctx.send(f"✅ Efek **{name}** diperbarui: **{field}** → `{value}`")
+        except Exception as e:
+            await ctx.send(f"⚠️ Gagal mengedit efek: {e}")
+
     # === LIST ===
     @effect_group.command(name="list")
     async def effect_list(self, ctx):
