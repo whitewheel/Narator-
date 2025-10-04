@@ -6,6 +6,7 @@ from utils.db import fetchall, fetchone, execute
 from services import status_service, effect_service
 
 # ===== Utility =====
+
 def _bar(cur: int, mx: int, width: int = 12) -> str:
     if mx <= 0:
         return "░" * width
@@ -13,52 +14,54 @@ def _bar(cur: int, mx: int, width: int = 12) -> str:
     filled = int(round(width * (cur / mx)))
     return "█" * filled + "░" * (width - filled)
 
-def _mod(score: int) -> int:
-    return math.floor(score / 5)
 
-def _format_effect(e):
+def _format_effect_detailed(e):
+    """Format efek dengan durasi, formula, dan deskripsi singkat."""
     d = e.get("duration", -1)
     dur_txt = "∞" if d == -1 else f"{d}"
-    stack = e.get("stack", 1)
     form = e.get("formula", "")
-    txt = e.get("text", "")
-    if stack > 1:
-        txt += f" Lv{stack}"
-    if form:
-        txt += f" ({form})"
-    return f"{txt} [Dur: {dur_txt}]"
+    desc = e.get("description", "(tidak ada deskripsi)")
+    name = e.get("text", "???")
+    return f"{name} [Dur: {dur_txt}] — {form}\n🛈 {desc}"
 
+
+# ===== Status Logic =====
 def _hp_status(cur: int, mx: int) -> str:
+    if cur <= 0: return "💀 Tewas / tidak sadarkan diri"
     if mx <= 0: return "❓ Tidak diketahui"
     pct = (cur / mx) * 100
-    if cur <= 0: return "💀 Tewas"
-    elif pct >= 100: return "💪 Segar"
-    elif pct >= 75: return "🙂 Luka Ringan"
-    elif pct >= 50: return "⚔️ Luka Sedang"
-    elif pct >= 25: return "🤕 Luka Berat"
+    if pct >= 90: return "💪 Kondisi prima"
+    elif pct >= 75: return "🙂 Luka ringan"
+    elif pct >= 50: return "⚔️ Luka sedang"
+    elif pct >= 25: return "🤕 Luka berat"
     else: return "☠️ Sekarat"
+
 
 def _energy_status(cur: int, mx: int) -> str:
     if mx <= 0: return "❓ Tidak diketahui"
+    if cur <= 0: return "🔋 Kehabisan energi alat"
     pct = (cur / mx) * 100
-    if pct >= 75: return "⚡ Penuh tenaga"
-    elif pct >= 50: return "😐 Cukup bertenaga"
-    elif pct >= 25: return "😓 Hampir habis tenaga"
-    else: return "🥵 Kehabisan tenaga"
+    if pct >= 75: return "⚡ Semua sistem berjalan normal"
+    elif pct >= 50: return "🔧 Daya alat mulai menurun"
+    elif pct >= 25: return "⚙️ Alat melemah / tidak stabil"
+    else: return "💤 Energi hampir habis"
+
 
 def _stamina_status(cur: int, mx: int) -> str:
     if mx <= 0: return "❓ Tidak diketahui"
+    if cur <= 0: return "🥴 Kelelahan total / tak bisa bergerak"
     pct = (cur / mx) * 100
-    if pct >= 75: return "🏃 Masih segar"
-    elif pct >= 50: return "😤 Terengah-engah"
-    elif pct >= 25: return "😩 Hampir kelelahan"
-    else: return "🥴 Ambruk kelelahan"
+    if pct >= 75: return "🏃 Masih bugar"
+    elif pct >= 50: return "😤 Mulai kelelahan"
+    elif pct >= 25: return "😩 Hampir tak sanggup"
+    else: return "🥵 Terjatuh karena kehabisan tenaga"
+
 
 # ===== Embed Builder =====
 def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
     embed = discord.Embed(
         title=title,
-        description="📜 Status Ally",
+        description="📜 Status Sekutu",
         color=discord.Color.green()
     )
 
@@ -69,33 +72,34 @@ def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
     for a in allies:
         effects = json.loads(a.get("effects") or "[]")
 
-        # ✅ FIX: pisahkan benar-benar buff dan debuff
-        buffs = [e for e in effects if e.get("type", "").lower() == "buff"]
-        debuffs = [e for e in effects if e.get("type", "").lower() == "debuff"]
+        buffs = [eff for eff in effects if eff.get("type", "").lower() == "buff"]
+        debuffs = [eff for eff in effects if eff.get("type", "").lower() == "debuff"]
 
-        # ✅ FIX: hilangkan duplikasi (jika ada efek kembar)
-        unique_buffs = {e.get("id", e.get("text", "")): e for e in buffs}.values()
-        unique_debuffs = {e.get("id", e.get("text", "")): e for e in debuffs}.values()
+        unique_buffs = {eff.get("id", eff.get("text", "")): eff for eff in buffs}.values()
+        unique_debuffs = {eff.get("id", eff.get("text", "")): eff for eff in debuffs}.values()
 
-        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in unique_buffs]) or "-"
-        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in unique_debuffs]) or "-"
+        buffs_str = "\n\n".join([f"✅ {_format_effect_detailed(b)}" for b in unique_buffs]) or "-"
+        debuffs_str = "\n\n".join([f"❌ {_format_effect_detailed(d)}" for d in unique_debuffs]) or "-"
 
+        # GM Mode → detail angka
         if mode == "gm":
             value = (
                 f"❤️ HP: {a['hp']}/{a['hp_max']} [{_bar(a['hp'], a['hp_max'])}]\n"
-                f"🔋 Energy: {a['energy']}/{a['energy_max']} [{_bar(a['energy'], a['energy_max'])}]\n"
+                f"🔋 Energi: {a['energy']}/{a['energy_max']} [{_bar(a['energy'], a['energy_max'])}]\n"
                 f"⚡ Stamina: {a['stamina']}/{a['stamina_max']} [{_bar(a['stamina'], a['stamina_max'])}]\n"
-                f"🛡️ AC {a['ac']}\n\n"
-                f"✨ Buffs:\n{buffs_str}\n\n"
-                f"☠️ Debuffs:\n{debuffs_str}"
+                f"🛡️ AC: {a['ac']}\n\n"
+                f"✨ Buffs:\n{buffs_str}\n\n☠️ Debuffs:\n{debuffs_str}"
             )
         else:
+            hp_state = _hp_status(a['hp'], a['hp_max'])
+            ene_state = _energy_status(a['energy'], a['energy_max'])
+            stm_state = _stamina_status(a['stamina'], a['stamina_max'])
+
             value = (
-                f"❤️ Kondisi: {_hp_status(a['hp'], a['hp_max'])}\n"
-                f"🔋 Energi: {_energy_status(a['energy'], a['energy_max'])}\n"
-                f"⚡ Stamina: {_stamina_status(a['stamina'], a['stamina_max'])}\n\n"
-                f"✨ Buffs:\n{buffs_str}\n\n"
-                f"☠️ Debuffs:\n{debuffs_str}"
+                f"❤️ Kondisi: {hp_state}\n"
+                f"🔋 Energi: {ene_state}\n"
+                f"⚡ Stamina: {stm_state}\n\n"
+                f"✨ Buffs:\n{buffs_str}\n\n☠️ Debuffs:\n{debuffs_str}"
             )
 
         embed.add_field(name=a["name"], value=value, inline=False)
@@ -132,12 +136,12 @@ class AllyStatus(commands.Cog):
     async def ally(self, ctx):
         await ctx.send(
             "Gunakan: `!ally add`, `!ally show`, `!ally gmshow`, "
-            "`!ally dmg`, `!ally heal`, `!ally stam-`, `!ally stam+`, "
-            "`!ally ene-`, `!ally ene+`, `!ally buff`, `!ally debuff`, "
-            "`!ally remove`, `!ally clear`"
+            "`!ally dmg`, `!ally heal`, "
+            "`!ally stam-`, `!ally stam+`, `!ally ene-`, `!ally ene+`, "
+            "`!ally buff`, `!ally debuff`, `!ally remove`, `!ally clear`"
         )
 
-    # === Add Ally ===
+    # === Add / Update ===
     @ally.command(name="add")
     async def ally_add(self, ctx, name: str, hp: int, energy: int, stamina: int):
         guild_id = ctx.guild.id
@@ -157,7 +161,7 @@ class AllyStatus(commands.Cog):
             """, (name, hp, hp, energy, energy, stamina, stamina))
             await ctx.send(f"🤝 Ally **{name}** ditambahkan.")
 
-    # === Show ===
+    # === Show (Player) ===
     @ally.command(name="show")
     async def ally_show(self, ctx, *, name: str = None):
         guild_id = ctx.guild.id
@@ -165,7 +169,7 @@ class AllyStatus(commands.Cog):
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
-                return await ctx.send(f"❌ Ally **{name}** tidak ditemukan.")
+                return await ctx.send("❌ Ally tidak ditemukan.")
             rows = [row]
             title = f"🤝 Ally Status: {name}"
         else:
@@ -182,7 +186,7 @@ class AllyStatus(commands.Cog):
         if name:
             row = fetchone(guild_id, "SELECT * FROM allies WHERE name=?", (name,))
             if not row:
-                return await ctx.send(f"❌ Ally **{name}** tidak ditemukan.")
+                return await ctx.send("❌ Ally tidak ditemukan.")
             rows = [row]
             title = f"🎭 GM Ally Status: {name}"
         else:
@@ -195,33 +199,36 @@ class AllyStatus(commands.Cog):
     @ally.command(name="dmg")
     async def ally_dmg(self, ctx, name: str, amount: int):
         new_hp = await status_service.damage(ctx.guild.id, "ally", name, amount)
-        await ctx.send(f"💥 {name} menerima {amount} damage → HP sekarang {new_hp}")
+        if new_hp <= 0:
+            await ctx.send(f"💀 Sekutu **{name}** tumbang.")
+        else:
+            await ctx.send(f"💥 {name} terluka parah.")
 
     @ally.command(name="heal")
     async def ally_heal(self, ctx, name: str, amount: int):
         new_hp = await status_service.heal(ctx.guild.id, "ally", name, amount)
-        await ctx.send(f"✨ {name} dipulihkan {amount} HP → {new_hp}")
+        await ctx.send(f"✨ {name} memulihkan sebagian darahnya.")
 
     # === Resource Ops ===
     @ally.command(name="stam-")
     async def ally_stam_use(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount)
-        await ctx.send(f"⚡ {name} kehilangan stamina {amount}")
+        await ctx.send(f"😤 {name} kehilangan stamina.")
 
     @ally.command(name="stam+")
     async def ally_stam_regen(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "ally", name, "stamina", amount, regen=True)
-        await ctx.send(f"✨ {name} memulihkan stamina {amount}")
+        await ctx.send(f"🏃 {name} memulihkan tenaga.")
 
     @ally.command(name="ene-")
     async def ally_ene_use(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount)
-        await ctx.send(f"🔋 {name} kehilangan energi {amount}")
+        await ctx.send(f"⚙️ {name} kehilangan daya alatnya.")
 
     @ally.command(name="ene+")
     async def ally_ene_regen(self, ctx, name: str, amount: int):
         await status_service.use_resource(ctx.guild.id, "ally", name, "energy", amount, regen=True)
-        await ctx.send(f"✨ {name} memulihkan energi {amount}")
+        await ctx.send(f"🔋 {name} alatnya kembali berfungsi sebagian.")
 
     # === Buff / Debuff ===
     @ally.command(name="buff")
