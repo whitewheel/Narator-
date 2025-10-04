@@ -35,26 +35,50 @@ def _apply_effects(base_stats, effects):
     return stats, notes
 
 def _format_effect_line(e):
-    """Format 1 efek jadi string: nama, durasi, deskripsi."""
-    name = e.get("name", "???")
+    """Format efek aktif dengan ANSI warna + deskripsi di bawahnya."""
+    name = e.get("name", e.get("text", "???"))
     typ = e.get("type", "").lower()
     dur = e.get("remaining", e.get("duration", -1))
     dur_txt = f"{dur} turn" if dur >= 0 else "∞"
     desc = e.get("description", "")
+
+    # fallback auto deskripsi
     if not desc:
-        # fallback auto deskripsi
-        if "bleed" in name.lower():
+        lname = name.lower()
+        if "bleed" in lname:
             desc = "Mengurangi HP -1 tiap turn."
-        elif "poison" in name.lower():
+        elif "poison" in lname:
             desc = "Keracunan – HP berkurang perlahan."
-        elif "focus" in name.lower() or "focused" in name.lower():
+        elif "focus" in lname or "focused" in lname:
             desc = "Fokus tinggi – meningkatkan akurasi serangan."
-        elif "haste" in name.lower():
+        elif "haste" in lname:
             desc = "Kecepatan meningkat – bonus aksi dan DEX."
-        elif "regen" in name.lower():
+        elif "regen" in lname:
             desc = "Regenerasi ringan – memulihkan HP tiap turn."
-    icon = "✨" if typ == "buff" else "☠️"
-    return f"{icon} **{name}** – {desc}\n🔹 Durasi: {dur_txt}"
+        elif "burn" in lname:
+            desc = "Terbakar – menerima damage tiap giliran."
+        elif "frozen" in lname or "freeze" in lname:
+            desc = "Membeku – kehilangan 1 aksi pada giliran berikutnya."
+        elif "stun" in lname:
+            desc = "Terpukul keras – tidak bisa bergerak sementara."
+        elif "fear" in lname:
+            desc = "Ketakutan – akurasi berkurang tiap turn."
+        elif "jammed" in lname:
+            desc = "Sistem terganggu – tidak bisa menggunakan senjata jarak jauh."
+
+    # warna ANSI
+    if typ == "buff":
+        color = "38;5;82"  # hijau
+    elif typ == "debuff":
+        color = "38;5;196"  # merah
+    else:
+        color = "38;5;214"  # oranye / status netral
+
+    # tampilkan efek dengan nama berwarna + deskripsi di bawahnya
+    return (
+        f"🔹 ```ansi\n[{color}m{name}[0m ({dur_txt})\n```"
+        f"{desc}"
+    )
 
 def _status_text(cur: int, mx: int) -> str:
     if mx <= 0:
