@@ -61,16 +61,24 @@ def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
         description="📜 Status Ally",
         color=discord.Color.green()
     )
+
     if not allies:
         embed.add_field(name="(kosong)", value="Gunakan `!ally add`.", inline=False)
         return embed
 
     for a in allies:
         effects = json.loads(a.get("effects") or "[]")
-        buffs = [eff for eff in effects if "buff" in eff.get("type", "").lower()]
-        debuffs = [eff for eff in effects if "debuff" in eff.get("type", "").lower()]
-        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in buffs]) or "-"
-        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in debuffs]) or "-"
+
+        # ✅ FIX: pisahkan benar-benar buff dan debuff
+        buffs = [e for e in effects if e.get("type", "").lower() == "buff"]
+        debuffs = [e for e in effects if e.get("type", "").lower() == "debuff"]
+
+        # ✅ FIX: hilangkan duplikasi (jika ada efek kembar)
+        unique_buffs = {e.get("id", e.get("text", "")): e for e in buffs}.values()
+        unique_debuffs = {e.get("id", e.get("text", "")): e for e in debuffs}.values()
+
+        buffs_str = "\n".join([f"✅ {_format_effect(b)}" for b in unique_buffs]) or "-"
+        debuffs_str = "\n".join([f"❌ {_format_effect(d)}" for d in unique_debuffs]) or "-"
 
         if mode == "gm":
             value = (
@@ -89,8 +97,11 @@ def make_embed(allies: list, title="🤝 Ally Status", mode="player"):
                 f"✨ Buffs:\n{buffs_str}\n\n"
                 f"☠️ Debuffs:\n{debuffs_str}"
             )
+
         embed.add_field(name=a["name"], value=value, inline=False)
+
     return embed
+
 
 # ===== Cog =====
 class AllyStatus(commands.Cog):
