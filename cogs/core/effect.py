@@ -1,6 +1,8 @@
 # cogs/core/effect.py
+import json
 import discord
 from discord.ext import commands
+from utils.db import fetchone
 from services import effect_service
 
 class EffectCog(commands.Cog):
@@ -23,17 +25,20 @@ class EffectCog(commands.Cog):
                 "• `!effect clear <target_name>` (hapus semua)\n"
                 "• `!effect clearbuff <target_name>` / `!effect cleardebuff <target_name>`\n\n"
                 "Apply ke target: `!apply <target_name> <effect_name>`\n"
-                "Tick ronde: `!tick` (laporan saja, tanpa auto damage)"
+                "Tick ronde: `!tick` (laporan saja, tanpa auto damage, hanya peserta engage)"
             ),
             color=discord.Color.blurple()
         )
         await ctx.send(embed=embed)
 
     @effect_group.command(name="add")
-    async def effect_add(self, ctx, name: str, e_type: str, target_stat: str, formula: str, duration: int, stack_mode: str, desc: str, max_stack: int = None):
+    async def effect_add(self, ctx, name: str, e_type: str, target_stat: str, formula: str,
+                         duration: int, stack_mode: str, desc: str, max_stack: int = None):
         """Tambah/replace entry di library efek DB."""
         try:
-            effect_service.add_effect_lib(ctx.guild.id, name, e_type, target_stat, formula, duration, stack_mode, desc, max_stack)
+            effect_service.add_effect_lib(
+                ctx.guild.id, name, e_type, target_stat, formula, duration, stack_mode, desc, max_stack
+            )
             await ctx.send(f"✅ Efek **{name}** ditambahkan/diupdate.")
         except Exception as e:
             await ctx.send(f"❌ Gagal menambah efek: {e}")
@@ -49,7 +54,11 @@ class EffectCog(commands.Cog):
                 f"• **{r['name']}** — {r['type']}, stat: {r['target_stat']}, "
                 f"formula: `{r['formula']}`, dur: {r['duration']}, mode: {r['stack_mode']}"
             )
-        embed = discord.Embed(title="📚 Effect Library", description="\n".join(lines), color=discord.Color.green())
+        embed = discord.Embed(
+            title="📚 Effect Library",
+            description="\n".join(lines),
+            color=discord.Color.green()
+        )
         await ctx.send(embed=embed)
 
     @effect_group.command(name="info")
@@ -119,14 +128,29 @@ class EffectCog(commands.Cog):
     @commands.command(name="apply")
     async def apply(self, ctx, target_name: str, effect_name: str, duration_override: int = None):
         """Apply efek dari LIBRARY ke target. Tidak mengubah HP/dll (manual GM mode)."""
-        ok, msg = await effect_service.apply_effect(ctx.guild.id, target_name, effect_name, duration_override)
+        ok, msg = await effect_service.apply_effect(
+            ctx.guild.id, target_name, effect_name, duration_override
+        )
         await ctx.send(msg)
 
     @commands.command(name="tick")
     async def tick(self, ctx):
-        """Kurangi durasi semua efek & tampilkan laporan. Tidak ada auto damage."""
+        """Kurangi durasi semua efek & tampilkan laporan. 
+        Hanya menampilkan peserta yang sedang engage (ada di initiative)."""
         results = await effect_service.tick_effects(ctx.guild.id)
-        embed = effect_service.build_tick_embed(discord, ctx.guild.name, results)
+
+        # ambil daftar peserta engage dari tabel initiative
+        engaged_names = []
+        row = fetchone(ctx.guild.id, "SELECT order_json FROM initiative LIMIT 1")
+        if row:
+            try:
+                engaged_names = [n for n, _ in json.loads(row["order_json"] or "[]")]
+            except Exception:
+                pass
+
+        embed = effect_service.build_tick_embed(
+            discord, ctx.guild.name, results, engaged=engaged_names
+        )
         await ctx.send(embed=embed)
 
 async def setup(bot):
