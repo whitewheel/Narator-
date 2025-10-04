@@ -347,9 +347,6 @@ def init_db(guild_id: int) -> None:
         execute(guild_id, "DROP TABLE factions")
         execute(guild_id, "ALTER TABLE factions_new RENAME TO factions")
 
-    # Baru bikin index setelah migrasi
-    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
-
     # 14) Shops
     _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS npc_shop (
@@ -409,9 +406,6 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_effects_name ON effects(name);")
-    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
-
     # Auto-migrate
     _ensure_columns(guild_id, "factions", {
         "type": "TEXT DEFAULT 'general'"
@@ -453,7 +447,7 @@ def init_db(guild_id: int) -> None:
         "affiliation": "TEXT"
     })
 
-        _ensure_columns(guild_id, "effects", {
+    _ensure_columns(guild_id, "effects", {
         "max_stack": "INTEGER DEFAULT 3",
         "description": "TEXT"
     })
@@ -467,8 +461,11 @@ def init_db(guild_id: int) -> None:
     })
 
     # Indexes
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_enemy_name ON enemies(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_npc_name ON npc(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_inv_owner ON inventory(owner);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_effects_name ON effects(name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_shop_npc ON npc_shop(npc_name);")
