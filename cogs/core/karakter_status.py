@@ -146,6 +146,7 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         )
 
         # ===== Core info =====
+        # ===== Core info =====
         cur_level = c.get("level", 1)
         cur_xp = c.get("xp", 0)
         xp_need = _xp_required(cur_level)
@@ -153,11 +154,13 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
 
+        # ===== FINAL EMBED VALUE =====
         value = (
             f"{profile_line}\n\n"
             f"❤️ HP {hp_text} [{_bar(c['hp'], c['hp_max'])}]\n"
             f"🔋 Energy {en_text} [{_bar(c['energy'], c['energy_max'])}]\n"
             f"⚡ Stamina {st_text} [{_bar(c['stamina'], c['stamina_max'])}]\n\n"
+            f"📘 **Stats**\n{stats_line}\n\n"       # <── INI YANG BELUM ADA
             f"⚔️ Combat\n{combat_line}\n{carry_line}"
         )
         embed.add_field(name=f"🧍 {c['name']}", value=value, inline=False)
