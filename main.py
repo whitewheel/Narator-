@@ -63,6 +63,7 @@ class MyBot(commands.Bot):
             "cogs.world.encyclopedia",
             "cogs.world.timeline",
             "cogs.world.skill",
+            "cogs.world.crafting",
             "cogs.world.wiki",
             "cogs.world.faction",
 
