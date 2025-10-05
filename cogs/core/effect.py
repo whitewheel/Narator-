@@ -140,21 +140,80 @@ class EffectCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Gagal mengedit efek: {e}")
 
-    # === LIST ===
+    # === LIST (DENGAN PAGE) ===
     @effect_group.command(name="list")
     async def effect_list(self, ctx):
         rows = effect_service.list_effects_lib(ctx.guild.id)
         if not rows:
             return await ctx.send("ℹ️ Library efek kosong. Tambahkan dengan `!effect add`.")
-        lines = []
+
+        # Urutkan berdasarkan nama (abjad)
+        rows.sort(key=lambda r: r['name'].lower())
+
+        # Format per entry
+        entries = []
         for r in rows:
             desc = f"\n   🛈 {r['description']}" if r.get("description") else ""
-            lines.append(
+            entries.append(
                 f"• **{r['name']}** — {r['type']}, stat: {r['target_stat']}, "
                 f"formula: `{r['formula']}`, dur: {r['duration']}, mode: {r['stack_mode']}{desc}"
             )
-        embed = discord.Embed(title="📚 Effect Library", description="\n\n".join(lines), color=discord.Color.green())
-        await ctx.send(embed=embed)
+
+        # Bagi ke halaman (10 per page)
+        page_size = 10
+        pages = [entries[i:i + page_size] for i in range(0, len(entries), page_size)]
+        total_pages = len(pages)
+
+        # === VIEW CLASS ===
+        class EffectListView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=120)
+                self.page = 0
+
+            async def update_msg(self, interaction: discord.Interaction):
+                embed = discord.Embed(
+                    title=f"📚 Effect Library (Page {self.page+1}/{total_pages})",
+                    description="\n\n".join(pages[self.page]),
+                    color=discord.Color.green()
+                )
+                embed.set_footer(text=f"Total efek: {len(entries)}")
+                await interaction.response.edit_message(embed=embed, view=self)
+
+            @discord.ui.button(label="⏮️", style=discord.ButtonStyle.grey)
+            async def first(self, interaction, button):
+                self.page = 0
+                await self.update_msg(interaction)
+
+            @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
+            async def prev(self, interaction, button):
+                if self.page > 0:
+                    self.page -= 1
+                    await self.update_msg(interaction)
+                else:
+                    await interaction.response.defer()
+
+            @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
+            async def next(self, interaction, button):
+                if self.page < total_pages - 1:
+                    self.page += 1
+                    await self.update_msg(interaction)
+                else:
+                    await interaction.response.defer()
+
+            @discord.ui.button(label="⏭️", style=discord.ButtonStyle.grey)
+            async def last(self, interaction, button):
+                self.page = total_pages - 1
+                await self.update_msg(interaction)
+
+        # Kirim embed awal
+        view = EffectListView()
+        embed = discord.Embed(
+            title=f"📚 Effect Library (Page 1/{total_pages})",
+            description="\n\n".join(pages[0]),
+            color=discord.Color.green()
+        )
+        embed.set_footer(text=f"Total efek: {len(entries)}")
+        await ctx.send(embed=embed, view=view)
 
     # === INFO ===
     @effect_group.command(name="info")
