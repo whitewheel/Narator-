@@ -423,6 +423,35 @@ def init_db(guild_id: int) -> None:
         UNIQUE(guild_id, name)
     );
     """)
+    
+    # 19) Crafting Blueprints
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS blueprints (
+        name TEXT PRIMARY KEY,
+        desc TEXT,
+        req TEXT,
+        result TEXT,
+        target_progress INTEGER DEFAULT 100
+    );
+    """)
+
+    # 20) Active Crafting
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS crafting (
+        player TEXT PRIMARY KEY,
+        blueprint TEXT,
+        progress INTEGER DEFAULT 0
+    );
+    """)
+
+    # 21) Known Blueprints per Player
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS known_blueprints (
+        player TEXT,
+        blueprint TEXT,
+        PRIMARY KEY (player, blueprint)
+    );
+    """)
 
     # Auto-migrate
     _ensure_columns(guild_id, "factions", {
@@ -479,6 +508,8 @@ def init_db(guild_id: int) -> None:
     })
 
     # Indexes
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_blueprints_name ON blueprints(name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_crafting_player ON crafting(player);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_name ON quests(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_char_name ON characters(name);")
