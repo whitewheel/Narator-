@@ -130,6 +130,21 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
                 form = e.get("formula", "")
                 (debuffs if "-" in form else buffs).append(e)
 
+        base_stats = {
+            "str": c["str"], "dex": c["dex"], "con": c["con"],
+            "int": c["int"], "wis": c["wis"], "cha": c["cha"]
+        }
+        final_stats, notes = _apply_effects(base_stats, effects)
+        note_line = f" ({', '.join(notes)})" if notes else ""
+        stats_line = (
+            f"STR {final_stats['str']} | "
+            f"DEX {final_stats['dex']} | "
+            f"CON {final_stats['con']}\n"
+            f"INT {final_stats['int']} | "
+            f"WIS {final_stats['wis']} | "
+            f"CHA {final_stats['cha']}{note_line}"
+        )
+
         # ===== Core info =====
         cur_level = c.get("level", 1)
         cur_xp = c.get("xp", 0)
