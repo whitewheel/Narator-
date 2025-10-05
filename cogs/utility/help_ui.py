@@ -14,7 +14,7 @@ CATEGORY_EMOJI = {
     "effect": "💫",
     "init": "⏱️",
     "tick": "⏳",
-
+    "crafting": "⚙️",
     "world": "🌍",
     "quest": "📜",
     "npc": "🧑‍🤝‍🧑",
@@ -29,7 +29,6 @@ CATEGORY_EMOJI = {
     "wiki": "📖",
     "classrace": "🧑‍🎓",
     "skill": "💡",
-
     "utility": "🧰",
     "gm": "🎭",
 }
@@ -43,7 +42,7 @@ CATEGORIES = [
     ("effect", "Effect / Buff-Debuff"),
     ("init", "Initiative"),
     ("tick", "Tick Effects"),
-
+    ("crafting", "Crafting System"),
     ("world", "World (Ringkasan)"),
     ("quest", "Quest"),
     ("npc", "NPC"),
@@ -58,7 +57,6 @@ CATEGORIES = [
     ("wiki", "Wiki"),
     ("classrace", "Class & Race"),
     ("skill", "Skill"),
-
     ("utility", "Utility"),
     ("gm", "GM Only"),
 ]
@@ -191,6 +189,87 @@ def embed_status() -> discord.Embed:
         inline=False
     )
     return e
+
+# ===============================
+#  CRAFTING SYSTEM
+# ===============================
+
+def embed_crafting() -> discord.Embed:
+    e = _embed_base(_title("crafting", "Crafting System – Forge v3"), color=discord.Color.from_rgb(0, 255, 198))
+    e.description = (
+        "Sistem **Crafting** memungkinkan player membuat item menggunakan **Blueprint** dan **Bahan** yang mereka miliki.\n"
+        "GM dapat mengatur blueprint, bahan, dan progress secara manual.\n\n"
+        "Tiap proses memiliki **Target Progress (TP)** dan dapat di-update dengan hasil **roll skill** atau **downtime action**.\n"
+        "Jika progress mencapai 100%, item otomatis masuk ke inventory pemain."
+    )
+
+    e.add_field(
+        name="📘 Blueprint Management",
+        value=(
+            "`!crafting blueprint add <Nama> | <Deskripsi> | <Bahan:qty,...> | <Hasil> | <TargetProgress>`\n"
+            "• Tambahkan atau ubah blueprint global.\n"
+            "• Contoh:\n"
+            "`!crafting blueprint add Rust Shiv – Reinforcement Mod | Blueprint sederhana hasil arahan Drax, berisi instruksi memperkuat Rust Shiv menggunakan dua set Rusted Scrap Gear. | Rust Shiv:1, Rusted Scrap Gear:2 | Reinforced Shiv | 80`\n\n"
+            "`!crafting blueprint list` – daftar semua blueprint global.\n"
+            "`!crafting blueprint detail <Nama>` – lihat rincian bahan, hasil, target progress, dan deskripsi."
+        ),
+        inline=False,
+    )
+
+    e.add_field(
+        name="🧠 Blueprint Knowledge",
+        value=(
+            "`!crafting learn <Player> <Blueprint>` – tandai bahwa player telah mempelajari blueprint.\n"
+            "`!crafting known <Player>` – tampilkan semua blueprint yang diketahui player.\n\n"
+            "💡 **Player hanya bisa memulai crafting untuk blueprint yang telah dipelajari.**"
+        ),
+        inline=False,
+    )
+
+    e.add_field(
+        name="⚙️ Crafting Process",
+        value=(
+            "`!crafting start <Player> <Blueprint>` – mulai proses crafting.\n"
+            "• Otomatis cek bahan di inventory dan menguranginya.\n"
+            "• Hanya bisa dimulai jika player punya **stat crafting_lvl** dan bahan cukup.\n\n"
+            "`!crafting progress <Player> <+angka/-angka>` – update progress manual berdasarkan hasil roll atau aktivitas downtime.\n"
+            "• Contoh: `!crafting progress Rain +25`\n\n"
+            "`!crafting show <Player>` – tampilkan progress bar crafting aktif.\n"
+            "`!crafting finish <Player>` – paksa penyelesaian (manual GM bila progress >= target).\n"
+            "`!crafting cancel <Player>` – batalkan proses (bahan tidak dikembalikan)."
+        ),
+        inline=False,
+    )
+
+    e.add_field(
+        name="✅ Auto-Finish & Hasil",
+        value=(
+            "Begitu progress mencapai atau melebihi **Target Progress**, sistem akan otomatis menyelesaikan crafting.\n"
+            "Item hasil akan otomatis masuk ke inventory karakter yang bersangkutan."
+        ),
+        inline=False,
+    )
+
+    e.add_field(
+        name="🧩 Contoh Alur Lengkap",
+        value=(
+            "1️⃣ GM membuat blueprint:\n"
+            "   `!crafting blueprint add Reinforced Shiv | Bilah hasil peningkatan dari Rust Shiv. | Rust Shiv:1, Rusted Scrap Gear:2 | Reinforced Shiv | 80`\n"
+            "2️⃣ GM memberi blueprint ke player:\n"
+            "   `!crafting learn Udab Reinforced Shiv`\n"
+            "3️⃣ Player memulai crafting:\n"
+            "   `!crafting start Udab Reinforced Shiv`\n"
+            "4️⃣ GM menambahkan progress tiap sesi:\n"
+            "   `!crafting progress Udab +20`\n"
+            "5️⃣ Setelah progress mencapai 80/80 (100%), item otomatis jadi:\n"
+            "   `Reinforced Shiv` ditambahkan ke inventory."
+        ),
+        inline=False,
+    )
+
+    e.set_footer(text="Forge v3 – Sistem crafting Technonesia. Manual GM roll & dynamic progress bar.")
+    return e
+
 
 def embed_enemy() -> discord.Embed:
     e = _embed_base(_title("enemy", "Enemy Commands"), color=discord.Color.from_rgb(255, 159, 64))
@@ -615,6 +694,7 @@ EMBED_BUILDERS = {
     "effect": embed_effect,
     "init": embed_init,
     "tick": embed_tick,
+    "crafting": embed_crafting,
     "quest": embed_quest,
     "npc": embed_npc,
     "shop": embed_shop,
