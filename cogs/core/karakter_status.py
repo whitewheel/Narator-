@@ -131,18 +131,18 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
                 (debuffs if "-" in form else buffs).append(e)
 
         base_stats = {
-            "str": c["str"], "dex": c["dex"], "con": c["con"],
-            "int": c["int"], "wis": c["wis"], "cha": c["cha"]
+            "str": c.get("str", 0),
+            "dex": c.get("dex", 0),
+            "con": c.get("con", 0),
+            "int": c.get("int", 0),
+            "wis": c.get("wis", 0),
+            "cha": c.get("cha", 0),
         }
         final_stats, notes = _apply_effects(base_stats, effects)
         note_line = f" ({', '.join(notes)})" if notes else ""
         stats_line = (
-            f"STR {final_stats['str']} | "
-            f"DEX {final_stats['dex']} | "
-            f"CON {final_stats['con']}\n"
-            f"INT {final_stats['int']} | "
-            f"WIS {final_stats['wis']} | "
-            f"CHA {final_stats['cha']}{note_line}"
+            f"STR {final_stats['str']} | DEX {final_stats['dex']} | CON {final_stats['con']}\n"
+            f"INT {final_stats['int']} | WIS {final_stats['wis']} | CHA {final_stats['cha']}{note_line}"
         )
 
         # ===== Core info =====
