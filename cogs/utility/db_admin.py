@@ -1,157 +1,117 @@
+import os
+import pandas as pd
 import discord
 from discord.ext import commands
-from services import equipment_service, item_service
-
-VALID_SLOTS = [
-    "main_hand", "off_hand",
-    "armor_inner", "armor_outer",
-    "accessory1", "accessory2", "accessory3",
-    "augment1", "augment2", "augment3",
-    "mod"
-]
-
-CATEGORY_DIVIDERS = {
-    "armor_outer": "🟦 ───────────── ⚙️ **Armor & Protection** ─────────────",
-    "accessory1": "🟣 ───────────── 💍 **Accessories** ─────────────",
-    "augment1": "🟢 ───────────── 🧬 **Augments** ─────────────",
-    "mod": "🟠 ───────────── 🧩 **Mods** ─────────────"
-}
+from utils import db
 
 
-class Equipment(commands.Cog):
+class DbAdmin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="equip", invoke_without_command=True)
-    async def equip_group(self, ctx):
+    # ========================
+    # 🔹 Group Command
+    # ========================
+    @commands.group(name="db", invoke_without_command=True)
+    async def db_group(self, ctx):
         await ctx.send(
-            "🧰 **Equipment Commands**\n"
-            "• `!equip set <char> <slot> <item>` → pasang item\n"
-            "• `!equip remove <char> <slot>` → lepas item\n"
-            "• `!equip remove_mod <char> <item>` → lepas mod tertentu\n"
-            "• `!equip show <char>` → lihat semua slot\n\n"
-            f"Slot valid: `{', '.join(VALID_SLOTS)}`"
+            "🧩 **Database Commands**\n"
+            "• `!db checkschema` → cek semua tabel & kolom\n"
+            "• `!db resettable <nama>` → hapus tabel tertentu\n"
+            "• `!db exportitems <csv/xlsx/docx/json>` → ekspor item database"
         )
 
-    @equip_group.command(name="set")
-    async def equip_set(self, ctx, char: str, slot: str, *, item: str):
+    # ========================
+    # 📘 Cek Schema Database
+    # ========================
+    @db_group.command(name="checkschema")
+    async def checkschema(self, ctx):
+        """Cek semua tabel + kolom di DB guild ini"""
         guild_id = ctx.guild.id
-        ok, msg = equipment_service.equip_item(
-            guild_id, char, slot, item, user_id=str(ctx.author.id)
-        )
-        embed = discord.Embed(
-            title="⚔️ Equip Item" if ok else "❌ Equip Gagal",
-            description=msg,
-            color=discord.Color.green() if ok else discord.Color.red(),
-        )
-        await ctx.send(embed=embed)
+        schema = db.check_schema(guild_id)
 
-    @equip_group.command(name="remove")
-    async def equip_remove(self, ctx, char: str, slot: str):
+        msg = "📖 **Schema DB untuk guild ini:**\n"
+        for table, cols in schema.items():
+            msg += f"**{table}**: {', '.join(cols)}\n"
+
+        await ctx.send(msg[:1990])  # Biar aman dari limit Discord
+
+    # ========================
+    # 🗑️ Reset Tabel
+    # ========================
+    @db_group.command(name="resettable")
+    @commands.has_permissions(administrator=True)
+    async def resettable(self, ctx, *, table: str):
+        """Hapus satu tabel lalu kosongkan"""
         guild_id = ctx.guild.id
-        ok, msg = equipment_service.unequip_item(
-            guild_id, char, slot, user_id=str(ctx.author.id)
-        )
-        embed = discord.Embed(
-            title="🛑 Unequip Item" if ok else "❌ Unequip Gagal",
-            description=msg,
-            color=discord.Color.orange() if ok else discord.Color.red(),
-        )
-        await ctx.send(embed=embed)
 
-    @equip_group.command(name="remove_mod")
-    async def equip_remove_mod(self, ctx, char: str, *, item: str):
+        try:
+            db.execute(guild_id, f"DROP TABLE IF EXISTS {table}")
+            await ctx.send(f"✅ Tabel `{table}` sudah dihapus.")
+        except Exception as e:
+            await ctx.send(f"❌ Gagal drop tabel `{table}`: {e}")
+
+    # ========================
+    # 📤 Export Item Data
+    # ========================
+    @db_group.command(name="exportitems")
+    @commands.has_permissions(administrator=True)
+    async def exportitems(self, ctx, fmt: str = "csv"):
+        """📦 Export semua item ke file (csv/xlsx/docx/json)."""
         guild_id = ctx.guild.id
-        ok, msg = equipment_service.remove_mod(
-            guild_id, char, item, user_id=str(ctx.author.id)
-        )
-        embed = discord.Embed(
-            title="🧩 Remove Mod" if ok else "❌ Remove Mod Gagal",
-            description=msg,
-            color=discord.Color.orange() if ok else discord.Color.red(),
-        )
-        await ctx.send(embed=embed)
+        rows = db.fetchall(guild_id, "SELECT * FROM items")
 
-    @equip_group.command(name="show")
-    async def equip_show(self, ctx, char: str):
-        guild_id = ctx.guild.id
-        eq_dict = equipment_service.get_equipment_dict(guild_id, char)
-        if not eq_dict:
-            return await ctx.send(f"❌ Karakter **{char}** tidak ditemukan.")
+        if not rows:
+            return await ctx.send("❌ Tidak ada data item di database!")
 
-        embed = discord.Embed(
-            title=f"🧰 Equipment {char}",
-            color=discord.Color.from_str("#3498db")
-        )
+        df = pd.DataFrame(rows)
+        os.makedirs("/tmp", exist_ok=True)
+        filename = f"/tmp/items_{guild_id}.{fmt.lower()}"
 
-        ordered_slots = [
-            "main_hand", "off_hand",
-            "armor_inner", "armor_outer",
-            "accessory1", "accessory2", "accessory3",
-            "augment1", "augment2", "augment3",
-            "mod"
-        ]
+        try:
+            fmt = fmt.lower()
 
-        # Loop semua slot kecuali mod dulu
-        for slot in ordered_slots:
-            # Divider antar kategori
-            if slot in CATEGORY_DIVIDERS:
-                embed.add_field(name="\u200b", value=CATEGORY_DIVIDERS[slot], inline=False)
+            # === Ekspor ke berbagai format ===
+            if fmt == "csv":
+                df.to_csv(filename, index=False)
+            elif fmt == "xlsx":
+                df.to_excel(filename, index=False)
+            elif fmt == "json":
+                df.to_json(filename, orient="records", indent=2)
+            elif fmt == "docx":
+                from docx import Document
 
-            # Tangani slot selain mod
-            if slot != "mod":
-                item_name = eq_dict.get(slot, "(kosong)")
-                item_data = item_service.get_item_details(guild_id, item_name)
-                desc_lines = []
-                if item_data:
-                    if item_data.get("effect"):
-                        desc_lines.append(f"- {item_data['effect']}")
-                    if item_data.get("rules"):
-                        desc_lines.append(f"- {item_data['rules']}")
-                    if item_data.get("notes"):
-                        desc_lines.append(f"- {item_data['notes']}")
-                desc_text = "\n".join(desc_lines) if desc_lines else "_Tidak ada deskripsi._"
+                doc = Document()
+                doc.add_heading("Technonesia Item Catalog", level=1)
 
-                embed.add_field(
-                    name=f"**{slot}** — {item_name}",
-                    value=f"{desc_text}\n\u200b",
-                    inline=False
+                for _, r in df.iterrows():
+                    name = r.get("name", "?")
+                    rarity = r.get("rarity", "?")
+                    desc = r.get("desc", "")
+                    doc.add_heading(f"{name} ({rarity})", level=2)
+                    doc.add_paragraph(
+                        f"Type: {r.get('type', '?')} | "
+                        f"Value: {r.get('value', '?')} | "
+                        f"Weight: {r.get('weight', '?')}"
+                    )
+                    if desc:
+                        doc.add_paragraph(desc)
+                    doc.add_paragraph("—")
+
+                doc.save(filename)
+            else:
+                return await ctx.send(
+                    "❌ Format tidak dikenal! Gunakan: csv / xlsx / docx / json."
                 )
 
-                # Tambahkan jarak antar accessories & augments
-                if slot in ["accessory1", "accessory2", "augment1", "augment2"]:
-                    embed.add_field(name="\u200b", value="\u200b", inline=False)
+            await ctx.send(
+                content=f"✅ Data item diekspor sebagai **{fmt.upper()}**",
+                file=discord.File(filename),
+            )
 
-        # === Bagian MOD (bisa banyak)
-        embed.add_field(name="\u200b", value=CATEGORY_DIVIDERS["mod"], inline=False)
-
-        mods = equipment_service.get_mod_list(guild_id, char)  # → list semua mod (kalau ada)
-        if not mods:
-            embed.add_field(name="(mod slot)", value="(kosong)\n\u200b", inline=False)
-        else:
-            for mod_name in mods:
-                item_data = item_service.get_item_details(guild_id, mod_name)
-                desc_lines = []
-                if item_data:
-                    if item_data.get("effect"):
-                        desc_lines.append(f"- {item_data['effect']}")
-                    if item_data.get("rules"):
-                        desc_lines.append(f"- {item_data['rules']}")
-                    if item_data.get("notes"):
-                        desc_lines.append(f"- {item_data['notes']}")
-                desc_text = "\n".join(desc_lines) if desc_lines else "_Tidak ada deskripsi._"
-
-                embed.add_field(
-                    name=f"🧩 {mod_name}",
-                    value=f"{desc_text}\n\u200b",
-                    inline=False
-                )
-
-                # jarak antar mod biar enak dibaca
-                embed.add_field(name="\u200b", value="\u200b", inline=False)
-
-        await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Gagal export item: {e}")
 
 
 async def setup(bot):
-    await bot.add_cog(Equipment(bot))
+    await bot.add_cog(DbAdmin(bot))
