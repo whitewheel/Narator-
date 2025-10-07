@@ -153,17 +153,6 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         profile_line = f"Lv {cur_level} | XP {cur_xp}/{xp_need} | 💰 {c.get('gold',0)} gold"
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
-
-        # 🐜 ==== Companion Info (list) ====
-        comps = fetchall(ctx.guild.id, "SELECT name, hp, hp_max FROM companions WHERE owner=?", (c["name"],))
-        comp_block = ""
-        if comps:
-            lines = []
-            for comp in comps:
-                alive = comp["hp"] > 0
-                icon = "🟢" if alive else "🔴"
-                lines.append(f"- {comp['name']} ({icon} {'Hidup' if alive else 'Mati'})")
-            comp_block = "\n🐜 **Companion:**\n" + "\n".join(lines)
         
         # ===== FINAL EMBED VALUE =====
         value = (
@@ -189,6 +178,30 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
             embed.add_field(name="☠️ Debuffs", value=debuff_lines, inline=False)
         else:
             embed.add_field(name="☠️ Debuffs", value="*(tidak ada)*", inline=False)
+
+        # ===== 🐜 Companion List =====
+        companions = []
+        try:
+            companions = json.loads(c.get("companions") or "[]")
+        except Exception:
+            companions = []
+
+        if companions:
+            comp_lines = []
+            for comp in companions:
+                name = comp.get("name", "(tanpa nama)")
+                status = comp.get("status", "Alive")
+                icon = "🟢" if status.lower() in ["alive", "hidup"] else "🔴"
+                comp_lines.append(f"- {name} ({icon} {status.title()})")
+            comp_text = "\n".join(comp_lines)
+        else:
+            comp_text = "_(tidak ada companion)_"
+
+        embed.add_field(name="🐜 Companions", value=comp_text, inline=False)
+
+    # ===== Footer =====
+    embed.set_footer(text="Gunakan !comp show <Nama> untuk lihat detail setiap companion.")
+    await ctx.send(embed=embed)
 
     return embed
 
