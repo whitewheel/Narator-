@@ -72,15 +72,12 @@ def remove_effect_lib(guild_id: int, name: str) -> bool:
 # ===============================
 # Helpers
 # ===============================
-def _table_for_target(ttype: str) -> str:
-    if ttype == "enemy":
-        return "enemies"
-    if ttype == "ally":
-        return "allies"
-    return "characters"
-
 def _find_target(guild_id: int, name: str) -> Optional[Tuple[str, Dict]]:
-    for table in ["characters", "enemies", "allies"]:
+    """
+    Cari target berdasarkan nama di semua tabel yang bisa kena efek:
+    characters, enemies, allies, companions.
+    """
+    for table in ["characters", "enemies", "allies", "companions"]:
         row = fetchone(guild_id, f"SELECT * FROM {table} WHERE name=?", (name,))
         if row:
             return table, row
@@ -138,14 +135,11 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
     if override_duration is not None:
         parts = str(override_duration).split()
         if len(parts) == 2 and parts[0].startswith(("+", "-")):
-            # contoh: "-3 3" → formula=-3, durasi=3
             formula = parts[0]
             duration = int(parts[1])
         elif str(override_duration).startswith(("+", "-")):
-            # contoh: "-2" → formula override saja
             formula = str(override_duration)
         else:
-            # contoh: "4" → durasi override saja
             duration = int(override_duration)
     base_duration = duration
 
@@ -229,8 +223,8 @@ def _format_eff_line(e: Dict, guild_id: int) -> str:
     return f"🔹 **{e.get('text','')}**{stack_txt} — {form} *(sisa {dur_txt} turn)*\n🛈 {desc or '(tidak ada deskripsi)'}"
 
 async def tick_effects(guild_id: int) -> Dict:
-    results = {"char": {}, "enemy": {}, "ally": {}}
-    for ttype, table in [("char","characters"),("enemy","enemies"),("ally","allies")]:
+    results = {"char": {}, "enemy": {}, "ally": {}, "companion": {}}
+    for ttype, table in [("char","characters"),("enemy","enemies"),("ally","allies"),("companion","companions")]:
         rows = fetchall(guild_id, f"SELECT * FROM {table}")
         for r in rows:
             name = r["name"]
@@ -282,4 +276,5 @@ def build_tick_embed(discord, guild_id: int, guild_name: str, results: Dict, eng
     _section("char", "🧍", "Characters")
     _section("enemy", "👹", "Enemies")
     _section("ally", "🤝", "Allies")
+    _section("companion", "🐜", "Companions")
     return embed
