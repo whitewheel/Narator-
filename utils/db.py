@@ -323,6 +323,25 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+        # 4.5) Companions (baru)
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS companions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        owner TEXT,                    -- karakter pemilik
+        hp INTEGER DEFAULT 0,
+        hp_max INTEGER DEFAULT 0,
+        energy INTEGER DEFAULT 0,
+        energy_max INTEGER DEFAULT 0,
+        stamina INTEGER DEFAULT 0,
+        stamina_max INTEGER DEFAULT 0,
+        ac INTEGER DEFAULT 10,
+        effects TEXT DEFAULT '[]',     -- buff/debuff JSON
+        modules TEXT DEFAULT '[]',     -- module JSON
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     # --- MIGRASI untuk factions lama ---
     info = fetchall(guild_id, "PRAGMA table_info(factions)")
     cols = {c["name"] for c in info}
