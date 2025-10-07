@@ -154,6 +154,17 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
         combat_line = f"AC {c['ac']} | Init {c['init_mod']} | Speed {c.get('speed',30)}"
         carry_line = f"⚖️ Carry: {c.get('carry_used',0):.1f} / {c.get('carry_capacity',0)}"
 
+        # 🐜 ==== Companion Info (list) ====
+        comps = fetchall(ctx.guild.id, "SELECT name, hp, hp_max FROM companions WHERE owner=?", (c["name"],))
+        comp_block = ""
+        if comps:
+            lines = []
+            for comp in comps:
+                alive = comp["hp"] > 0
+                icon = "🟢" if alive else "🔴"
+                lines.append(f"- {comp['name']} ({icon} {'Hidup' if alive else 'Mati'})")
+            comp_block = "\n🐜 **Companion:**\n" + "\n".join(lines)
+        
         # ===== FINAL EMBED VALUE =====
         value = (
             f"{profile_line}\n\n"
