@@ -201,8 +201,6 @@ async def make_embed(characters: list, ctx, title="🧍 Status Karakter"):
 
     # ===== Footer =====
     embed.set_footer(text="Gunakan !comp show <Nama> untuk lihat detail setiap companion.")
-    await ctx.send(embed=embed)
-
     return embed
 
 async def make_embed_page2(c, ctx):
