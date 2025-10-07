@@ -22,6 +22,9 @@ class Equipment(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ===========================
+    # GROUP UTAMA
+    # ===========================
     @commands.group(name="equip", invoke_without_command=True)
     async def equip_group(self, ctx):
         await ctx.send(
@@ -33,6 +36,9 @@ class Equipment(commands.Cog):
             f"Slot valid: `{', '.join(VALID_SLOTS)}`"
         )
 
+    # ===========================
+    # EQUIP ITEM
+    # ===========================
     @equip_group.command(name="set")
     async def equip_set(self, ctx, char: str, slot: str, *, item: str):
         guild_id = ctx.guild.id
@@ -46,6 +52,9 @@ class Equipment(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    # ===========================
+    # UNEQUIP ITEM
+    # ===========================
     @equip_group.command(name="remove")
     async def equip_remove(self, ctx, char: str, slot: str):
         guild_id = ctx.guild.id
@@ -59,6 +68,9 @@ class Equipment(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    # ===========================
+    # REMOVE MOD
+    # ===========================
     @equip_group.command(name="remove_mod")
     async def equip_remove_mod(self, ctx, char: str, *, item: str):
         guild_id = ctx.guild.id
@@ -72,6 +84,9 @@ class Equipment(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    # ===========================
+    # SHOW EQUIPMENT
+    # ===========================
     @equip_group.command(name="show")
     async def equip_show(self, ctx, char: str):
         guild_id = ctx.guild.id
@@ -80,7 +95,8 @@ class Equipment(commands.Cog):
             return await ctx.send(f"❌ Karakter **{char}** tidak ditemukan.")
 
         embed = discord.Embed(
-            title=f"🧰 Equipment {char}",
+            title=f"🧰 Equipment — {char}",
+            description=f"⚙️ Loadout aktif karakter **{char}**",
             color=discord.Color.from_str("#3498db")
         )
 
@@ -92,7 +108,7 @@ class Equipment(commands.Cog):
             "mod"
         ]
 
-        # Loop semua slot kecuali mod dulu
+        # === SLOT NORMAL ===
         for slot in ordered_slots:
             # Divider antar kategori
             if slot in CATEGORY_DIVIDERS:
@@ -101,7 +117,7 @@ class Equipment(commands.Cog):
             # Tangani slot selain mod
             if slot != "mod":
                 item_name = eq_dict.get(slot, "(kosong)")
-                item_data = item_service.get_item_details(guild_id, item_name)
+                item_data = item_service.get_item(guild_id, item_name)  # ✅ FIXED
                 desc_lines = []
                 if item_data:
                     if item_data.get("effect"):
@@ -122,15 +138,15 @@ class Equipment(commands.Cog):
                 if slot in ["accessory1", "accessory2", "augment1", "augment2"]:
                     embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-        # === Bagian MOD (bisa banyak)
+        # === SLOT MODS ===
         embed.add_field(name="\u200b", value=CATEGORY_DIVIDERS["mod"], inline=False)
 
-        mods = equipment_service.get_mod_list(guild_id, char)  # → list semua mod (kalau ada)
+        mods = equipment_service.get_mod_list(guild_id, char)
         if not mods:
             embed.add_field(name="(mod slot)", value="(kosong)\n\u200b", inline=False)
         else:
             for mod_name in mods:
-                item_data = item_service.get_item_details(guild_id, mod_name)
+                item_data = item_service.get_item(guild_id, mod_name)  # ✅ FIXED
                 desc_lines = []
                 if item_data:
                     if item_data.get("effect"):
@@ -153,5 +169,8 @@ class Equipment(commands.Cog):
         await ctx.send(embed=embed)
 
 
+# ===========================
+# SETUP
+# ===========================
 async def setup(bot):
     await bot.add_cog(Equipment(bot))
