@@ -10,6 +10,7 @@ CATEGORY_EMOJI = {
     "core": "⚔️",
     "status": "🧍",
     "enemy": "👹",
+    "companion": "🐜",
     "ally": "🤝",
     "effect": "💫",
     "init": "⏱️",
@@ -38,6 +39,7 @@ CATEGORIES = [
     ("core", "Core (Ringkasan Cepat)"),
     ("status", "Status (Karakter)"),
     ("enemy", "Enemy"),
+    ("companion", "Companion"),
     ("ally", "Ally"),
     ("effect", "Effect / Buff-Debuff"),
     ("init", "Initiative"),
@@ -304,6 +306,80 @@ def embed_enemy() -> discord.Embed:
         ),
         inline=False
     )
+    return e
+
+def embed_companion() -> discord.Embed:
+    e = _embed_base(_title("companion", "Companion System 🐜"), color=discord.Color.from_rgb(100, 220, 100))
+    e.description = (
+        "Sistem **Companion** digunakan untuk menampilkan, mengatur, dan mengontrol entitas pendamping "
+        "seperti drone, symbiote, module AI, atau makhluk lain yang ikut bertarung bersama karakter utama.\n\n"
+        "Setiap karakter dapat memiliki lebih dari satu companion dengan status terpisah (HP, Energy, Stamina, Buff/Debuff, dan Module)."
+    )
+
+    # === Bagian 1: Manajemen Companion ===
+    e.add_field(
+        name="📘 Manajemen Companion",
+        value=(
+            "`!comp add <Char> <NamaComp>` → Tambah companion baru\n"
+            "`!comp edit <Char> <NamaComp> <Field> <Value>` → Ubah status\n"
+            "`!comp remove <Char> <NamaComp>` → Hapus companion\n"
+            "`!comp show <Char>` → Lihat semua companion milik karakter\n"
+            "`!comp clear <Char>` → Hapus semua companion karakter (opsional GM)\n\n"
+            "📍 **Contoh:**\n"
+            "• `!comp add Udab Zac-01`\n"
+            "• `!comp edit Udab Zac-01 hp 20`\n"
+            "• `!comp edit Udab Zac-01 ac 15`\n"
+            "• `!comp show Udab`"
+        ),
+        inline=False
+    )
+
+    # === Bagian 2: Combat & Resource ===
+    e.add_field(
+        name="⚔️ Combat & Resource",
+        value=(
+            "`!cdmg <Char> <Comp> <N>` → Beri damage\n"
+            "`!cheal <Char> <Comp> <N>` → Pulihkan HP\n"
+            "`!cusestm <Char> <Comp> <N>` → Gunakan stamina\n"
+            "`!caddstm <Char> <Comp> <N>` → Tambah stamina\n"
+            "`!cuseene <Char> <Comp> <N>` → Gunakan energi\n"
+            "`!caddene <Char> <Comp> <N>` → Tambah energi\n\n"
+            "📍 **Contoh:**\n"
+            "• `!cdmg Udab Zac-01 5` → Zac-01 menerima 5 damage\n"
+            "• `!cheal Udab Zac-01 3` → Zac-01 pulih 3 HP\n"
+            "• `!cuseene Rain BirdModule 2` → BirdModule memakai 2 energi"
+        ),
+        inline=False
+    )
+
+    # === Bagian 3: Module & Status ===
+    e.add_field(
+        name="🧩 Module & Status",
+        value=(
+            "Companion dapat memiliki satu atau lebih **Modules** (fungsi tambahan, skill, augment, dll).\n"
+            "Gunakan `!comp edit <Char> <Comp> module=\"Nama Module\"` untuk menambahkan atau mengubah modul secara manual.\n\n"
+            "🧠 **Field yang bisa diedit:**\n"
+            "`hp, hp_max, energy, energy_max, stamina, stamina_max, ac, name, notes, status`\n\n"
+            "📍 **Contoh:**\n"
+            "• `!comp edit Udab Zac-01 module=\"Synaptic Link Mk.I\"`\n"
+            "• `!comp edit Rain BirdModule notes=\"Unit pengintai udara – model 213-A\"`"
+        ),
+        inline=False
+    )
+
+    # === Bagian 4: Tampilan ===
+    e.add_field(
+        name="📊 Tampilan & Status",
+        value=(
+            "`!comp show <Char>` → Menampilkan semua companion milik karakter dalam bentuk embed.\n"
+            "• Menampilkan status hidup/mati (🟢 / 🔴)\n"
+            "• Ada garis pemisah antar companion\n"
+            "• Menampilkan Buff, Debuff, dan daftar Module\n\n"
+        ),
+        inline=False
+    )
+
+    e.set_footer(text="🐜 Companion System – companion multipel per karakter, status independen, module support, dan kontrol penuh GM.")
     return e
 
 def embed_ally() -> discord.Embed:
@@ -690,6 +766,7 @@ EMBED_BUILDERS = {
     "core": embed_core,
     "status": embed_status,
     "enemy": embed_enemy,
+    "companion": embed_companion,
     "ally": embed_ally,
     "effect": embed_effect,
     "init": embed_init,
