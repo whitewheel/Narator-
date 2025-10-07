@@ -51,6 +51,7 @@ class MyBot(commands.Bot):
             "cogs.core.class_manager",
             "cogs.core.shop",
             "cogs.core.effect",
+            "cogs.core.companion",
             "cogs.core.ally_status",
             "cogs.core.equipment", 
 
