@@ -527,6 +527,8 @@ def init_db(guild_id: int) -> None:
     })
 
     # Indexes
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_companion_name ON companions(name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_companion_owner ON companions(owner);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_blueprints_name ON blueprints(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_crafting_player ON crafting(player);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_faction_guild_name ON factions(guild_id, name);")
