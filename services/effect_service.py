@@ -98,11 +98,13 @@ def _find_target(guild_id: int, name: str) -> Optional[Tuple[str, Dict]]:
             continue
     return None
 
+
 def _load_effects(row: Dict) -> List[Dict]:
     try:
         return json.loads(row.get("effects") or "[]")
     except Exception:
         return []
+
 
 def _save_effects(guild_id: int, table: str, row_id: int, effects: List[Dict]) -> None:
     """
@@ -111,19 +113,22 @@ def _save_effects(guild_id: int, table: str, row_id: int, effects: List[Dict]) -
     - Companion JSON (dalam kolom characters.companions)
     """
     if table == "companion_json":
-        # Ambil owner karakter
-        owner_row = fetchone(guild_id, "SELECT * FROM characters WHERE id=?", (row_id,))
+        owner_id = row_id
+        owner_row = fetchone(guild_id, "SELECT * FROM characters WHERE id=?", (owner_id,))
         if not owner_row:
             return
+
         comps = json.loads(owner_row.get("companions") or "[]")
         for c in comps:
             if c.get("name", "").lower() == effects[0].get("id", "").lower():
                 c["effects"] = effects
+
         execute(
             guild_id,
-            "UPDATE characters SET companions=? WHERE id=?",
-            (json.dumps(comps), row_id)
+            "UPDATE characters SET companions=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (json.dumps(comps), owner_id)
         )
+
     else:
         execute(
             guild_id,
@@ -131,11 +136,14 @@ def _save_effects(guild_id: int, table: str, row_id: int, effects: List[Dict]) -
             (json.dumps(effects), row_id),
         )
 
+
 def _pretty_name(name: str) -> str:
     return name.replace("_", " ").title()
 
+
 def _match_effect_instance(inst: Dict, lib_name: str) -> bool:
     return (inst.get("id") or "").lower() == lib_name.lower()
+
 
 def update_effect_field(guild_id: int, name: str, field: str, value: str):
     """Update satu kolom di tabel effects."""
@@ -198,7 +206,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
     # Multi-instance
     if mode == "multi-instance":
         effects.append(_make_inst())
-        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
+        _save_effects(guild_id, table, row.get("id") or row.get("_owner_id"), effects)
         return True, f"☠️ {target_name} mendapat **{display}** ({base_duration} turn)."
 
     # Refresh
@@ -208,7 +216,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
         else:
             effects[existing_idx]["duration"] = base_duration
             effects[existing_idx]["formula"] = formula
-        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
+        _save_effects(guild_id, table, row.get("id") or row.get("_owner_id"), effects)
         return True, f"🔁 {target_name}: **{display}** di-refresh ({base_duration} turn)."
 
     # Stack
@@ -221,14 +229,14 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
             new_stack = min(int(cur.get("stack", 1)) + 1, max_stack)
             cur.update(_make_inst(new_stack))
             msg = f"📈 {target_name}: **{display}** naik ke **Lv{new_stack}** ({base_duration} turn)."
-        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
+        _save_effects(guild_id, table, row.get("id") or row.get("_owner_id"), effects)
         return True, msg
 
     # Unique
     if existing_idx is not None:
         return True, f"ℹ️ {target_name} sudah memiliki **{display}** (unique)."
     effects.append(_make_inst())
-    _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
+    _save_effects(guild_id, table, row.get("id") or row.get("_owner_id"), effects)
     return True, f"✅ {target_name} mendapat **{display}** ({base_duration} turn)."
 
 def get_active_effects(guild_id: int, target_name: str):
