@@ -71,6 +71,7 @@ def make_comp_embed(guild_id: int, char_name: str, comps: list):
         energy, energy_max = c.get("energy", 0), c.get("energy_max", 0)
         stamina, stamina_max = c.get("stamina", 0), c.get("stamina_max", 0)
         ac = c.get("ac", 10)
+        level, xp, xp_next = c.get("level", 1), c.get("xp", 0), c.get("xp_next", 100)
         effects = c.get("effects", [])
         modules = c.get("modules", [])
 
@@ -90,6 +91,7 @@ def make_comp_embed(guild_id: int, char_name: str, comps: list):
 
         # --- core stats bar
         stat_value = (
+            f"**Lv {level}** | XP: {xp}/{xp_next} [{_bar(xp, xp_next)}]\n"
             f"❤️ HP {hp}/{hp_max} [{_bar(hp, hp_max)}]\n"
             f"🔋 Energy {energy}/{energy_max} [{_bar(energy, energy_max)}]\n"
             f"⚡ Stamina {stamina}/{stamina_max} [{_bar(stamina, stamina_max)}]\n"
@@ -97,7 +99,6 @@ def make_comp_embed(guild_id: int, char_name: str, comps: list):
         )
 
         embed.add_field(name=f"🔹 {name}", value=stat_value, inline=False)
-
         embed.add_field(name="✨ Buffs", value="\n\n".join(buffs) if buffs else "*(tidak ada)*", inline=False)
         embed.add_field(name="☠️ Debuffs", value="\n\n".join(debuffs) if debuffs else "*(tidak ada)*", inline=False)
 
@@ -122,9 +123,17 @@ class Companion(commands.Cog):
             "`!comp add <Char> <Nama>` → tambah companion\n"
             "`!comp edit <Char> <Nama> <Field> <Value>` → ubah data\n"
             "`!comp remove <Char> <Nama>` → hapus companion\n"
-            "`!comp clear <Char>` → hapus semua companion"
+            "`!comp clear <Char>` → hapus semua companion\n"
+            "`!comp set <Char> <Nama> <HP> <Energy> <Stamina>`\n"
+            "`!comp setac <Char> <Nama> <AC>`\n"
+            "`!comp setlv <Char> <Nama> <Level>`\n"
+            "`!comp addxp <Char> <Nama> <Jumlah>`\n"
+            "`!comp subxp <Char> <Nama> <Jumlah>`"
         )
 
+    # ===============================
+    # CRUD DASAR
+    # ===============================
     @comp_group.command(name="show")
     async def comp_show(self, ctx, char_name: str):
         guild_id = ctx.guild.id
@@ -147,11 +156,14 @@ class Companion(commands.Cog):
             "energy": 5, "energy_max": 5,
             "stamina": 5, "stamina_max": 5,
             "ac": 10,
+            "level": 1,
+            "xp": 0,
+            "xp_next": 100,
             "effects": [], "modules": []
         }
         comps.append(new_comp)
         _save_companions(guild_id, char_name, comps)
-        await ctx.send(f"✅ Companion **{comp_name}** ditambahkan ke {char_name}.")
+        await ctx.send(f"✅ Companion **{comp_name}** ditambahkan ke {char_name} (Lv 1).")
 
     @comp_group.command(name="edit")
     async def comp_edit(self, ctx, char_name: str, comp_name: str, field: str, *, value: str):
@@ -185,7 +197,7 @@ class Companion(commands.Cog):
         await ctx.send(f"🧹 Semua companion **{char_name}** telah dihapus.")
 
     # ===============================
-    # RESOURCE MANAGEMENT (HP/STM/ENE)
+    # STAT & XP MANUAL COMMANDS
     # ===============================
     def _get_comp(self, guild_id, char_name, comp_name):
         comps = _get_companions(guild_id, char_name)
@@ -194,12 +206,60 @@ class Companion(commands.Cog):
                 return comps, c
         return comps, None
 
+    @comp_group.command(name="set")
+    async def comp_set(self, ctx, char_name: str, comp_name: str, hp: int, energy: int, stamina: int):
+        guild_id = ctx.guild.id
+        comps, comp = self._get_comp(guild_id, char_name, comp_name)
+        if not comp: return await ctx.send("❌ Companion tidak ditemukan.")
+        comp["hp"] = hp
+        comp["energy"] = energy
+        comp["stamina"] = stamina
+        _save_companions(guild_id, char_name, comps)
+        await ctx.send(f"🛠️ {comp_name}: HP={hp}, Energy={energy}, Stamina={stamina}")
+
+    @comp_group.command(name="setac")
+    async def comp_set_ac(self, ctx, char_name: str, comp_name: str, ac: int):
+        guild_id = ctx.guild.id
+        comps, comp = self._get_comp(guild_id, char_name, comp_name)
+        if not comp: return await ctx.send("❌ Companion tidak ditemukan.")
+        comp["ac"] = ac
+        _save_companions(guild_id, char_name, comps)
+        await ctx.send(f"🛡️ AC {comp_name} diubah jadi {ac}")
+
+    @comp_group.command(name="setlv")
+    async def comp_set_lv(self, ctx, char_name: str, comp_name: str, level: int):
+        guild_id = ctx.guild.id
+        comps, comp = self._get_comp(guild_id, char_name, comp_name)
+        if not comp: return await ctx.send("❌ Companion tidak ditemukan.")
+        comp["level"] = level
+        _save_companions(guild_id, char_name, comps)
+        await ctx.send(f"🏅 Level {comp_name} diubah ke Lv {level}")
+
+    @comp_group.command(name="addxp")
+    async def comp_add_xp(self, ctx, char_name: str, comp_name: str, amount: int):
+        guild_id = ctx.guild.id
+        comps, comp = self._get_comp(guild_id, char_name, comp_name)
+        if not comp: return await ctx.send("❌ Companion tidak ditemukan.")
+        comp["xp"] = comp.get("xp", 0) + amount
+        _save_companions(guild_id, char_name, comps)
+        await ctx.send(f"💠 XP {comp_name} bertambah +{amount} → total {comp['xp']}")
+
+    @comp_group.command(name="subxp")
+    async def comp_sub_xp(self, ctx, char_name: str, comp_name: str, amount: int):
+        guild_id = ctx.guild.id
+        comps, comp = self._get_comp(guild_id, char_name, comp_name)
+        if not comp: return await ctx.send("❌ Companion tidak ditemukan.")
+        comp["xp"] = max(0, comp.get("xp", 0) - amount)
+        _save_companions(guild_id, char_name, comps)
+        await ctx.send(f"💠 XP {comp_name} dikurangi -{amount} → total {comp['xp']}")
+
+    # ===============================
+    # RESOURCE MANAGEMENT (HP/STM/ENE)
+    # ===============================
     async def _save_and_reply(self, ctx, guild_id, char_name, comps, comp, field, old, new):
         _save_companions(guild_id, char_name, comps)
         bar = lambda a, b: "█" * int(12 * (a / max(b, 1))) + "░" * int(12 - 12 * (a / max(b, 1)))
-        if "hp" in field: symbol = "❤️"
-        elif "energy" in field: symbol = "🔋"
-        else: symbol = "⚡"
+        symbol = "❤️" if "hp" in field else "🔋" if "energy" in field else "⚡"
         await ctx.send(f"{symbol} {comp['name']} → {field.upper()} {old} → {new} [{bar(new, comp.get(field.replace('_max',''), new))}]")
 
     @commands.command(name="cdmg")
@@ -259,5 +319,8 @@ class Companion(commands.Cog):
         comp["energy"] = new
         await self._save_and_reply(ctx, guild_id, char_name, comps, comp, "energy", old, new)
 
+# ===============================
+#  Setup Cog
+# ===============================
 async def setup(bot):
     await bot.add_cog(Companion(bot))
