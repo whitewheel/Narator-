@@ -75,12 +75,27 @@ def remove_effect_lib(guild_id: int, name: str) -> bool:
 def _find_target(guild_id: int, name: str) -> Optional[Tuple[str, Dict]]:
     """
     Cari target berdasarkan nama di semua tabel yang bisa kena efek:
-    characters, enemies, allies, companions.
+    characters, enemies, allies, companions (tabel),
+    serta companion JSON di dalam tabel characters.
     """
+    # 1️⃣ Cek tabel utama
     for table in ["characters", "enemies", "allies", "companions"]:
         row = fetchone(guild_id, f"SELECT * FROM {table} WHERE name=?", (name,))
         if row:
             return table, row
+
+    # 2️⃣ Cek companions JSON di dalam karakter
+    chars = fetchall(guild_id, "SELECT id, name, companions FROM characters")
+    for ch in chars:
+        try:
+            comps = json.loads(ch.get("companions") or "[]")
+            for comp in comps:
+                if comp.get("name", "").lower() == name.lower():
+                    comp["_owner_id"] = ch["id"]
+                    comp["_owner_name"] = ch["name"]
+                    return "companion_json", comp
+        except Exception:
+            continue
     return None
 
 def _load_effects(row: Dict) -> List[Dict]:
@@ -90,11 +105,31 @@ def _load_effects(row: Dict) -> List[Dict]:
         return []
 
 def _save_effects(guild_id: int, table: str, row_id: int, effects: List[Dict]) -> None:
-    execute(
-        guild_id,
-        f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (json.dumps(effects), row_id),
-    )
+    """
+    Simpan efek tergantung targetnya:
+    - Tabel biasa (characters/enemies/allies/companions)
+    - Companion JSON (dalam kolom characters.companions)
+    """
+    if table == "companion_json":
+        # Ambil owner karakter
+        owner_row = fetchone(guild_id, "SELECT * FROM characters WHERE id=?", (row_id,))
+        if not owner_row:
+            return
+        comps = json.loads(owner_row.get("companions") or "[]")
+        for c in comps:
+            if c.get("name", "").lower() == effects[0].get("id", "").lower():
+                c["effects"] = effects
+        execute(
+            guild_id,
+            "UPDATE characters SET companions=? WHERE id=?",
+            (json.dumps(comps), row_id)
+        )
+    else:
+        execute(
+            guild_id,
+            f"UPDATE {table} SET effects=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (json.dumps(effects), row_id),
+        )
 
 def _pretty_name(name: str) -> str:
     return name.replace("_", " ").title()
@@ -163,7 +198,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
     # Multi-instance
     if mode == "multi-instance":
         effects.append(_make_inst())
-        _save_effects(guild_id, table, row["id"], effects)
+        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
         return True, f"☠️ {target_name} mendapat **{display}** ({base_duration} turn)."
 
     # Refresh
@@ -173,7 +208,7 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
         else:
             effects[existing_idx]["duration"] = base_duration
             effects[existing_idx]["formula"] = formula
-        _save_effects(guild_id, table, row["id"], effects)
+        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
         return True, f"🔁 {target_name}: **{display}** di-refresh ({base_duration} turn)."
 
     # Stack
@@ -186,14 +221,14 @@ async def apply_effect(guild_id: int, target_name: str, effect_name: str, overri
             new_stack = min(int(cur.get("stack", 1)) + 1, max_stack)
             cur.update(_make_inst(new_stack))
             msg = f"📈 {target_name}: **{display}** naik ke **Lv{new_stack}** ({base_duration} turn)."
-        _save_effects(guild_id, table, row["id"], effects)
+        _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
         return True, msg
 
     # Unique
     if existing_idx is not None:
         return True, f"ℹ️ {target_name} sudah memiliki **{display}** (unique)."
     effects.append(_make_inst())
-    _save_effects(guild_id, table, row["id"], effects)
+    _save_effects(guild_id, table, row.get("id", row.get("_owner_id")), effects)
     return True, f"✅ {target_name} mendapat **{display}** ({base_duration} turn)."
 
 def get_active_effects(guild_id: int, target_name: str):
