@@ -140,5 +140,56 @@ class NPC(commands.Cog):
         msg = await npc_service.remove_npc(ctx.guild.id, ctx.author.id, name)
         await ctx.send(msg)
 
+    # === GM Show (lihat semua trait & info tanpa hidden) ===
+    @npc.command(name="gmshow")
+    async def npc_gmshow(self, ctx, *, name: str):
+        npc = npc_service.get_npc(ctx.guild.id, name)
+        if not npc:
+            return await ctx.send("❌ NPC tidak ditemukan.")
+
+        embed = discord.Embed(
+            title=f"👁️ GM View: {npc['name']}",
+            description=f"Peran: **{npc.get('role','-')}**",
+            color=discord.Color.dark_gold()
+        )
+
+        # Status & Affiliation
+        if npc.get("status"):
+            embed.add_field(name="📌 Status", value=npc["status"], inline=True)
+        if npc.get("affiliation"):
+            embed.add_field(name="🏳️ Affiliation", value=npc["affiliation"], inline=True)
+
+        # Semua Traits (termasuk hidden)
+        traits = npc.get("traits")
+        if traits:
+            try:
+                traits = json.loads(traits)
+                lines = []
+                for k, v in traits.items():
+                    if isinstance(v, dict):
+                        val = v.get("value", "-")
+                        visible = v.get("visible", False)
+                        lines.append(f"- {k}: {val} {'(hidden)' if not visible else ''}")
+                    else:
+                        lines.append(f"- {k}: {v}")
+                embed.add_field(name="🧬 All Traits", value="\n".join(lines) or "-", inline=False)
+            except Exception:
+                embed.add_field(name="🧬 All Traits", value="-", inline=False)
+        else:
+            embed.add_field(name="🧬 All Traits", value="-", inline=False)
+
+        # Info (lihat semua)
+        info = npc.get("info")
+        if info:
+            try:
+                info_data = json.loads(info)
+                val = info_data.get("value", info_data) if isinstance(info_data, dict) else info
+                embed.add_field(name="📖 Info", value=val, inline=False)
+            except Exception:
+                embed.add_field(name="📖 Info", value=str(info), inline=False)
+        else:
+            embed.add_field(name="📖 Info", value="-", inline=False)
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(NPC(bot))
