@@ -291,6 +291,44 @@ async def tick_effects(guild_id: int) -> Dict:
     return results
 
 # ===============================
+# CLEAR EFFECTS (Manual GM / Status)
+# ===============================
+async def clear_effects(guild_id: int, target_name: str, is_buff: Optional[bool] = None) -> Tuple[bool, str]:
+    """
+    Hapus efek dari target.
+    - is_buff = True → hanya buff
+    - is_buff = False → hanya debuff
+    - is_buff = None → semua efek
+    """
+    found = _find_target(guild_id, target_name)
+    if not found:
+        return False, f"❌ Target **{target_name}** tidak ditemukan."
+
+    table, row = found
+    effects = _load_effects(row)
+    if not effects:
+        return True, f"ℹ️ {target_name} tidak memiliki efek aktif."
+
+    # === Filter sesuai flag ===
+    if is_buff is None:
+        effects = []
+        msg = f"🧹 Semua efek dihapus dari **{target_name}**."
+    else:
+        typ = "buff" if is_buff else "debuff"
+        before = len(effects)
+        effects = [e for e in effects if e.get("type", "").lower() != typ]
+        removed = before - len(effects)
+        if removed == 0:
+            msg = f"ℹ️ Tidak ada {typ} pada {target_name}."
+        else:
+            icon = "✨" if is_buff else "☠️"
+            msg = f"{icon} {removed} {typ} dihapus dari **{target_name}**."
+
+    # === Simpan hasil baru ===
+    _save_effects(guild_id, table, row.get("id") or row.get("_owner_id"), effects)
+    return True, msg
+
+# ===============================
 # EMBED BUILDER
 # ===============================
 def build_tick_embed(discord, guild_id: int, guild_name: str, results: Dict, engaged: list = None):
