@@ -16,6 +16,63 @@ class NPC(commands.Cog):
             "`!npc info`, `!npc detail`, `!npc sync`"
         )
 
+    @npc.command(name="list")
+    async def npc_list(self, ctx):
+        data = await npc_service.list_npc(ctx.guild.id)
+        if not data:
+            return await ctx.send("❌ Tidak ada NPC yang terdaftar di server ini.")
+
+        # Pastikan jadi list
+        if isinstance(data, str):
+            lines = [x.strip("• ").strip() for x in data.split("\n") if x.strip()]
+        elif isinstance(data, list):
+            lines = data
+        else:
+            return await ctx.send("⚠️ Format data NPC tidak valid.")
+
+        per_page = 20
+        total_pages = math.ceil(len(lines) / per_page)
+
+        def get_page(page):
+            start = (page - 1) * per_page
+            end = start + per_page
+            chunk = lines[start:end]
+            embed = discord.Embed(
+                title=f"📜 Daftar NPC — Halaman {page}/{total_pages}",
+                description="\n".join(f"• {x}" for x in chunk),
+                color=discord.Color.blurple()
+            )
+            embed.set_footer(text=f"Total: {len(lines)} NPC")
+            return embed
+
+        class NPCListView(View):
+            def __init__(self):
+                super().__init__(timeout=90)
+                self.page = 1
+
+            async def update_message(self, interaction):
+                embed = get_page(self.page)
+                await interaction.response.edit_message(embed=embed, view=self)
+
+            @discord.ui.button(label="⬅️", style=discord.ButtonStyle.secondary)
+            async def prev(self, interaction: discord.Interaction, button: Button):
+                if self.page > 1:
+                    self.page -= 1
+                    await self.update_message(interaction)
+                else:
+                    await interaction.response.defer()
+
+            @discord.ui.button(label="➡️", style=discord.ButtonStyle.secondary)
+            async def next(self, interaction: discord.Interaction, button: Button):
+                if self.page < total_pages:
+                    self.page += 1
+                    await self.update_message(interaction)
+                else:
+                    await interaction.response.defer()
+
+        view = NPCListView()
+        await ctx.send(embed=get_page(1), view=view)
+    
     # === Tambah NPC ===
     @npc.command(name="add")
     async def npc_add(self, ctx, name: str, *, role: str = ""):
