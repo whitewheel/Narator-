@@ -129,8 +129,6 @@ def _ensure_columns(guild_id: int, table: str, columns: Dict[str, str]) -> None:
             execute(guild_id, f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
 def init_db(guild_id: int) -> None:
-    from services import hollow_service
-    hollow_service.ensure_table(guild_id)
     """
     Buat DB untuk server tertentu jika belum ada, lalu pastikan tabel dan kolom lengkap.
     """
