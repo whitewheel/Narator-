@@ -342,6 +342,57 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
+        _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS hollow_nodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        zone TEXT,
+        type TEXT,
+        traits TEXT DEFAULT '[]',
+        types TEXT DEFAULT '[]',
+        npcs TEXT DEFAULT '[]',
+        visitors TEXT DEFAULT '[]',
+        events TEXT DEFAULT '[]',
+        vendors_today TEXT DEFAULT '[]',
+        event_today TEXT DEFAULT '{}',
+        visitors_today TEXT DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS hollow_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        node TEXT,
+        vendors TEXT,
+        visitors TEXT,
+        event TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS hollow_visitors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        rarity TEXT DEFAULT 'common',
+        chance INTEGER DEFAULT 50,
+        desc TEXT DEFAULT ''
+    );
+    """)
+
+    _ensure_table(guild_id, """
+    CREATE TABLE IF NOT EXISTS hollow_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        rarity TEXT DEFAULT 'common',
+        chance INTEGER DEFAULT 10,
+        desc TEXT DEFAULT '',
+        effect TEXT DEFAULT ''
+    );
+    """)
+
     # --- MIGRASI untuk factions lama ---
     info = fetchall(guild_id, "PRAGMA table_info(factions)")
     cols = {c["name"] for c in info}
@@ -527,6 +578,10 @@ def init_db(guild_id: int) -> None:
     })
 
     # Indexes
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_nodes_name ON hollow_nodes(name);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_node ON hollow_log(node);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_visitors_name ON hollow_visitors(name);")
+    execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_events_name ON hollow_events(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_companion_name ON companions(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_companion_owner ON companions(owner);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_blueprints_name ON blueprints(name);")
