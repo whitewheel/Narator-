@@ -777,9 +777,8 @@ class Hollow(commands.Cog):
     async def editevent(self, ctx, *, entry: str):
         # Pisahkan nama event dan field
         try:
-            # Format: NamaEvent key=value key="multi word"
-            parts = entry.split(" ", 1)
-            event_name = parts[0]
+            parts = re.split(r'\s+(?=\w+=)', entry, 1)
+            event_name = parts[0].strip().strip('"').strip("'")
             fields = parts[1] if len(parts) > 1 else ""
         except Exception:
             return await ctx.send("❌ Format salah. Gunakan: `!hollow editevent <nama event> key=value`")
