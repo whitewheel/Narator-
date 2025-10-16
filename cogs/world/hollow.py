@@ -775,14 +775,17 @@ class Hollow(commands.Cog):
     @hollow.command(name="editevent")
     @commands.has_permissions(administrator=True)
     async def editevent(self, ctx, *, entry: str):
-        # Pisahkan nama event dan field
         try:
             parts = re.split(r'\s+(?=\w+=)', entry, 1)
             event_name = parts[0].strip().strip('"').strip("'")
             fields = parts[1] if len(parts) > 1 else ""
-        except Exception:
-            return await ctx.send("❌ Format salah. Gunakan: `!hollow editevent <nama event> key=value`")
+        except Exception as e:
+            return await ctx.send(f"❌ Format salah: {e}")
 
+        # 🔍 Debug print
+        print(f"[DEBUG] EVENT_NAME: {event_name}")
+        print(f"[DEBUG] FIELDS: {fields}")
+    
         msg = _edit_event(ctx.guild.id, event_name, fields)
         await ctx.send(msg)
 
