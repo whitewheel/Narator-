@@ -28,6 +28,7 @@ CATEGORY_EMOJI = {
     "equipment": "🛡️",
     "timeline": "🕓",
     "wiki": "📖",
+    "hollow": "🕳️",
     "classrace": "🧑‍🎓",
     "skill": "💡",
     "utility": "🧰",
@@ -57,6 +58,7 @@ CATEGORIES = [
     ("equipment", "Equipment"),
     ("timeline", "Timeline"),
     ("wiki", "Wiki"),
+    ("hollow", "The Hollow System"),
     ("classrace", "Class & Race"),
     ("skill", "Skill"),
     ("utility", "Utility"),
@@ -677,6 +679,111 @@ def embed_wiki() -> discord.Embed:
     )
     return e
 
+def embed_hollow() -> discord.Embed:
+    e = _embed_base(_title("hollow", "The Hollow System 🕳️"), color=discord.Color.from_rgb(80, 80, 120))
+    e.description = (
+        "🕳️ **The Hollow System** adalah sistem **blackmarket & event underground** "
+        "di dunia Technonesia. Tiap node Hollow punya vendor, visitor, dan event harian.\n\n"
+        "💠 *Gunakan sistem ini untuk membuat zona perdagangan, battle hub, atau area rahasia.*"
+    )
+
+    e.add_field(
+        name="📍 Node Management",
+        value=(
+            "`!hollow addnode <Nama> <Zona> <Type>` → buat node baru\n"
+            "`!hollow list` → daftar semua node\n"
+            "`!hollow detail <Nama>` → lihat detail node\n"
+            "`!hollow edit <Nama> key=value ...` → ubah field node\n"
+            "`!hollow clone <Asal> <Target>` → duplikat node\n"
+            "`!hollow remove <Nama>` → hapus node\n"
+            "`!hollow reset <Nama>` → reset daily vendor/visitor/event\n\n"
+            "📌 Contoh:\n"
+            "`!hollow addnode TheHollow Outskritz BlackMarket`\n"
+            "`!hollow edit TheHollow zone=Outskritz type=BattleHub`"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="💰 Vendor & NPC Management",
+        value=(
+            "`!hollow addnpc <Node> <NamaNPC> [Chance%] [Rarity]`\n"
+            "• Tambahkan vendor ke node tertentu.\n"
+            "`!hollow remnpc <Node> <NamaNPC>` → hapus vendor\n"
+            "`!hollow listnpc <Node>` → daftar vendor terdaftar\n\n"
+            "📌 Contoh:\n"
+            "`!hollow addnpc TheHollow Jagal 60 uncommon`\n"
+            "`!hollow addnpc TheHollow Tenfold 2 legendary`"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="👁 Visitors & 🎯 Events",
+        value=(
+            "**Visitors (pengunjung acak)**\n"
+            "`!hollow addvisitor <Nama>` • tambah visitor\n"
+            "`!hollow editvisitor <Nama> key=value ...` • ubah rarity/chance\n"
+            "`!hollow remvisitor <Nama>` • hapus visitor\n"
+            "`!hollow listvisitor` • daftar visitor global\n\n"
+            "**Events (kejadian acak)**\n"
+            "`!hollow addevent <Nama>` • tambah event global\n"
+            "`!hollow editevent <Nama> key=value ...` • ubah event\n"
+            "`!hollow remevent <Nama>` • hapus event\n"
+            "`!hollow listevent` • daftar event global"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="🧩 Traits & Types",
+        value=(
+            "`!hollow traitadd <Node> <Trait>` → tambahkan trait ke node\n"
+            "`!hollow traitrem <Node> <Trait>` → hapus trait\n"
+            "`!hollow listtrait <Node>` → lihat semua trait\n\n"
+            "`!hollow typeadd <Node> <Type>` → tambah kategori node\n"
+            "`!hollow typerem <Node> <Type>` → hapus kategori node"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="🎲 Rolling & Announcements",
+        value=(
+            "`!hollow roll <Node>` → roll harian (vendor/visitor/event)\n"
+            "`!hollow slotroll <Node> <Slot>` → roll berdasarkan waktu (morning/afternoon/night)\n"
+            "`!hollow announce <Node>` → kirim embed pengumuman ke channel\n"
+            "`!hollow sync` → roll harian semua node sekaligus"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="📜 Logs & Info",
+        value=(
+            "`!hollow log <Node>` → lihat 5 log terakhir\n"
+            "`!hollow info <Node>` → tampilkan embed status node lengkap (vendor aktif, trait, event)\n"
+        ),
+        inline=False
+    )
+
+    e.add_field(
+        name="🌌 Contoh Penggunaan Cepat",
+        value=(
+            "1️⃣ Buat node: `!hollow addnode TheHollow Outskritz BlackMarket`\n"
+            "2️⃣ Tambah vendor: `!hollow addnpc TheHollow Jagal 60 uncommon`\n"
+            "3️⃣ Tambah visitor: `!hollow addvisitor ShadowDealer`\n"
+            "4️⃣ Tambah event: `!hollow addevent ToxicLeak`\n"
+            "5️⃣ Jalankan harian: `!hollow roll TheHollow`\n"
+            "6️⃣ Tampilkan info: `!hollow info TheHollow`\n"
+            "7️⃣ Umumkan event: `!hollow announce TheHollow`"
+        ),
+        inline=False
+    )
+
+    e.set_footer(text="🕳️ The Hollow System – dynamic blackmarket, vendor RNG, visitor & event roll, and log tracking.")
+    return e
+
 def embed_classrace() -> discord.Embed:
     e = _embed_base(_title("classrace", "Class & Race"), color=discord.Color.from_rgb(75, 192, 192))
     e.add_field(
@@ -783,6 +890,7 @@ EMBED_BUILDERS = {
     "equipment": embed_equipment,
     "timeline": embed_timeline,
     "wiki": embed_wiki,
+    "hollow": embed_hollow,
     "classrace": embed_classrace,
     "skill": embed_skill,
     "utility": embed_utility,
