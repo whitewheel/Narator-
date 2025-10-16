@@ -62,7 +62,6 @@ def _apply_trait_effects(traits, base, category):
 # 🧭 NODE CONTROL
 # ======================================================
 def ensure_table(guild_id: int):
-    # Base Tables
     execute(guild_id, """
     CREATE TABLE IF NOT EXISTS hollow_nodes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,7 +89,7 @@ def ensure_table(guild_id: int):
         vendors TEXT,
         visitors TEXT,
         event TEXT,
-        slot TEXT DEFAULT 'day',
+        time TEXT DEFAULT 'day',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -266,21 +265,18 @@ def roll_daily(guild_id, node_name, full_cycle=False):
 
     traits = _json_load(node.get("traits"), [])
 
-    # Vendors
     all_npcs = list_npc(guild_id, node_name)
     vendors_today = [
         n["name"] for n in all_npcs
         if random.randint(1, 100) <= _apply_trait_effects(traits, int(n.get("chance", 50)), "vendor")
     ]
 
-    # Visitors
     all_visitors = list_visitors(guild_id)
     visitors_today = [
         v["name"] for v in all_visitors
         if random.randint(1, 100) <= _apply_trait_effects(traits, int(v["chance"]), "visitor")
     ]
 
-    # Event
     all_events = list_events(guild_id)
     event_today = {}
     if all_events:
@@ -293,8 +289,8 @@ def roll_daily(guild_id, node_name, full_cycle=False):
         "UPDATE hollow_nodes SET vendors_today=?, visitors_today=?, event_today=?, updated_at=CURRENT_TIMESTAMP WHERE name=?",
         (_json_dump(vendors_today), _json_dump(visitors_today), json.dumps(event_today), node_name))
     execute(guild_id,
-        "INSERT INTO hollow_log (node, vendors, visitors, event) VALUES (?, ?, ?, ?)",
-        (node_name, _json_dump(vendors_today), _json_dump(visitors_today), event_today.get("name", "-")))
+        "INSERT INTO hollow_log (node, vendors, visitors, event, time) VALUES (?, ?, ?, ?, ?)",
+        (node_name, _json_dump(vendors_today), _json_dump(visitors_today), event_today.get("name", "-"), "day"))
 
     rarity = event_today.get("rarity", "common")
     icon = RARITY_ICON.get(rarity, "⚪")
@@ -308,6 +304,7 @@ def roll_daily(guild_id, node_name, full_cycle=False):
     embed.add_field(name="💰 Vendors", value=", ".join(vendors_today) or "-", inline=False)
     embed.add_field(name="👁 Visitors", value=", ".join(visitors_today) or "-", inline=False)
     embed.add_field(name="🎯 Event", value=f"**{event_today.get('name','-')}** — {event_today.get('desc','-')}" if event_today else "-", inline=False)
+    embed.add_field(name="🕐 Time", value="day", inline=False)
     embed.set_footer(text="Technonesia Hollow System — Daily Roll")
     return embed
 
