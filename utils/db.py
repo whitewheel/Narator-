@@ -581,6 +581,10 @@ def init_db(guild_id: int) -> None:
     })
 
     # Indexes
+    # Auto-ensure kolom baru (desc, effect, effect_formula)
+    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN desc TEXT DEFAULT ''") if not any(c['name']=='desc' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
+    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect TEXT DEFAULT ''") if not any(c['name']=='effect' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
+    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect_formula TEXT DEFAULT ''") if not any(c['name']=='effect_formula' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_nodes_name ON hollow_nodes(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_node ON hollow_log(node);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_slot ON hollow_log(slot);")
