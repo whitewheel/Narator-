@@ -801,11 +801,62 @@ class Hollow(commands.Cog):
 
     @hollow.command(name="listevent")
     async def listevent(self, ctx):
+        """📜 Menampilkan semua event Hollow dengan pagination"""
         events = _list_events(ctx.guild.id)
         if not events:
             return await ctx.send("📭 Tidak ada event global.")
-        embed = _make_event_list_embed(events)
-        await ctx.send(embed=embed)
+
+        # Bagi per 5 event
+        per_page = 5
+        pages = [events[i:i + per_page] for i in range(0, len(events), per_page)]
+        total_pages = len(pages)
+
+        def make_embed(page_index):
+            page_events = pages[page_index]
+            embed = discord.Embed(
+                title=f"🎯 Global Hollow Events (Page {page_index + 1}/{total_pages})",
+                color=discord.Color.orange()
+            )
+            for e in page_events:
+                embed.add_field(
+                    name=f"{e['name']} ({str(e.get('rarity','common')).capitalize()})",
+                    value=f"Chance: {e.get('chance',10)}% | {e.get('desc','-')}\n"
+                          f"Effect: {e.get('effect','-')}\nFormula: {e.get('effect_formula','-')}",
+                    inline=False,
+                )
+            embed.set_footer(text=f"Technonesia Hollow Events • {len(events)} total event")
+            return embed
+
+        # Pagination view
+        class EventPaginator(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=120)
+                self.page = 0
+
+            @discord.ui.button(label="⏮", style=discord.ButtonStyle.grey)
+            async def first_page(self, interaction, button):
+                self.page = 0
+                await interaction.response.edit_message(embed=make_embed(self.page), view=self)
+
+            @discord.ui.button(label="◀️", style=discord.ButtonStyle.blurple)
+            async def prev_page(self, interaction, button):
+                if self.page > 0:
+                    self.page -= 1
+                await interaction.response.edit_message(embed=make_embed(self.page), view=self)
+
+            @discord.ui.button(label="▶️", style=discord.ButtonStyle.blurple)
+            async def next_page(self, interaction, button):
+                if self.page < total_pages - 1:
+                    self.page += 1
+                await interaction.response.edit_message(embed=make_embed(self.page), view=self)
+
+            @discord.ui.button(label="⏭", style=discord.ButtonStyle.grey)
+            async def last_page(self, interaction, button):
+                self.page = total_pages - 1
+                await interaction.response.edit_message(embed=make_embed(self.page), view=self)
+
+        view = EventPaginator()
+        await ctx.send(embed=make_embed(0), view=view)
 
     @hollow.command(name="assign")
     @commands.has_permissions(administrator=True)
