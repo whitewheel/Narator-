@@ -65,7 +65,10 @@ class Hollow(commands.Cog):
             events = len(json.loads(r.get("events", "[]")))
             embed.add_field(
                 name=f"{r['name']} ({r['zone']})",
-                value=f"🏷 Type: `{r['type']}`\n💰 NPC: {npcs} | 👁 Visitors: {visitors} | 🎯 Events: {events}",
+                value=(
+                    f"🏷 Type: `{r['type']}`\n"
+                    f"💰 NPC: {npcs} | 👁 Visitors: {visitors} | 🎯 Events: {events}"
+                ),
                 inline=False
             )
         embed.set_footer(text="Technonesia Hollow Nodes Overview")
@@ -112,9 +115,11 @@ class Hollow(commands.Cog):
         for l in logs:
             date = l["created_at"]
             ev = l.get("event") or "-"
+            vendors = ", ".join(json.loads(l.get("vendors") or "[]")) or "-"
+            visitors = ", ".join(json.loads(l.get("visitors") or "[]")) or "-"
             embed.add_field(
                 name=f"{date}",
-                value=f"🎯 {ev}\n💰 {', '.join(json.loads(l['vendors'] or '[]'))}\n👁 {', '.join(json.loads(l['visitors'] or '[]'))}",
+                value=f"🎯 {ev}\n💰 {vendors}\n👁 {visitors}",
                 inline=False
             )
         await ctx.send(embed=embed)
@@ -162,6 +167,10 @@ class Hollow(commands.Cog):
     @hollow.command(name="addnpc")
     @commands.has_permissions(administrator=True)
     async def addnpc(self, ctx, npc_name: str, node_name: str, chance: int = 50, rarity: str = "common"):
+        """
+        Tambah vendor/NPC ke node, sekaligus set chance & rarity.
+        Contoh: !hollow addnpc "Kall Ryn" Outskritz 20 uncommon
+        """
         msg = hollow_service.add_npc(ctx.guild.id, node_name, npc_name, chance, rarity)
         await ctx.send(msg)
 
@@ -176,14 +185,20 @@ class Hollow(commands.Cog):
         npcs = hollow_service.list_npc(ctx.guild.id, node_name)
         if not npcs:
             return await ctx.send("📭 Tidak ada NPC di node itu.")
-        embed = discord.Embed(
-            title=f"💰 Vendor & NPC — {node_name}",
-            color=discord.Color.gold()
-        )
+        embed = discord.Embed(title=f"💰 Vendor & NPC — {node_name}", color=discord.Color.gold())
         for npc in npcs:
+            # kompatibel dengan format lama (string) dan baru (dict)
+            if isinstance(npc, str):
+                name = npc
+                chance = 50
+                rarity = "common"
+            else:
+                name = npc.get("name", "-")
+                chance = npc.get("chance", 50)
+                rarity = npc.get("rarity", "common")
             embed.add_field(
-                name=f"{npc['name']}",
-                value=f"🎯 Chance: {npc['chance']}% | 🏷 Rarity: {npc['rarity'].capitalize()}",
+                name=name,
+                value=f"🎯 Chance: {chance}% | 🏷 Rarity: {str(rarity).capitalize()}",
                 inline=False
             )
         embed.set_footer(text="Technonesia Hollow Vendors")
@@ -250,13 +265,26 @@ class Hollow(commands.Cog):
     @hollow.command(name="assign")
     @commands.has_permissions(administrator=True)
     async def assign_event(self, ctx, event_name: str, node_name: str):
-        msg = hollow_service.assign_event(ctx.guild.id, event_name, node_name)
+        """
+        Ikat event global tertentu ke node (override hasil roll hari itu).
+        Service modern sudah menyediakan assign_event. Bila tidak ada, akan ditolak dengan pesan jelas.
+        """
+        if hasattr(hollow_service, "assign_event"):
+            msg = hollow_service.assign_event(ctx.guild.id, event_name, node_name)
+        else:
+            msg = "❌ Fitur assign_event belum tersedia di service."
         await ctx.send(msg)
 
     @hollow.command(name="clearevent")
     @commands.has_permissions(administrator=True)
     async def clear_event(self, ctx, node_name: str):
-        msg = hollow_service.clear_event(ctx.guild.id, node_name)
+        """
+        Hapus event aktif pada node (kembali ke '-').
+        """
+        if hasattr(hollow_service, "clear_event"):
+            msg = hollow_service.clear_event(ctx.guild.id, node_name)
+        else:
+            msg = "❌ Fitur clear_event belum tersedia di service."
         await ctx.send(msg)
 
     # ======================================================
