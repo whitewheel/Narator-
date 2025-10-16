@@ -542,6 +542,13 @@ class Hollow(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        # 🔧 Auto-ensure Hollow tables for every guild on load
+        for guild in bot.guilds:
+            try:
+                _ensure_tables(guild.id)
+                print(f"[HOLLOW INIT] ✅ Tables ensured for guild {guild.id}")
+            except Exception as e:
+                print(f"[HOLLOW INIT] ⚠️ Failed ensure for {guild.id}: {e}")
 
     # ---------------- Base Help ----------------
     @commands.group(name="hollow", invoke_without_command=True)
