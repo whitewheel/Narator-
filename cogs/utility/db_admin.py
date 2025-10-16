@@ -39,6 +39,20 @@ class DbAdmin(commands.Cog):
         await ctx.send(msg[:1990])  # Biar aman dari limit Discord
 
     # ========================
+    # ⚙️ Inisialisasi Database
+    # ========================
+    @db_group.command(name="init")
+    @commands.has_permissions(administrator=True)
+    async def init_database(self, ctx):
+        """Inisialisasi struktur database guild (buat tabel Hollow, dsb)."""
+        guild_id = ctx.guild.id
+        try:
+            db.init_db(guild_id)
+            await ctx.send(f"✅ Database untuk guild **{ctx.guild.name}** sudah diinisialisasi / disinkronkan.")
+        except Exception as e:
+            await ctx.send(f"❌ Gagal inisialisasi database: {e}")
+
+    # ========================
     # 🗑️ Reset Tabel
     # ========================
     @db_group.command(name="resettable")
