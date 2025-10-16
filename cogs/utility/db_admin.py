@@ -28,15 +28,48 @@ class DbAdmin(commands.Cog):
     # ========================
     @db_group.command(name="checkschema")
     async def checkschema(self, ctx):
-        """Cek semua tabel + kolom di DB guild ini"""
+        """Tampilkan semua tabel & kolom dengan pagination embed."""
         guild_id = ctx.guild.id
         schema = db.check_schema(guild_id)
 
-        msg = "📖 **Schema DB untuk guild ini:**\n"
-        for table, cols in schema.items():
-            msg += f"**{table}**: {', '.join(cols)}\n"
+        if not schema:
+            return await ctx.send("❌ Tidak ada tabel yang ditemukan di database ini.")
 
-        await ctx.send(msg[:1990])  # Biar aman dari limit Discord
+        pages = []
+        for table, cols in schema.items():
+            embed = discord.Embed(
+                title=f"📘 Schema: {table}",
+                description="\n".join([f"• `{c}`" for c in cols]),
+                color=discord.Color.teal()
+            )
+            embed.set_footer(text=f"Guild ID: {guild_id}")
+            pages.append(embed)
+
+        # --- Pagination via tombol ---
+        cur = 0
+        msg = await ctx.send(embed=pages[cur])
+
+        if len(pages) == 1:
+            return  # cuma satu halaman, gak perlu tombol
+
+        await msg.add_reaction("⬅️")
+        await msg.add_reaction("➡️")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == msg.id
+
+        while True:
+            try:
+                reaction, user = await ctx.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                if str(reaction.emoji) == "➡️":
+                    cur = (cur + 1) % len(pages)
+                elif str(reaction.emoji) == "⬅️":
+                    cur = (cur - 1) % len(pages)
+
+                await msg.edit(embed=pages[cur])
+                await msg.remove_reaction(reaction, user)
+            except Exception:
+                break  # keluar kalau timeout
 
     # ========================
     # ⚙️ Inisialisasi Database
