@@ -342,7 +342,7 @@ def init_db(guild_id: int) -> None:
     );
     """)
 
-        _ensure_table(guild_id, """
+    _ensure_table(guild_id, """
     CREATE TABLE IF NOT EXISTS hollow_nodes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
