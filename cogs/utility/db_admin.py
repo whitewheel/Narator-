@@ -54,7 +54,24 @@ class DbAdmin(commands.Cog):
             file=discord.File(filename)
         )
 
-        # ========================
+    @db_group.command(name="usebackup")
+    @commands.has_permissions(administrator=True)
+    async def usebackup(self, ctx):
+        """🔁 Gunakan DB lama (../data/) untuk guild ini."""
+        import shutil, os
+        guild_id = ctx.guild.id
+        old_path = f"../data/narator_{guild_id}.db"
+        new_path = f"./data/narator_{guild_id}.db"
+
+        if not os.path.exists(old_path):
+            return await ctx.send(f"❌ Tidak ditemukan file lama: {old_path}")
+
+        os.makedirs("./data", exist_ok=True)
+        shutil.copy2(old_path, new_path)
+        size = os.path.getsize(new_path) / 1024
+        await ctx.send(f"✅ DB lama berhasil disalin ke lokasi aktif.\n📦 `{new_path}` ({size:.1f} KB)")
+
+    # ========================
     # 🔍 Cek Info DB Aktif (baru)
     # ========================
     @db_group.command(name="info")
