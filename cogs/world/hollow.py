@@ -44,23 +44,6 @@ RARITY_ICON = {
     "mythic": "❤️‍🔥",
 }
 
-# Trait → mod probabilitas (dalam persen)
-TRAIT_EFFECTS = {
-    "market": {"vendor_mod": +10},
-    "chaotic": {"event_mod": +5},
-    "quiet": {"visitor_mod": -15},
-    "industrial": {"vendor_mod": +5},
-    "haunted": {"event_mod": +8, "visitor_mod": +3},
-}
-
-def _apply_trait_effects(traits, base, category):
-    total = base
-    for t in traits:
-        eff = TRAIT_EFFECTS.get(str(t).lower(), {})
-        total += eff.get(f"{category}_mod", 0)
-    # clamp 0..100
-    return max(0, min(100, total))
-
 # ======================================================
 # 🗄️ DB ENSURE (tabel & index Hollow saja)
 # ======================================================
@@ -403,14 +386,14 @@ def _roll_daily(guild_id, node_name, time_label="day"):
     all_npcs = _list_npc(guild_id, node_name)
     vendors_today = [
         n["name"] for n in all_npcs
-        if random.randint(1, 100) <= _apply_trait_effects(traits, int(n.get("chance", 50)), "vendor")
+        if random.randint(1, 100) <= int(n.get("chance", 50))
     ]
 
     # Visitors
     all_visitors = _list_visitors(guild_id)
     visitors_today = [
         v["name"] for v in all_visitors
-        if random.randint(1, 100) <= _apply_trait_effects(traits, int(v.get("chance", 50)), "visitor")
+        if random.randint(1, 100) <= int(n.get("chance", 50))
     ]
 
     # Events
@@ -419,7 +402,7 @@ def _roll_daily(guild_id, node_name, time_label="day"):
     if all_events:
         pool = [
             e for e in all_events
-            if random.randint(1, 100) <= _apply_trait_effects(traits, int(e.get("chance", 10)), "event")
+            if random.randint(1, 100) <= int(n.get("chance", 50))
         ]
         if pool:
             ev = random.choice(pool)
