@@ -580,14 +580,34 @@ def init_db(guild_id: int) -> None:
         "requirement": "TEXT"
     })
 
-    # Indexes
-    # Auto-ensure kolom baru (desc, effect, effect_formula)
-    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN desc TEXT DEFAULT ''") if not any(c['name']=='desc' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
-    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect TEXT DEFAULT ''") if not any(c['name']=='effect' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
-    execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect_formula TEXT DEFAULT ''") if not any(c['name']=='effect_formula' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')) else None
+    # ======================================================
+    # 🔍 Indexes & Auto-Migration untuk Hollow
+    # ======================================================
+    # Tambahkan kolom baru untuk hollow_events bila belum ada
+    if not any(c['name'] == 'desc' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')):
+        execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN desc TEXT DEFAULT ''")
+
+    if not any(c['name'] == 'effect' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')):
+        execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect TEXT DEFAULT ''")
+
+    if not any(c['name'] == 'effect_formula' for c in fetchall(guild_id, 'PRAGMA table_info(hollow_events)')):
+        execute(guild_id, "ALTER TABLE hollow_events ADD COLUMN effect_formula TEXT DEFAULT ''")
+
+    # 🧩 --- AUTO-MIGRATE HOLLOW_LOG: slot → time ---
+    hollow_cols = [c["name"] for c in fetchall(guild_id, "PRAGMA table_info(hollow_log)")]
+    if "slot" in hollow_cols and "time" not in hollow_cols:
+        try:
+            execute(guild_id, "ALTER TABLE hollow_log RENAME COLUMN slot TO time")
+            print(f"[MIGRATE] ✅ Renamed column 'slot' → 'time' in hollow_log (guild {guild_id})")
+        except Exception as e:
+            print(f"[MIGRATE] ⚠️ Gagal rename kolom 'slot' → 'time': {e}")
+
+    # ======================================================
+    # 📦 INDEX CREATION
+    # ======================================================
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_nodes_name ON hollow_nodes(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_node ON hollow_log(node);")
-    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_slot ON hollow_log(slot);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_time ON hollow_log(time);")  # ✅ baru
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_visitors_name ON hollow_visitors(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_events_name ON hollow_events(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_companion_name ON companions(name);")
