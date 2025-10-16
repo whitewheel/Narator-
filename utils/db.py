@@ -129,6 +129,8 @@ def _ensure_columns(guild_id: int, table: str, columns: Dict[str, str]) -> None:
             execute(guild_id, f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
 def init_db(guild_id: int) -> None:
+    from services import hollow_service
+    hollow_service.ensure_table(guild_id)
     """
     Buat DB untuk server tertentu jika belum ada, lalu pastikan tabel dan kolom lengkap.
     """
@@ -368,6 +370,7 @@ def init_db(guild_id: int) -> None:
         vendors TEXT,
         visitors TEXT,
         event TEXT,
+        slot TEXT DEFAULT 'day',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -580,6 +583,7 @@ def init_db(guild_id: int) -> None:
     # Indexes
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_nodes_name ON hollow_nodes(name);")
     execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_node ON hollow_log(node);")
+    execute(guild_id, "CREATE INDEX IF NOT EXISTS idx_hollow_log_slot ON hollow_log(slot);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_visitors_name ON hollow_visitors(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_events_name ON hollow_events(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_companion_name ON companions(name);")
