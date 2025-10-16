@@ -66,6 +66,7 @@ class MyBot(commands.Bot):
             "cogs.world.skill",
             "cogs.world.crafting",
             "cogs.world.wiki",
+            "cogs.world.hollow",
             "cogs.world.faction",
 
             # UTILITY
