@@ -165,6 +165,59 @@ class DbAdmin(commands.Cog):
             await ctx.send(f"❌ Gagal inisialisasi database: {e}")
 
     # ========================
+    # 🔄 SWAP / RENAME DATABASE FILE
+    # ========================
+    @db_group.command(name="swapdb")
+    @commands.has_permissions(administrator=True)
+    async def swapdb(self, ctx, *, new_path: str):
+        """
+        🔄 Ganti lokasi aktif database ke file lain (misal: ../data/narator_1420....db)
+        Contoh:
+        !db swapdb ../data/narator_1420798104575152189.db
+        """
+        import shutil, os
+        from utils.db import get_db_path
+        guild_id = ctx.guild.id
+        current_path = get_db_path(guild_id)
+
+        if not os.path.exists(new_path):
+            return await ctx.send(f"❌ File `{new_path}` tidak ditemukan!")
+
+        # Backup dulu yang aktif sekarang
+        backup_path = f"{current_path}.bak"
+        if os.path.exists(current_path):
+            shutil.copy2(current_path, backup_path)
+
+        # Ganti database aktif
+        os.makedirs(os.path.dirname(current_path), exist_ok=True)
+        shutil.copy2(new_path, current_path)
+        size = os.path.getsize(current_path) / 1024
+
+        await ctx.send(
+            f"✅ Database aktif telah diganti dari:\n"
+            f"`{current_path}` → `{new_path}`\n"
+            f"📦 Ukuran DB baru: {size:.1f} KB"
+        )
+
+    @db_group.command(name="renamefile")
+    @commands.has_permissions(administrator=True)
+    async def renamefile(self, ctx, old_name: str, new_name: str):
+        """
+        ✏️ Rename file database di folder /data
+        Contoh:
+        !db renamefile narator_1414644257909899266.db narator_1420798104575152189.db
+        """
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+        old_path = os.path.join(base_dir, old_name)
+        new_path = os.path.join(base_dir, new_name)
+
+        if not os.path.exists(old_path):
+            return await ctx.send(f"❌ File `{old_name}` tidak ditemukan di /data")
+
+        os.rename(old_path, new_path)
+        await ctx.send(f"✅ File database diubah namanya:\n`{old_name}` → `{new_name}`")
+
+    # ========================
     # 🗑️ Reset Tabel
     # ========================
     @db_group.command(name="resettable")
