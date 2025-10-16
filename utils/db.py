@@ -5,7 +5,13 @@ from typing import Any, Iterable, Iterable as Iter, List, Optional, Dict
 
 # ===== Path DB per server =====
 def get_db_path(guild_id: int) -> str:
-    return f"/data/narator_{guild_id}.db"
+    """
+    Gunakan path absolut supaya semua modul (services / cogs)
+    mengakses DB guild yang sama.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+    os.makedirs(base_dir, exist_ok=True)
+    return os.path.join(base_dir, f"narator_{guild_id}.db")
 
 # ===== Low-level helpers =====
 def get_conn(guild_id: int) -> sqlite3.Connection:
