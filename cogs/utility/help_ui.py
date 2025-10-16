@@ -682,38 +682,37 @@ def embed_wiki() -> discord.Embed:
 def embed_hollow() -> discord.Embed:
     e = _embed_base(_title("hollow", "The Hollow System 🕳️"), color=discord.Color.from_rgb(80, 80, 120))
     e.description = (
-        "🕳️ **The Hollow System** adalah sistem **blackmarket & event underground** "
-        "di dunia Technonesia. Tiap node Hollow punya vendor, visitor, dan event harian.\n\n"
-        "💠 *Gunakan sistem ini untuk membuat zona perdagangan, battle hub, atau area rahasia.*"
+        "🕳️ **The Hollow System** adalah sistem **blackmarket & event underground** di dunia Technonesia.\n"
+        "Setiap *Hollow Node* bisa punya vendor, visitor, event, serta trait unik yang memengaruhi hasil roll.\n\n"
+        "💠 Gunakan untuk membuat zona perdagangan rahasia, tempat quest, atau arena event dinamis."
     )
 
     e.add_field(
-        name="📍 Node Management",
+        name="📍 Node Control",
         value=(
-            "`!hollow addnode <Nama> <Zona> <Type>` → buat node baru\n"
+            "`!hollow addnode <Nama> <Zona> [Type]` → buat node baru\n"
             "`!hollow list` → daftar semua node\n"
-            "`!hollow detail <Nama>` → lihat detail node\n"
-            "`!hollow edit <Nama> key=value ...` → ubah field node\n"
+            "`!hollow info <Nama>` → lihat detail node\n"
+            "`!hollow edit <Nama> field=value` → ubah field node\n"
             "`!hollow clone <Asal> <Target>` → duplikat node\n"
             "`!hollow remove <Nama>` → hapus node\n"
-            "`!hollow reset <Nama>` → reset daily vendor/visitor/event\n\n"
+            "`!hollow reset <Nama>` → kosongkan vendor/visitor/event hari ini\n\n"
             "📌 Contoh:\n"
-            "`!hollow addnode TheHollow Outskritz BlackMarket`\n"
-            "`!hollow edit TheHollow zone=Outskritz type=BattleHub`"
+            "`!hollow addnode TheHollow Outskritz market`\n"
+            "`!hollow edit TheHollow zone=Outskritz type=BlackMarket`"
         ),
         inline=False
     )
 
     e.add_field(
-        name="💰 Vendor & NPC Management",
+        name="💰 Vendor Management",
         value=(
-            "`!hollow addnpc <Node> <NamaNPC> [Chance%] [Rarity]`\n"
-            "• Tambahkan vendor ke node tertentu.\n"
-            "`!hollow remnpc <Node> <NamaNPC>` → hapus vendor\n"
-            "`!hollow listnpc <Node>` → daftar vendor terdaftar\n\n"
+            "`!hollow addnpc <NamaNPC> <Node> [Chance%] [Rarity]` → tambahkan vendor\n"
+            "`!hollow removenpc <NamaNPC> <Node>` → hapus vendor dari node\n"
+            "`!hollow listnpc <Node>` → lihat vendor terdaftar dan chance munculnya\n\n"
             "📌 Contoh:\n"
-            "`!hollow addnpc TheHollow Jagal 60 uncommon`\n"
-            "`!hollow addnpc TheHollow Tenfold 2 legendary`"
+            "`!hollow addnpc Jagal TheHollow 60 uncommon`\n"
+            "`!hollow addnpc Tenfold TheHollow 2 rare`"
         ),
         inline=False
     )
@@ -721,28 +720,27 @@ def embed_hollow() -> discord.Embed:
     e.add_field(
         name="👁 Visitors & 🎯 Events",
         value=(
-            "**Visitors (pengunjung acak)**\n"
-            "`!hollow addvisitor <Nama>` • tambah visitor\n"
-            "`!hollow editvisitor <Nama> key=value ...` • ubah rarity/chance\n"
-            "`!hollow remvisitor <Nama>` • hapus visitor\n"
-            "`!hollow listvisitor` • daftar visitor global\n\n"
-            "**Events (kejadian acak)**\n"
-            "`!hollow addevent <Nama>` • tambah event global\n"
-            "`!hollow editevent <Nama> key=value ...` • ubah event\n"
-            "`!hollow remevent <Nama>` • hapus event\n"
-            "`!hollow listevent` • daftar event global"
+            "**Visitors (pengunjung global)**\n"
+            "`!hollow addvisitor <Nama>` → tambah visitor\n"
+            "`!hollow editvisitor <Nama> field=value` → ubah rarity/chance/origin\n"
+            "`!hollow removevisitor <Nama>` • `!hollow listvisitor`\n\n"
+            "**Events (kejadian global)**\n"
+            "`!hollow addevent <Nama>` → buat event baru\n"
+            "`!hollow editevent <Nama> field=value` → ubah deskripsi/efek/chance\n"
+            "`!hollow removeevent <Nama>` • `!hollow listevent`\n"
+            "`!hollow eventtrigger <Nama> <Node>` → paksa jalankan event manual"
         ),
         inline=False
     )
 
     e.add_field(
-        name="🧩 Traits & Types",
+        name="🧩 Traits, Types & Tags",
         value=(
-            "`!hollow traitadd <Node> <Trait>` → tambahkan trait ke node\n"
-            "`!hollow traitrem <Node> <Trait>` → hapus trait\n"
-            "`!hollow listtrait <Node>` → lihat semua trait\n\n"
-            "`!hollow typeadd <Node> <Type>` → tambah kategori node\n"
-            "`!hollow typerem <Node> <Type>` → hapus kategori node"
+            "`!hollow trait add <Node> <Trait>` • `!hollow trait remove <Node> <Trait>`\n"
+            "`!hollow trait list <Node>` → lihat semua trait aktif\n\n"
+            "`!hollow type add <Node> <Type>` • `!hollow type remove <Node> <Type>`\n"
+            "`!hollow type list <Node>` → lihat daftar type\n\n"
+            "`!hollow tag add <Node> <Tag>` • `!hollow tag remove <Node> <Tag>` → tandai node"
         ),
         inline=False
     )
@@ -750,19 +748,21 @@ def embed_hollow() -> discord.Embed:
     e.add_field(
         name="🎲 Rolling & Announcements",
         value=(
-            "`!hollow roll <Node>` → roll harian (vendor/visitor/event)\n"
-            "`!hollow slotroll <Node> <Slot>` → roll berdasarkan waktu (morning/afternoon/night)\n"
-            "`!hollow announce <Node>` → kirim embed pengumuman ke channel\n"
-            "`!hollow sync` → roll harian semua node sekaligus"
+            "`!hollow roll <Node>` → roll harian vendor/visitor/event\n"
+            "`!hollow slot_roll <Node> <morning/evening/night>` → roll spesifik waktu\n"
+            "`!hollow daily_roll <Node>` → cycle penuh (3 slot)\n"
+            "`!hollow announce <Node>` → kirim hasil roll terbaru\n"
+            "`!hollow sync` → roll semua node sekaligus"
         ),
         inline=False
     )
 
     e.add_field(
-        name="📜 Logs & Info",
+        name="📜 Logs & Maintenance",
         value=(
-            "`!hollow log <Node>` → lihat 5 log terakhir\n"
-            "`!hollow info <Node>` → tampilkan embed status node lengkap (vendor aktif, trait, event)\n"
+            "`!hollow log <Node>` → lihat histori 5 aktivitas terakhir\n"
+            "`!hollow exportlog <Node> [N]` → ekspor N log terakhir ke JSON\n"
+            "`!hollow cleanorphans` → hapus log orphan dari node yang sudah dihapus"
         ),
         inline=False
     )
@@ -770,18 +770,17 @@ def embed_hollow() -> discord.Embed:
     e.add_field(
         name="🌌 Contoh Penggunaan Cepat",
         value=(
-            "1️⃣ Buat node: `!hollow addnode TheHollow Outskritz BlackMarket`\n"
-            "2️⃣ Tambah vendor: `!hollow addnpc TheHollow Jagal 60 uncommon`\n"
-            "3️⃣ Tambah visitor: `!hollow addvisitor ShadowDealer`\n"
-            "4️⃣ Tambah event: `!hollow addevent ToxicLeak`\n"
-            "5️⃣ Jalankan harian: `!hollow roll TheHollow`\n"
-            "6️⃣ Tampilkan info: `!hollow info TheHollow`\n"
-            "7️⃣ Umumkan event: `!hollow announce TheHollow`"
+            "1️⃣ Buat node: `!hollow addnode HollowGate Outskritz market`\n"
+            "2️⃣ Tambah vendor: `!hollow addnpc KallRyn HollowGate 20 uncommon`\n"
+            "3️⃣ Tambah visitor: `!hollow addvisitor EchoRunner`\n"
+            "4️⃣ Tambah event: `!hollow addevent PowerSurge`\n"
+            "5️⃣ Roll harian: `!hollow roll HollowGate`\n"
+            "6️⃣ Umumkan hasil: `!hollow announce HollowGate`"
         ),
         inline=False
     )
 
-    e.set_footer(text="🕳️ The Hollow System – dynamic blackmarket, vendor RNG, visitor & event roll, and log tracking.")
+    e.set_footer(text="🕳️ The Hollow System — Dynamic vendor rotation, trait effects, visitor & event RNG, and auto-logging.")
     return e
 
 def embed_classrace() -> discord.Embed:
