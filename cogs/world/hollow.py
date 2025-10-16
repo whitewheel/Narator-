@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 class Hollow(commands.Cog):
-    """📜 Sistem Hollow — Node, Visitor, Event, dan Daily Roll"""
+    """🌀 Technonesia Hollow System — Node, Vendor, Visitor, Event & Daily Cycle"""
 
     def __init__(self, bot):
         self.bot = bot
@@ -18,33 +18,30 @@ class Hollow(commands.Cog):
     async def hollow(self, ctx):
         """Daftar perintah Hollow (GM Only)"""
         embed = discord.Embed(
-            title="📜 Hollow Commands (GM Only)",
+            title="🌀 Technonesia Hollow System (GM)",
+            color=discord.Color.teal(),
             description=(
-                "**🏙 Node Control**\n"
+                "⚙️ **Node Control**\n"
                 "`!hollow addnode <nama> <zona> [type]`\n"
-                "`!hollow list`\n"
-                "`!hollow info <node>`\n"
-                "`!hollow edit <node> field=value [field=value ...]`\n"
-                "`!hollow remove <node>`\n"
-                "`!hollow clone <source> <target>`\n"
-                "`!hollow reset <node>`\n"
-                "`!hollow log <node> [n]`\n\n"
-                "**🎲 Daily Roll**\n"
-                "`!hollow roll <node>` | `!hollow announce <node>` | `!hollow sync`\n\n"
-                "**🧍‍♂️ NPC / Vendor**\n"
-                "`!hollow addnpc <npc> <node>` | `!hollow removenpc <npc> <node>` | `!hollow listnpc <node>`\n\n"
-                "**👁 Visitor**\n"
+                "`!hollow list`, `!hollow info <node>`, `!hollow edit <node> field=value`,\n"
+                "`!hollow clone <src> <target>`, `!hollow remove <node>`, `!hollow reset <node>`\n\n"
+                "🎲 **Daily Cycle**\n"
+                "`!hollow roll <node>` | `!hollow daily_roll <node>` | `!hollow announce <node>` | `!hollow sync`\n"
+                "`!hollow slot_roll <node> <morning/evening/night>`\n\n"
+                "🧍‍♂️ **Vendor Control**\n"
+                "`!hollow addnpc <nama> <node> [chance] [rarity]`\n"
+                "`!hollow removenpc <nama> <node>` | `!hollow listnpc <node>`\n\n"
+                "👁 **Visitors**\n"
                 "`!hollow addvisitor <nama>` | `!hollow removevisitor <nama>` | `!hollow editvisitor <nama> field=value`\n"
                 "`!hollow listvisitor`\n\n"
-                "**🎯 Event**\n"
+                "🎯 **Events**\n"
                 "`!hollow addevent <nama>` | `!hollow removeevent <nama>` | `!hollow editevent <nama> field=value`\n"
                 "`!hollow listevent` | `!hollow assign <event> <node>` | `!hollow clearevent <node>`\n\n"
-                "**⚙ Traits & Types**\n"
+                "🧩 **Traits & Types**\n"
                 "`!hollow trait add/remove <node> <trait>` | `!hollow type add/remove <node> <type>`"
-            ),
-            color=discord.Color.teal()
+            )
         )
-        embed.set_footer(text="Technonesia Hollow System — GM Only")
+        embed.set_footer(text="Technonesia 2145 • Hollow Command Index")
         await ctx.send(embed=embed)
 
     # ======================================================
@@ -61,17 +58,17 @@ class Hollow(commands.Cog):
         rows = hollow_service.list_nodes(ctx.guild.id)
         if not rows:
             return await ctx.send("📭 Belum ada node Hollow terdaftar.")
-        embed = discord.Embed(title="📍 Daftar Node Hollow", color=discord.Color.blue())
+        embed = discord.Embed(title="📍 Hollow Network Map", color=discord.Color.blue())
         for r in rows:
             npcs = len(json.loads(r.get("npcs", "[]")))
             visitors = len(json.loads(r.get("visitors", "[]")))
             events = len(json.loads(r.get("events", "[]")))
             embed.add_field(
                 name=f"{r['name']} ({r['zone']})",
-                value=f"Tipe: `{r['type']}` | NPC {npcs} | Visitor {visitors} | Event {events}",
+                value=f"🏷 Type: `{r['type']}`\n💰 NPC: {npcs} | 👁 Visitors: {visitors} | 🎯 Events: {events}",
                 inline=False
             )
-        embed.set_footer(text="Technonesia Hollow Network")
+        embed.set_footer(text="Technonesia Hollow Nodes Overview")
         await ctx.send(embed=embed)
 
     @hollow.command(name="info")
@@ -123,12 +120,24 @@ class Hollow(commands.Cog):
         await ctx.send(embed=embed)
 
     # ======================================================
-    # 🎲 DAILY ROLL
+    # 🎲 DAILY & SLOT ROLL
     # ======================================================
     @hollow.command(name="roll")
     @commands.has_permissions(administrator=True)
     async def roll_node(self, ctx, node_name: str):
         embed = hollow_service.roll_daily(ctx.guild.id, node_name)
+        await ctx.send(embed=embed)
+
+    @hollow.command(name="daily_roll")
+    @commands.has_permissions(administrator=True)
+    async def daily_roll(self, ctx, node_name: str):
+        embed = hollow_service.roll_daily(ctx.guild.id, node_name, full_cycle=True)
+        await ctx.send(embed=embed)
+
+    @hollow.command(name="slot_roll")
+    @commands.has_permissions(administrator=True)
+    async def slot_roll(self, ctx, node_name: str, slot: str):
+        embed = hollow_service.roll_slot(ctx.guild.id, node_name, slot)
         await ctx.send(embed=embed)
 
     @hollow.command(name="announce")
@@ -148,12 +157,12 @@ class Hollow(commands.Cog):
         await ctx.send("✅ Semua node Hollow telah di-roll ulang.")
 
     # ======================================================
-    # 🧍‍♂️ NPC MANAGEMENT
+    # 🧍‍♂️ NPC MANAGEMENT (dengan chance & rarity)
     # ======================================================
     @hollow.command(name="addnpc")
     @commands.has_permissions(administrator=True)
-    async def addnpc(self, ctx, npc_name: str, node_name: str):
-        msg = hollow_service.add_npc(ctx.guild.id, node_name, npc_name)
+    async def addnpc(self, ctx, npc_name: str, node_name: str, chance: int = 50, rarity: str = "common"):
+        msg = hollow_service.add_npc(ctx.guild.id, node_name, npc_name, chance, rarity)
         await ctx.send(msg)
 
     @hollow.command(name="removenpc")
@@ -168,10 +177,16 @@ class Hollow(commands.Cog):
         if not npcs:
             return await ctx.send("📭 Tidak ada NPC di node itu.")
         embed = discord.Embed(
-            title=f"💰 Vendor & NPC di {node_name}",
-            color=discord.Color.gold(),
-            description="\n".join(npcs)
+            title=f"💰 Vendor & NPC — {node_name}",
+            color=discord.Color.gold()
         )
+        for npc in npcs:
+            embed.add_field(
+                name=f"{npc['name']}",
+                value=f"🎯 Chance: {npc['chance']}% | 🏷 Rarity: {npc['rarity'].capitalize()}",
+                inline=False
+            )
+        embed.set_footer(text="Technonesia Hollow Vendors")
         await ctx.send(embed=embed)
 
     # ======================================================
