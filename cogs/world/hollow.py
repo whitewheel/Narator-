@@ -281,17 +281,27 @@ def _remove_event(guild_id, name):
 
 def _edit_event(guild_id, name, entry):
     clean_name = name.strip().strip('"').strip("'").lower()
-    row = fetchone(guild_id, "SELECT * FROM hollow_events WHERE LOWER(name)=?", (clean_name,))
+
+    # Coba cari event dengan LIKE agar tidak sensitif terhadap spasi / huruf
+    row = fetchone(
+        guild_id,
+        "SELECT * FROM hollow_events WHERE LOWER(name) LIKE ?",
+        (f"%{clean_name}%",)
+    )
+
     if not row:
-        return f"❌ Event `{name}` tidak ditemukan."
+        return f"❌ Event `{name}` tidak ditemukan di database."
+
     # parse key="multi word" atau key=word
     pattern = re.findall(r'(\w+)=("[^"]+"|\'[^\']+\'|[^\s]+)', entry)
     updates = {k: v.strip('"').strip("'") for k, v in pattern}
     if not updates:
         return "⚠️ Tidak ada field valid untuk diupdate. Format: key=value."
+
     set_clause = ", ".join([f"{k}=?" for k in updates])
-    params = list(updates.values()) + [clean_name]
-    execute(guild_id, f"UPDATE hollow_events SET {set_clause} WHERE LOWER(name)=?", params)
+    params = list(updates.values()) + [row["name"]]  # pakai nama asli di DB
+    execute(guild_id, f"UPDATE hollow_events SET {set_clause} WHERE name=?", params)
+
     fields = ", ".join([f"`{k}` → `{v}`" for k, v in updates.items()])
     return f"📝 Event `{row['name']}` diperbarui: {fields}"
 
