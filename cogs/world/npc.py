@@ -1,7 +1,10 @@
 import discord
 from discord.ext import commands
-from services import npc_service
+from discord.ui import View, Button
+import math
 import json
+from services import npc_service
+
 
 class NPC(commands.Cog):
     def __init__(self, bot):
@@ -16,13 +19,14 @@ class NPC(commands.Cog):
             "`!npc info`, `!npc detail`, `!npc sync`"
         )
 
+    # === LIST NPC (Embed Pagination) ===
     @npc.command(name="list")
     async def npc_list(self, ctx):
         data = await npc_service.list_npc(ctx.guild.id)
         if not data:
             return await ctx.send("❌ Tidak ada NPC yang terdaftar di server ini.")
 
-        # Pastikan jadi list
+        # Pastikan hasil dari service berupa list
         if isinstance(data, str):
             lines = [x.strip("• ").strip() for x in data.split("\n") if x.strip()]
         elif isinstance(data, list):
@@ -33,7 +37,7 @@ class NPC(commands.Cog):
         per_page = 20
         total_pages = math.ceil(len(lines) / per_page)
 
-        def get_page(page):
+        def get_page(page: int):
             start = (page - 1) * per_page
             end = start + per_page
             chunk = lines[start:end]
@@ -72,17 +76,11 @@ class NPC(commands.Cog):
 
         view = NPCListView()
         await ctx.send(embed=get_page(1), view=view)
-    
+
     # === Tambah NPC ===
     @npc.command(name="add")
     async def npc_add(self, ctx, name: str, *, role: str = ""):
         msg = await npc_service.add_npc(ctx.guild.id, ctx.author.id, name, role)
-        await ctx.send(msg)
-
-    # === List NPC ===
-    @npc.command(name="list")
-    async def npc_list(self, ctx):
-        msg = await npc_service.list_npc(ctx.guild.id)
         await ctx.send(msg)
 
     # === Tambah Trait ===
@@ -129,7 +127,7 @@ class NPC(commands.Cog):
         msg = await npc_service.set_info(ctx.guild.id, name, text, hidden, ctx.author.id)
         await ctx.send(msg)
 
-    # === Detail NPC (embed cantik) ===
+    # === Detail NPC (Embed Cantik) ===
     @npc.command(name="detail")
     async def npc_detail(self, ctx, *, name: str):
         npc = npc_service.get_npc(ctx.guild.id, name)
@@ -138,17 +136,16 @@ class NPC(commands.Cog):
 
         embed = discord.Embed(
             title=f"👤 {npc['name']}",
-            description=f"Peran: **{npc.get('role','-')}**",
+            description=f"Peran: **{npc.get('role', '-')}**",
             color=discord.Color.greyple()
         )
 
-        # Status & Affiliation kalau ada
         if npc.get("status"):
             embed.add_field(name="📌 Status", value=npc["status"], inline=True)
         if npc.get("affiliation"):
             embed.add_field(name="🏳️ Affiliation", value=npc["affiliation"], inline=True)
 
-        # Traits
+        # === Traits ===
         traits = npc.get("traits")
         if traits:
             try:
@@ -156,10 +153,7 @@ class NPC(commands.Cog):
                 visible = []
                 for k, v in traits.items():
                     if isinstance(v, dict):
-                        if v.get("visible"):
-                            visible.append(f"- {k}: {v['value']}")
-                        else:
-                            visible.append(f"- {k}: ???")
+                        visible.append(f"- {k}: {v['value'] if v.get('visible') else '???'}")
                     else:
                         visible.append(f"- {k}: {v}")
                 embed.add_field(name="👁️ Traits", value="\n".join(visible) or "-", inline=False)
@@ -168,7 +162,7 @@ class NPC(commands.Cog):
         else:
             embed.add_field(name="👁️ Traits", value="-", inline=False)
 
-        # Info (bisa hidden)
+        # === Info ===
         info = npc.get("info")
         if info:
             try:
@@ -185,7 +179,7 @@ class NPC(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    # === Sinkronkan NPC dari lore (wiki kategori npc) ===
+    # === Sinkronkan NPC dari Wiki ===
     @npc.command(name="sync")
     async def npc_sync(self, ctx):
         msg = await npc_service.sync_from_wiki(ctx.guild.id, ctx.author.id)
@@ -206,17 +200,15 @@ class NPC(commands.Cog):
 
         embed = discord.Embed(
             title=f"👁️ GM View: {npc['name']}",
-            description=f"Peran: **{npc.get('role','-')}**",
+            description=f"Peran: **{npc.get('role', '-')}**",
             color=discord.Color.dark_gold()
         )
 
-        # Status & Affiliation
         if npc.get("status"):
             embed.add_field(name="📌 Status", value=npc["status"], inline=True)
         if npc.get("affiliation"):
             embed.add_field(name="🏳️ Affiliation", value=npc["affiliation"], inline=True)
 
-        # Semua Traits (termasuk hidden)
         traits = npc.get("traits")
         if traits:
             try:
@@ -235,7 +227,6 @@ class NPC(commands.Cog):
         else:
             embed.add_field(name="🧬 All Traits", value="-", inline=False)
 
-        # Info (lihat semua)
         info = npc.get("info")
         if info:
             try:
@@ -246,7 +237,9 @@ class NPC(commands.Cog):
                 embed.add_field(name="📖 Info", value=str(info), inline=False)
         else:
             embed.add_field(name="📖 Info", value="-", inline=False)
+
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(NPC(bot))
