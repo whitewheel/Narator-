@@ -283,6 +283,36 @@ class DbAdmin(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Gagal export `{table}`: {e}")
 
+    @db_group.command(name="finddb")
+    @commands.has_permissions(administrator=True)
+    async def finddb(self, ctx):
+        """🔍 Cari semua file .db di seluruh project."""
+        import os
+        possible_dirs = [
+            ".",                # root project
+            "./data",           # path lama (sebelum versi baru)
+            "./app/data",       # path baru (runtime container)
+            "../data",          # kemungkinan parent
+        ]
+
+        found = []
+        for base in possible_dirs:
+            if os.path.exists(base):
+                for root, dirs, files in os.walk(base):
+                    for f in files:
+                        if f.endswith(".db"):
+                            full = os.path.join(root, f)
+                            size = os.path.getsize(full) / 1024
+                            found.append(f"{full} — {size:.1f} KB")
+
+        if not found:
+            return await ctx.send("📭 Tidak ada file `.db` ditemukan di direktori yang bisa diakses.")
+
+        chunks = [found[i:i + 10] for i in range(0, len(found), 10)]
+        for i, ch in enumerate(chunks, 1):
+            text = "\n".join(ch)
+            await ctx.send(f"📦 **Hasil Pencarian DB (bagian {i}/{len(chunks)})**\n```{text}```")
+
     # ========================
     # 📦 Export Semua Tabel Utama (baru)
     # ========================
