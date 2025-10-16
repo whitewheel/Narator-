@@ -372,27 +372,62 @@ def get_logs(guild_id, node_name, n=5):
 import discord
 
 def make_node_embed(node):
-    vendors = _json_load(node["vendors_today"], [])
-    visitors = _json_load(node["visitors_today"], [])
-    event = _json_load(node["event_today"], {})
-    traits = _json_load(node["traits"], [])
-    types = _json_load(node["types"], [])
-    npcs = _json_load(node["npcs"], [])
+    vendors = _json_load(node.get("vendors_today"), [])
+    visitors = _json_load(node.get("visitors_today"), [])
+    event = _json_load(node.get("event_today"), {})
+    traits = _json_load(node.get("traits"), [])
+    types = _json_load(node.get("types"), [])
+    npcs = _json_load(node.get("npcs"), [])
 
     embed = discord.Embed(
         title=f"🌀 {node['name']} — Hollow Node",
         color=discord.Color.teal(),
         timestamp=datetime.utcnow()
     )
-    embed.add_field(name="📍 Zone", value=node.get("zone","-"), inline=True)
-    embed.add_field(name="🏷 Type", value=node.get("type","-"), inline=True)
-    embed.add_field(name="💠 Traits", value="\n".join(traits) if traits else "-", inline=False)
-    embed.add_field(name="💎 Types", value=", ".join(types) if types else "-", inline=False)
-    embed.add_field(name="💰 Vendors", value=", ".join(vendors) if vendors else "-", inline=False)
-    embed.add_field(name="👁 Visitors", value=", ".join(visitors) if visitors else "-", inline=False)
+
+    # === Basic Info ===
+    zone = node.get("zone", "-")
+    type_str = node.get("type", "-").replace(",", " • ")
+    embed.add_field(name="📍 Zone", value=zone, inline=True)
+    embed.add_field(name="🏷️ Type", value=type_str, inline=True)
+
+    # === Traits (Formatted) ===
+    if traits:
+        lines = []
+        for t in traits:
+            if "|" in t:
+                name, desc = [x.strip() for x in t.split("|", 1)]
+                lines.append(f"• **{name}** — {desc}")
+            else:
+                lines.append(f"• {t}")
+        trait_text = "\n".join(lines)
+    else:
+        trait_text = "Belum ada trait terdaftar."
+    embed.add_field(name="💠 Traits", value=trait_text, inline=False)
+
+    # === Types ===
+    type_list = ", ".join(types) if types else "-"
+    embed.add_field(name="💎 Types", value=type_list, inline=False)
+
+    # === Vendors ===
+    vendor_text = ", ".join(vendors) if vendors else "Belum ada vendor terdaftar."
+    embed.add_field(name="💰 Vendors", value=vendor_text, inline=False)
+
+    # === Visitors ===
+    visitor_text = ", ".join(visitors) if visitors else "Belum ada pengunjung terdaftar."
+    embed.add_field(name="👁️ Visitors", value=visitor_text, inline=False)
+
+    # === Event (optional) ===
     if event:
-        embed.add_field(name="🎯 Event", value=f"**{event['name']}** — {event.get('desc','-')}", inline=False)
-    embed.add_field(name="📚 NPC Total", value=str(len(npcs)), inline=True)
+        embed.add_field(
+            name="🎯 Event",
+            value=f"**{event.get('name','-')}** — {event.get('desc','-')}",
+            inline=False
+        )
+
+    # === NPC Count ===
+    embed.add_field(name="🧍 NPC Total", value=str(len(npcs)), inline=False)
+
     embed.set_footer(text="Technonesia Hollow System — GM View")
     return embed
 
