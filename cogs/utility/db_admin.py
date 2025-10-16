@@ -28,48 +28,31 @@ class DbAdmin(commands.Cog):
     # ========================
     @db_group.command(name="checkschema")
     async def checkschema(self, ctx):
-        """Tampilkan semua tabel & kolom dengan pagination embed."""
+        """Cek semua tabel & kolom lalu kirim hasilnya sebagai file .txt"""
         guild_id = ctx.guild.id
         schema = db.check_schema(guild_id)
 
         if not schema:
             return await ctx.send("❌ Tidak ada tabel yang ditemukan di database ini.")
 
-        pages = []
+        # Siapkan isi file
+        lines = [f"📘 Database Schema – Guild ID: {guild_id}\n"]
         for table, cols in schema.items():
-            embed = discord.Embed(
-                title=f"📘 Schema: {table}",
-                description="\n".join([f"• `{c}`" for c in cols]),
-                color=discord.Color.teal()
-            )
-            embed.set_footer(text=f"Guild ID: {guild_id}")
-            pages.append(embed)
+            lines.append(f"\n=== {table.upper()} ===")
+            for col in cols:
+                lines.append(f"• {col}")
+        text = "\n".join(lines)
 
-        # --- Pagination via tombol ---
-        cur = 0
-        msg = await ctx.send(embed=pages[cur])
+        # Simpan ke file sementara
+        os.makedirs("/tmp", exist_ok=True)
+        filename = f"/tmp/schema_{guild_id}.txt"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(text)
 
-        if len(pages) == 1:
-            return  # cuma satu halaman, gak perlu tombol
-
-        await msg.add_reaction("⬅️")
-        await msg.add_reaction("➡️")
-
-        def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == msg.id
-
-        while True:
-            try:
-                reaction, user = await ctx.bot.wait_for("reaction_add", timeout=60.0, check=check)
-                if str(reaction.emoji) == "➡️":
-                    cur = (cur + 1) % len(pages)
-                elif str(reaction.emoji) == "⬅️":
-                    cur = (cur - 1) % len(pages)
-
-                await msg.edit(embed=pages[cur])
-                await msg.remove_reaction(reaction, user)
-            except Exception:
-                break  # keluar kalau timeout
+        await ctx.send(
+            content=f"✅ **Schema database guild {ctx.guild.name}** berhasil diekspor.",
+            file=discord.File(filename)
+        )
 
     # ========================
     # ⚙️ Inisialisasi Database
