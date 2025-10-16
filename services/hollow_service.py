@@ -3,6 +3,7 @@ import json, random
 from datetime import datetime
 from utils.db import execute, fetchone, fetchall
 import discord
+import re
 
 # ======================================================
 # 📦 HELPERS
@@ -221,19 +222,27 @@ def add_event(guild_id, name):
     return f"✅ Event `{name}` ditambahkan."
 
 def edit_event(guild_id, name, entry):
-    name = name.strip().lower()
-    row = fetchone(guild_id, "SELECT * FROM hollow_events WHERE LOWER(name)=?", (name,))
+    # Bersihkan kutipan dan lowercase untuk lookup
+    clean_name = name.strip().strip('"').strip("'").lower()
+    row = fetchone(guild_id, "SELECT * FROM hollow_events WHERE LOWER(name)=?", (clean_name,))
     if not row:
         return f"❌ Event `{name}` tidak ditemukan."
-    updates = {}
-    for part in entry.split():
-        if "=" in part:
-            k, v = part.split("=", 1)
-            updates[k.strip()] = v.strip()
+
+    # Pakai regex biar bisa parse kutipan: key=value atau key="multi word"
+    pattern = re.findall(r'(\w+)=("[^"]+"|\'[^\']+\'|[^\s]+)', entry)
+    updates = {k: v.strip('"').strip("'") for k, v in pattern}
+
+    if not updates:
+        return "⚠️ Tidak ada field valid untuk diupdate. Format: key=value."
+
+    # Bangun query update
     set_clause = ", ".join([f"{k}=?" for k in updates])
-    params = list(updates.values()) + [name]
+    params = list(updates.values()) + [clean_name]
     execute(guild_id, f"UPDATE hollow_events SET {set_clause} WHERE LOWER(name)=?", params)
-    return f"📝 Event `{row['name']}` diperbarui: {updates}"
+
+    # Feedback
+    fields = ", ".join([f"`{k}` → `{v}`" for k, v in updates.items()])
+    return f"📝 Event `{row['name']}` diperbarui: {fields}"
 
 def trigger_event(guild_id, node_name, event_name):
     ev = fetchone(guild_id, "SELECT * FROM hollow_events WHERE LOWER(name)=?", (event_name.lower(),))
