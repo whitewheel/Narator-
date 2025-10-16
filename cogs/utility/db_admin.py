@@ -54,6 +54,85 @@ class DbAdmin(commands.Cog):
             file=discord.File(filename)
         )
 
+        # ========================
+    # 🔍 Cek Info DB Aktif (baru)
+    # ========================
+    @db_group.command(name="info")
+    @commands.has_permissions(administrator=True)
+    async def db_info(self, ctx):
+        """🔍 Lihat path file database aktif & jumlah data utama."""
+        from utils.db import get_db_path, fetchall
+
+        guild_id = ctx.guild.id
+        path = get_db_path(guild_id)
+
+        # Hitung isi tabel penting
+        def count_rows(table):
+            try:
+                return len(fetchall(guild_id, f"SELECT * FROM {table}"))
+            except Exception:
+                return 0
+
+        data = {
+            "characters": count_rows("characters"),
+            "npcs": count_rows("npc"),
+            "items": count_rows("items"),
+            "quests": count_rows("quests"),
+            "factions": count_rows("factions"),
+            "favors": count_rows("favors"),
+            "hollow_nodes": count_rows("hollow_nodes"),
+            "hollow_events": count_rows("hollow_events"),
+            "hollow_visitors": count_rows("hollow_visitors"),
+        }
+
+        embed = discord.Embed(
+            title="🧩 Database Info",
+            description=f"📘 Guild ID: `{guild_id}`",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name="📁 DB Path", value=f"`{path}`", inline=False)
+        for k, v in data.items():
+            embed.add_field(name=k.replace("_", " ").title(), value=str(v), inline=True)
+        embed.set_footer(text="Technonesia System — Database Inspector")
+
+        await ctx.send(embed=embed)
+    
+        # ========================
+    # 📂 List Semua File Database (baru)
+    # ========================
+    @db_group.command(name="listfiles")
+    @commands.has_permissions(administrator=True)
+    async def db_listfiles(self, ctx):
+        """📂 Lihat semua file database (.db) yang tersimpan di folder /data"""
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+        if not os.path.exists(base_dir):
+            return await ctx.send("❌ Folder `/data` belum dibuat.")
+
+        db_files = [f for f in os.listdir(base_dir) if f.endswith(".db")]
+        if not db_files:
+            return await ctx.send("📭 Tidak ada file database ditemukan di `/data`.")
+
+        embed = discord.Embed(
+            title="📂 Database Files in /data",
+            color=discord.Color.green()
+        )
+
+        for f in db_files:
+            path = os.path.join(base_dir, f)
+            size_kb = os.path.getsize(path) / 1024
+            mtime = os.path.getmtime(path)
+            from datetime import datetime
+            modified = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+            embed.add_field(
+                name=f"📘 {f}",
+                value=f"🗜 {size_kb:.1f} KB\n🕒 {modified}",
+                inline=False
+            )
+
+        embed.set_footer(text="Technonesia System — DB File Viewer")
+        await ctx.send(embed=embed)
+    
     # ========================
     # ⚙️ Inisialisasi Database
     # ========================
