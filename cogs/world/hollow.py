@@ -400,6 +400,7 @@ def _roll_daily(guild_id, node_name, time_label="day"):
         return embed
 
     traits = _json_load(node.get("traits"), [])
+
     # Vendors
     all_npcs = _list_npc(guild_id, node_name)
     vendors_today = [
@@ -411,7 +412,7 @@ def _roll_daily(guild_id, node_name, time_label="day"):
     all_visitors = _list_visitors(guild_id)
     visitors_today = [
         v["name"] for v in all_visitors
-        if random.randint(1, 100) <= int(n.get("chance", 50))
+        if random.randint(1, 100) <= int(v.get("chance", 50))  # ✅ pakai v
     ]
 
     # Events
@@ -420,7 +421,7 @@ def _roll_daily(guild_id, node_name, time_label="day"):
     if all_events:
         pool = [
             e for e in all_events
-            if random.randint(1, 100) <= int(n.get("chance", 50))
+            if random.randint(1, 100) <= int(e.get("chance", 50))  # ✅ pakai e
         ]
         if pool:
             ev = random.choice(pool)
