@@ -6,10 +6,10 @@ from typing import Any, Iterable, Iterable as Iter, List, Optional, Dict
 # ===== Path DB per server =====
 def get_db_path(guild_id: int) -> str:
     """
-    Gunakan path absolut supaya semua modul (services / cogs)
-    mengakses DB guild yang sama.
+    Gunakan path absolut tapi tetap relatif ke root project,
+    supaya tidak ikut hilang saat container / runtime reset.
     """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+    base_dir = os.path.abspath("data")  # 👈 ubah jadi langsung ke ./data
     os.makedirs(base_dir, exist_ok=True)
     return os.path.join(base_dir, f"narator_{guild_id}.db")
 
