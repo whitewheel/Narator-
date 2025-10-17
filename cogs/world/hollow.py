@@ -116,6 +116,14 @@ def _ensure_tables(guild_id: int):
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_visitors_name ON hollow_visitors(name);")
     execute(guild_id, "CREATE UNIQUE INDEX IF NOT EXISTS idx_hollow_events_name ON hollow_events(name);")
 
+def _migrate_hollow_visitors(guild_id: int):
+    cols = [c["name"] for c in fetchall(guild_id, "PRAGMA table_info(hollow_visitors)")]
+    if "origin" not in cols:
+        execute(guild_id, "ALTER TABLE hollow_visitors ADD COLUMN origin TEXT DEFAULT ''")
+    if "hook" not in cols:
+        execute(guild_id, "ALTER TABLE hollow_visitors ADD COLUMN hook TEXT DEFAULT ''")
+    print(f"[MIGRATE] ✅ hollow_visitors updated for guild {guild_id}")
+
 # ======================================================
 # 🔧 HOLLOW CORE (CRUD & Operasi)
 # ======================================================
@@ -556,7 +564,8 @@ class Hollow(commands.Cog):
         for guild in bot.guilds:
             try:
                 _ensure_tables(guild.id)
-                print(f"[HOLLOW INIT] ✅ Tables ensured for guild {guild.id}")
+                _migrate_hollow_visitors(guild.id)
+                print(f"[HOLLOW INIT] ✅ Tables ensured & migrated for guild {guild.id}")
             except Exception as e:
                 print(f"[HOLLOW INIT] ⚠️ Failed ensure for {guild.id}: {e}")
 
@@ -591,6 +600,7 @@ class Hollow(commands.Cog):
         embed.set_footer(text="Technonesia 2145 • Hollow Command Index")
         await ctx.send(embed=embed)
 
+    
     # ---------------- Node Control ----------------
     @hollow.command(name="addnode")
     @commands.has_permissions(administrator=True)
@@ -757,8 +767,16 @@ class Hollow(commands.Cog):
 
     @hollow.command(name="editvisitor")
     @commands.has_permissions(administrator=True)
-    async def editvisitor(self, ctx, visitor_name: str, *, entry: str):
-        msg = _edit_visitor(ctx.guild.id, visitor_name, entry)
+    async def editvisitor(self, ctx, *, entry: str):
+        try:
+            # Format: "Nama Visitor" key=value key="multi word"
+            parts = re.split(r'\s+(?=\w+=)', entry, 1)
+            visitor_name = parts[0].strip().strip('"').strip("'")
+            fields = parts[1] if len(parts) > 1 else ""
+        except Exception as e:
+            return await ctx.send(f"❌ Format salah: {e}")
+
+        msg = _edit_visitor(ctx.guild.id, visitor_name, fields)
         await ctx.send(msg)
 
     @hollow.command(name="listvisitor")
