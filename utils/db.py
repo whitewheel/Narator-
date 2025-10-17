@@ -6,12 +6,11 @@ from typing import Any, Iterable, Iterable as Iter, List, Optional, Dict
 # ===== Path DB per server =====
 def get_db_path(guild_id: int) -> str:
     """
-    Gunakan path absolut tapi tetap relatif ke root project,
-    supaya tidak ikut hilang saat container / runtime reset.
+    Simpan semua database di folder /data (lokasi permanen di container/hosting).
+    Path ini aman di Railway, Render, Docker, dsb.
     """
-    base_dir = os.path.abspath("data")  # 👈 ubah jadi langsung ke ./data
-    os.makedirs(base_dir, exist_ok=True)
-    return os.path.join(base_dir, f"narator_{guild_id}.db")
+    os.makedirs("/data", exist_ok=True)
+    return f"/data/narator_{guild_id}.db"
 
 # ===== Low-level helpers =====
 def get_conn(guild_id: int) -> sqlite3.Connection:
