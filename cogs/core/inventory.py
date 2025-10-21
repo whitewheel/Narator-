@@ -123,7 +123,6 @@ class Inventory(commands.Cog):
         # potong jika terlalu panjang
         if len(joined) > 1024:
             joined = joined[:1021] + "..."
-
         embed.add_field(name="Items", value=joined, inline=False)
         return embed
         # buat view pagination
