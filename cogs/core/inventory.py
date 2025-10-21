@@ -88,8 +88,8 @@ class Inventory(commands.Cog):
 
         # fungsi buat bikin embed per page
         def make_page(page_idx: int):
-            start = page_idx * 5
-            end = start + 5
+            start = page_idx * 4
+            end = start + 4
             subset = items[start:end]
 
             embed = discord.Embed(
