@@ -87,40 +87,45 @@ class Inventory(commands.Cog):
             carry_desc = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**\n-----------------------"
 
         # fungsi buat bikin embed per page
-        def make_page(page_idx: int):
-            start = page_idx * 3
-            end = start + 3
-            subset = items[start:end]
+    def make_page(page_idx: int):
+        ITEMS_PER_PAGE = 4
+        start = page_idx * ITEMS_PER_PAGE
+        end = start + ITEMS_PER_PAGE
+        subset = items[start:end]
 
-            embed = discord.Embed(
-                title=f"🎒 Inventory: {owner} (Page {page_idx+1}/{math.ceil(len(items)/5)})",
-                color=discord.Color.gold()
-            )
-            if carry_desc:
-                embed.description = carry_desc
+        embed = discord.Embed(
+            title=f"🎒 Inventory: {owner} (Page {page_idx+1}/{math.ceil(len(items)/ITEMS_PER_PAGE)})",
+            color=discord.Color.gold()
+        )
+        if carry_desc:
+            embed.description = carry_desc
 
-            item_lines = []
-            for it in subset:
-                item = item_service.get_item(guild_id, it["item"])
-                icon = item.get("icon", "📦") if item else "📦"
-                effect = item.get("effect", "-") if item else "-"
-                drawback = item.get("drawback", "") if item else ""
-                cost = item.get("cost", "") if item else ""
-                rules = item.get("rules", "") if item else ""
+        item_lines = []
+        for it in subset:
+            item = item_service.get_item(guild_id, it["item"])
+            icon = item.get("icon", "📦") if item else "📦"
+            effect = item.get("effect", "-") if item else "-"
+            drawback = item.get("drawback", "") if item else ""
+            cost = item.get("cost", "") if item else ""
+            rules = item.get("rules", "") if item else ""
 
-                desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
-                if drawback:
-                    desc += f"\n☠️ {drawback}"
-                if cost:
-                    desc += f"\n⚡ {cost}"
-                if rules:
-                    desc += f"\n📘 {rules}"
+            desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
+            if drawback:
+                desc += f"\n☠️ {drawback}"
+            if cost:
+                desc += f"\n⚡ {cost}"
+            if rules:
+                desc += f"\n📘 {rules}"
+            item_lines.append(desc)
 
-                item_lines.append(desc)
+        # gabungkan semua deskripsi
+        joined = "\n\n".join(item_lines)
+        # potong jika terlalu panjang
+        if len(joined) > 1024:
+            joined = joined[:1021] + "..."
 
-            embed.add_field(name="Items", value="\n\n".join(item_lines), inline=False)
-            return embed
-
+        embed.add_field(name="Items", value=joined, inline=False)
+        return embed
         # buat view pagination
         class InvView(discord.ui.View):
             def __init__(self):
