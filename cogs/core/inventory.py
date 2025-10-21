@@ -4,10 +4,12 @@ from services import inventory_service, item_service
 from utils.db import fetchone, fetchall
 import math
 
+
 class Inventory(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # === Group utama ===
     @commands.group(name="inv", invoke_without_command=True)
     async def inv_group(self, ctx):
         await ctx.send(
@@ -87,50 +89,49 @@ class Inventory(commands.Cog):
             carry_desc = f"⚖️ Carry: **{used:.1f} / {cap:.1f}**\n-----------------------"
 
         # fungsi buat bikin embed per page
-    def make_page(page_idx: int):
-        ITEMS_PER_PAGE = 4
-        start = page_idx * ITEMS_PER_PAGE
-        end = start + ITEMS_PER_PAGE
-        subset = items[start:end]
+        def make_page(page_idx: int):
+            ITEMS_PER_PAGE = 4
+            start = page_idx * ITEMS_PER_PAGE
+            end = start + ITEMS_PER_PAGE
+            subset = items[start:end]
 
-        embed = discord.Embed(
-            title=f"🎒 Inventory: {owner} (Page {page_idx+1}/{math.ceil(len(items)/ITEMS_PER_PAGE)})",
-            color=discord.Color.gold()
-        )
-        if carry_desc:
-            embed.description = carry_desc
+            embed = discord.Embed(
+                title=f"🎒 Inventory: {owner} (Page {page_idx+1}/{math.ceil(len(items)/ITEMS_PER_PAGE)})",
+                color=discord.Color.gold()
+            )
+            if carry_desc:
+                embed.description = carry_desc
 
-        item_lines = []
-        for it in subset:
-            item = item_service.get_item(guild_id, it["item"])
-            icon = item.get("icon", "📦") if item else "📦"
-            effect = item.get("effect", "-") if item else "-"
-            drawback = item.get("drawback", "") if item else ""
-            cost = item.get("cost", "") if item else ""
-            rules = item.get("rules", "") if item else ""
+            item_lines = []
+            for it in subset:
+                item = item_service.get_item(guild_id, it["item"])
+                icon = item.get("icon", "📦") if item else "📦"
+                effect = item.get("effect", "-") if item else "-"
+                drawback = item.get("drawback", "") if item else ""
+                cost = item.get("cost", "") if item else ""
+                rules = item.get("rules", "") if item else ""
 
-            desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
-            if drawback:
-                desc += f"\n☠️ {drawback}"
-            if cost:
-                desc += f"\n⚡ {cost}"
-            if rules:
-                desc += f"\n📘 {rules}"
-            item_lines.append(desc)
+                desc = f"{icon} {it['item']} x{it['qty']}\n✨ {effect}"
+                if drawback:
+                    desc += f"\n☠️ {drawback}"
+                if cost:
+                    desc += f"\n⚡ {cost}"
+                if rules:
+                    desc += f"\n📘 {rules}"
+                item_lines.append(desc)
 
-        # gabungkan semua deskripsi
-        joined = "\n\n".join(item_lines)
-        # potong jika terlalu panjang
-        if len(joined) > 1024:
-            joined = joined[:1021] + "..."
-        embed.add_field(name="Items", value=joined, inline=False)
-        return embed
-        # buat view pagination
+            # gabungkan semua deskripsi
+            joined = "\n\n".join(item_lines)
+            if len(joined) > 1024:
+                joined = joined[:1021] + "..."
+            embed.add_field(name="Items", value=joined, inline=False)
+            return embed
+
+        # === View pagination ===
         class InvView(discord.ui.View):
             def __init__(self):
-                super().__init__(timeout=120)  # auto-expire 2 menit
+                super().__init__(timeout=120)
                 self.page = 0
-                self.msg = None
 
             async def update_page(self, interaction: discord.Interaction):
                 await interaction.response.edit_message(embed=make_page(self.page), view=self)
@@ -145,7 +146,7 @@ class Inventory(commands.Cog):
 
             @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
             async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if (self.page + 1) * 5 < len(items):
+                if (self.page + 1) * 4 < len(items):
                     self.page += 1
                     await self.update_page(interaction)
                 else:
