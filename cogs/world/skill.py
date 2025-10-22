@@ -8,6 +8,7 @@ CATEGORY_EMOJI = {
     "Learning": "📖",
     "Augment": "⚙️",
     "Item": "🗡️",
+    "Vein": "🩸",
 }
 
 class Skill(commands.Cog):
@@ -62,13 +63,13 @@ class Skill(commands.Cog):
                     "drawback": "-"
                 })
 
-        # group per 10 untuk pagination
+        # group per 5 untuk pagination
         pages = []
-        for i in range(0, len(details), 10):
-            chunk = details[i:i+10]
+        for i in range(0, len(details), 5):
+            chunk = details[i:i+5]
             embed = discord.Embed(
                 title=f"📘 Skill {char}" + (f" – {category}" if category else ""),
-                description="Daftar skill karakter.",
+                description=f"Menampilkan {len(details)} skill total. (Hal {i//5+1}/{(len(details)-1)//5+1})",
                 color=discord.Color.purple()
             )
             for row in chunk:
@@ -83,6 +84,7 @@ class Skill(commands.Cog):
         cur_page = 0
         message = await ctx.send(embed=pages[cur_page])
 
+        # kalau cuma 1 halaman, gak perlu reaksi
         if len(pages) == 1:
             return
 
@@ -95,7 +97,7 @@ class Skill(commands.Cog):
         while True:
             try:
                 reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
-                if str(reaction.emoji) == "➡️" and cur_page < len(pages)-1:
+                if str(reaction.emoji) == "➡️" and cur_page < len(pages) - 1:
                     cur_page += 1
                     await message.edit(embed=pages[cur_page])
                 elif str(reaction.emoji) == "⬅️" and cur_page > 0:
