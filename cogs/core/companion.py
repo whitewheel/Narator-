@@ -249,7 +249,7 @@ class Companion(commands.Cog):
         while comp["xp"] >= comp["xp_next"]:
             comp["xp"] -= comp["xp_next"]
             comp["level"] += 1
-            comp["xp_next"] = int(comp["xp_next"] * 1.5)
+            comp["xp_next"] = int(100 * (1.5 ** (comp["level"] - 1)))  # scaling stabil
             leveled_up = True
 
         _save_companions(guild_id, char_name, comps)
@@ -264,31 +264,31 @@ class Companion(commands.Cog):
                 f"💠 XP {comp_name} bertambah +{amount} → total {comp['xp']}/{comp['xp_next']}"
             )
 
-        @comp_group.command(name="subxp")
-        async def comp_sub_xp(self, ctx, char_name: str, comp_name: str, amount: int):
+
+    @comp_group.command(name="subxp")
+    async def comp_sub_xp(self, ctx, char_name: str, comp_name: str, amount: int):
         guild_id = ctx.guild.id
         comps, comp = self._get_comp(guild_id, char_name, comp_name)
         if not comp:
             return await ctx.send("❌ Companion tidak ditemukan.")
-    
-        comp["xp"] = comp.get("xp", 0) - amount
+
+        comp["xp"] -= amount
         leveled_down = False
-    
+
         # Turun level otomatis
         while comp["xp"] < 0 and comp["level"] > 1:
-            # Kembalikan xp_next ke level sebelumnya
-            prev_xp_next = int(comp["xp_next"] / 1.5)
+            prev_xp_next = int(100 * (1.5 ** (comp["level"] - 2)))  # hitung xp_next level sebelumnya
             comp["level"] -= 1
-            comp["xp_next"] = prev_xp_next
+            comp["xp_next"] = int(100 * (1.5 ** (comp["level"] - 1)))
             comp["xp"] += prev_xp_next
             leveled_down = True
-    
-        # Pastikan tidak negatif di level 1
+
+        # Jangan biarkan level 1 negatif
         if comp["level"] == 1 and comp["xp"] < 0:
             comp["xp"] = 0
-    
+
         _save_companions(guild_id, char_name, comps)
-    
+
         if leveled_down:
             await ctx.send(
                 f"🔻 {comp_name} turun ke **Lv {comp['level']}!** "
@@ -298,6 +298,7 @@ class Companion(commands.Cog):
             await ctx.send(
                 f"💠 XP {comp_name} dikurangi -{amount} → total {comp['xp']}/{comp['xp_next']}"
             )
+            
     # ===============================
     # RESOURCE MANAGEMENT (HP/STM/ENE)
     # ===============================
