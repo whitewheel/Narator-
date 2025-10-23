@@ -241,19 +241,22 @@ class Companion(commands.Cog):
         comps, comp = self._get_comp(guild_id, char_name, comp_name)
         if not comp:
             return await ctx.send("❌ Companion tidak ditemukan.")
-
+    
+        # fallback default
         comp["xp"] = comp.get("xp", 0) + amount
+        comp["level"] = comp.get("level", 1)
+        comp["xp_next"] = comp.get("xp_next", int(100 * (1.5 ** (comp["level"] - 1))))
+    
         leveled_up = False
-
-        # Level up otomatis
+    
         while comp["xp"] >= comp["xp_next"]:
             comp["xp"] -= comp["xp_next"]
             comp["level"] += 1
-            comp["xp_next"] = int(100 * (1.5 ** (comp["level"] - 1)))  # scaling stabil
+            comp["xp_next"] = int(100 * (1.5 ** (comp["level"] - 1)))
             leveled_up = True
-
+    
         _save_companions(guild_id, char_name, comps)
-
+    
         if leveled_up:
             await ctx.send(
                 f"💠 {comp_name} naik ke **Lv {comp['level']}!** "
@@ -263,32 +266,33 @@ class Companion(commands.Cog):
             await ctx.send(
                 f"💠 XP {comp_name} bertambah +{amount} → total {comp['xp']}/{comp['xp_next']}"
             )
-
-
+    
+    
     @comp_group.command(name="subxp")
     async def comp_sub_xp(self, ctx, char_name: str, comp_name: str, amount: int):
         guild_id = ctx.guild.id
         comps, comp = self._get_comp(guild_id, char_name, comp_name)
         if not comp:
             return await ctx.send("❌ Companion tidak ditemukan.")
-
-        comp["xp"] -= amount
+    
+        comp["xp"] = comp.get("xp", 0) - amount
+        comp["level"] = comp.get("level", 1)
+        comp["xp_next"] = comp.get("xp_next", int(100 * (1.5 ** (comp["level"] - 1))))
+    
         leveled_down = False
-
-        # Turun level otomatis
+    
         while comp["xp"] < 0 and comp["level"] > 1:
-            prev_xp_next = int(100 * (1.5 ** (comp["level"] - 2)))  # hitung xp_next level sebelumnya
+            prev_xp_next = int(100 * (1.5 ** (comp["level"] - 2)))
             comp["level"] -= 1
             comp["xp_next"] = int(100 * (1.5 ** (comp["level"] - 1)))
             comp["xp"] += prev_xp_next
             leveled_down = True
-
-        # Jangan biarkan level 1 negatif
+    
         if comp["level"] == 1 and comp["xp"] < 0:
             comp["xp"] = 0
-
+    
         _save_companions(guild_id, char_name, comps)
-
+    
         if leveled_down:
             await ctx.send(
                 f"🔻 {comp_name} turun ke **Lv {comp['level']}!** "
