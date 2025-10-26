@@ -14,12 +14,21 @@ def safe_field_value(text: str, limit: int = 1024) -> str:
         return "-"
     return text if len(text) <= limit else text[:limit-3] + "..."
 
+def split_long_field(name: str, text: str, limit: int = 1024):
+    """Pisahkan field panjang menjadi beberapa bagian (auto-split)"""
+    if not text:
+        return [(name, "-")]
+    chunks = [text[i:i+limit] for i in range(0, len(text), limit)]
+    if len(chunks) == 1:
+        return [(name, chunks[0])]
+    return [(f"{name} (bagian {i+1})", chunk) for i, chunk in enumerate(chunks)]
+
 # ===========================
 # Pagination View
 # ===========================
 class ItemPaginator(View):
     def __init__(self, pages):
-        super().__init__(timeout=120)  # auto stop setelah 2 menit
+        super().__init__(timeout=120)
         self.pages = pages
         self.index = 0
 
@@ -48,52 +57,55 @@ class Item(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # ===========================
+    # Parsing multiline entry
+    # ===========================
     def _parse_entry(self, raw: str):
         parts = [p.strip() for p in raw.split("|")]
-        if len(parts) < 6:
-            return None
+        while len(parts) < 10:
+            parts.append("")
+
         try:
-            weight = float(parts[5])
+            weight = float(parts[5]) if parts[5] else 0.1
         except ValueError:
-            return None
+            weight = 0.1
 
         return {
             "name": parts[0],
             "type": parts[1],
             "effect": parts[2],
-            "rarity": parts[3] if len(parts) > 3 else "Common",
-            "value": int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0,
+            "rarity": parts[3] if parts[3] else "Common",
+            "value": int(parts[4]) if parts[4].isdigit() else 0,
             "weight": weight,
-            "slot": parts[6] if len(parts) > 6 else None,
+            "slot": parts[6] if len(parts) > 6 else "",
             "notes": parts[7] if len(parts) > 7 else "",
             "rules": parts[8] if len(parts) > 8 else "",
-            "requirement": parts[9] if len(parts) > 9 else "",  # opsional
+            "requirement": parts[9] if len(parts) > 9 else "",
         }
 
+    # ===========================
+    # Commands
+    # ===========================
     @commands.group(name="item", invoke_without_command=True)
     async def item(self, ctx):
         await ctx.send(
             "📦 **Item Commands**\n"
             "• `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement]`\n"
-            "• `!item show [all|weapon|armor|consumable|accessory|gadget|misc]`\n"
-            "• `!item remove <Nama>`\n"
+            "• `!item show [kategori]`\n"
             "• `!item detail <Nama>`\n"
-            "• `!item edit <Nama> | key=value [key=value...]`\n"
-            "• `!item info <Nama>`\n"
-            "• `!use <Char> <Item>`\n"
-            "• `!item clearall gmacc`\n\n"
-            "⚠️ Kolom **Weight** wajib diisi (angka). Contoh:\n"
-            "`!item add Rust Shiv | Weapon | Damage 1d4 + DEX | Common | 20 | 0.5 | main_hand | Pisau kecil dari scrap logam | Crit 20 (×2) | STR 5+`"
+            "• `!item remove <Nama>`\n"
+            "• `!item edit <Nama> | key=value ...`\n"
+            "• `!use <Char> <Item>`"
         )
 
+    # === ADD ITEM (multiline) ===
     @item.command(name="add")
     async def item_add(self, ctx, *, entry: str):
         guild_id = ctx.guild.id
         data = self._parse_entry(entry)
-        if not data:
-            return await ctx.send("⚠️ Format salah! Gunakan `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement]`")
+        if not data["name"] or not data["type"]:
+            return await ctx.send("⚠️ Format salah! Gunakan: `!item add Nama | Type | Effect | Rarity | Value | Weight | [Slot] | [Notes] | [Rules] | [Requirement]`")
 
-        # Cek duplikat
         existing = item_service.get_item(guild_id, data["name"])
         if existing:
             item_service.remove_item(guild_id, data["name"])
@@ -103,23 +115,24 @@ class Item(commands.Cog):
             item_service.add_item(guild_id, data)
             await ctx.send(f"🧰 Item **{data['name']}** ditambahkan ke katalog.")
 
+    # === SHOW ITEMS ===
     @item.command(name="show")
     async def item_show(self, ctx, *, type_name: str = None):
         guild_id = ctx.guild.id
         items = item_service.list_items(guild_id, limit=9999)
         if not items:
-            return await ctx.send("Tidak ada item.")
+            return await ctx.send("❌ Tidak ada item di katalog.")
 
         if not type_name:
             type_name = "all"
         type_name = type_name.lower()
 
-        # === Filter kategori spesifik ===
+        # filter kategori
         if type_name != "all":
             filtered = []
             collect = False
             for line in items:
-                if line.startswith("__**"):  # kategori baru
+                if line.startswith("__**"):
                     collect = (type_name in line.lower())
                 elif collect and line.strip():
                     filtered.append(line)
@@ -127,13 +140,11 @@ class Item(commands.Cog):
             if not items:
                 return await ctx.send(f"❌ Tidak ada item dengan kategori **{type_name}**.")
 
-        # === Bikin halaman ===
+        # pagination
         per_page = 10
-        pages = []
-        buffer = []
-
+        pages, buffer = [], []
         for line in items:
-            if line.startswith("__**"):  # header kategori
+            if line.startswith("__**"):
                 if buffer:
                     pages.append(buffer)
                     buffer = []
@@ -161,6 +172,36 @@ class Item(commands.Cog):
         view = ItemPaginator(embeds)
         await ctx.send(embed=embeds[0], view=view)
 
+    # === DETAIL (auto split long effect) ===
+    @item.command(name="detail")
+    async def item_detail(self, ctx, *, name: str):
+        guild_id = ctx.guild.id
+        i = item_service.get_item(guild_id, name)
+        if not i:
+            return await ctx.send("❌ Item tidak ditemukan.")
+
+        embed = discord.Embed(
+            title=f"{i.get('icon','🧰')} {i['name']}",
+            description=f"Tipe: **{i['type']}**",
+            color=discord.Color.gold()
+        )
+
+        # Efek panjang auto split
+        for fn, fv in split_long_field("Efek", i.get("effect", "-")):
+            embed.add_field(name=fn, value=fv, inline=False)
+
+        # Lain-lain
+        embed.add_field(name="Rules", value=safe_field_value(i.get("rules","-")), inline=False)
+        embed.add_field(name="Requirement", value=i.get("requirement") or "-", inline=False)
+        embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
+        embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
+        embed.add_field(name="Berat", value=str(i.get("weight",0)), inline=True)
+        embed.add_field(name="Slot", value=str(i.get("slot","-")), inline=True)
+        embed.add_field(name="Notes", value=safe_field_value(i.get("notes","-")), inline=False)
+
+        await ctx.send(embed=embed)
+
+    # === REMOVE / CLEAR ===
     @item.command(name="remove")
     async def item_remove(self, ctx, *, name: str):
         guild_id = ctx.guild.id
@@ -174,82 +215,18 @@ class Item(commands.Cog):
     async def item_clearall(self, ctx, confirm: str = None):
         guild_id = ctx.guild.id
         if confirm != "gmacc":
-            return await ctx.send("⚠️ Konfirmasi salah. Gunakan: `!item clearall gmacc` untuk hapus semua item.")
-
+            return await ctx.send("⚠️ Konfirmasi salah. Gunakan: `!item clearall gmacc`.")
         count = item_service.clear_items(guild_id)
         await ctx.send(f"🗑️ Semua item dihapus dari katalog. (Total: {count})")
 
-    @item.command(name="detail")
-    async def item_detail(self, ctx, *, name: str):
-        guild_id = ctx.guild.id
-        i = item_service.get_item(guild_id, name)
-        if not i:
-            return await ctx.send("❌ Item tidak ditemukan.")
-        embed = discord.Embed(
-            title=f"{i.get('icon','🧰')} {i['name']}",
-            description=f"Tipe: **{i['type']}**",
-            color=discord.Color.gold()
-        )
-        embed.add_field(name="Efek", value=i.get("effect","-"), inline=False)
-        embed.add_field(name="Rules", value=i.get("rules","-"), inline=False)
-        embed.add_field(
-            name="Requirement",
-            value=i.get("requirement") if i.get("requirement") else "-",
-            inline=False
-        )
-        embed.add_field(name="Rarity", value=i.get("rarity","Common"), inline=True)
-        embed.add_field(name="Value", value=str(i.get("value",0)), inline=True)
-        embed.add_field(name="Berat", value=str(i.get("weight",0)), inline=True)
-        embed.add_field(name="Slot", value=str(i.get("slot","-")), inline=True)
-        embed.add_field(name="Notes", value=i.get("notes","-"), inline=False)
-        await ctx.send(embed=embed)
-
-    # === Edit item global ===
-    @item.command(name="edit")
-    async def item_edit(self, ctx, *, entry: str):
-        guild_id = ctx.guild.id
-        try:
-            name, rest = entry.split("|", 1)
-        except ValueError:
-            return await ctx.send("⚠️ Format salah! Gunakan: `!item edit Nama | key=value [key=value...]`")
-
-        name = name.strip()
-        updates = {}
-        for p in rest.split():
-            if "=" in p:
-                k, v = p.split("=", 1)
-                updates[k.strip()] = v.strip()
-
-        found = item_service.get_item(guild_id, name)
-        if not found:
-            return await ctx.send(f"❌ Item {name} tidak ditemukan.")
-
-        found.update(updates)
-        if "weight" in updates:
-            try:
-                found["weight"] = float(updates["weight"])
-            except:
-                return await ctx.send("⚠️ Weight harus angka.")
-
-        item_service.add_item(guild_id, found)
-        await ctx.send(f"📝 Item **{name}** diperbarui: {updates}")
-
-    # === Info singkat item ===
-    @item.command(name="info")
-    async def item_info(self, ctx, *, name: str):
-        guild_id = ctx.guild.id
-        i = item_service.get_item(guild_id, name)
-        if not i:
-            return await ctx.send("❌ Item tidak ditemukan.")
-        req = f" | Req: {i['requirement']}" if i.get("requirement") else " | Req: -"
-        await ctx.send(f"{i.get('icon','📦')} **{i['name']}** | {i['rarity']} | ⚖️ {i['weight']} | ✨ {i.get('effect','-')}{req}")
-
+    # === USE ITEM (tetap sama) ===
     @commands.command(name="use")
     async def use_item(self, ctx, char: str, *, item_name: str):
         guild_id = ctx.guild.id
         i = item_service.get_item(guild_id, item_name)
         if not i:
             return await ctx.send("❌ Item tidak ditemukan.")
+
         rules = i.get("rules","")
         effect = i.get("effect","")
         result_lines = []
@@ -283,14 +260,14 @@ class Item(commands.Cog):
                 elif r.lower().startswith("gm:"):
                     result_lines.append(f"🎙️ GM event: {r.split(':',1)[1]}")
 
-        narasi = f"✨ {char} menggunakan {i['name']}. {effect}"
-        embed = discord.Embed(title=f"🎒 {char} menggunakan item!", color=discord.Color.green())
+        embed = discord.Embed(title=f"🎒 {char} menggunakan {i['name']}!", color=discord.Color.green())
         embed.add_field(name="Item", value=i["name"], inline=False)
         if result_lines:
             embed.add_field(name="Efek Mekanik", value="\n".join(result_lines), inline=False)
-        if effect:
-            embed.add_field(name="Narasi", value=effect, inline=False)
+        for fn, fv in split_long_field("Narasi", effect):
+            embed.add_field(name=fn, value=fv, inline=False)
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Item(bot))
